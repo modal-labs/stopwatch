@@ -22,10 +22,14 @@ with benchmarking_image.imports():
 
 @app.function(
     image=benchmarking_image,
-    container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
-    timeout=TIMEOUT,
     secrets=[hf_secret],
     volumes={RESULTS_PATH: results_volume},
+    cpu=4,
+    memory=2048,
+    container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
+    timeout=TIMEOUT,
+    cloud="oci",
+    region="us-chicago-1",
 )
 def run_benchmark(
     model: str,
@@ -47,12 +51,13 @@ def run_benchmark(
             'prompt_tokens=128,generated_tokens=128').
     """
 
+    logging.info(f"Starting benchmark for {model}")
     fc_id = modal.current_function_call_id()
 
     # Start vLLM server in background
     vLLM = get_vllm_cls(docker_tag=vllm_docker_tag, gpu=gpu)
     vllm = vLLM()
-    vllm.start.spawn(
+    vllm_fc = vllm.start.spawn(
         caller_id=fc_id,
         env_vars=vllm_env_vars,
         vllm_args=["--model", model, *vllm_extra_args],
@@ -90,3 +95,4 @@ def run_benchmark(
     )
 
     logging.info("Benchmark complete")
+    vllm_fc.cancel(terminate_containers=True)

@@ -69,24 +69,39 @@ class vLLMBase:
         subprocess.run(["pkill", "-9", "python3.vllm"])
 
 
-@app.cls(
-    gpu=modal.gpu.H100(),
+def vllm_cls(
     image=vllm_image_factory(),
     secrets=[hf_secret],
+    gpu=modal.gpu.H100(),
+    cpu=4,
+    memory=65536,
     container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
     timeout=TIMEOUT,
-)
+    cloud="oci",
+    region="us-chicago-1",
+):
+    def decorator(cls):
+        return app.cls(
+            image=image,
+            secrets=secrets,
+            gpu=gpu,
+            cpu=cpu,
+            memory=memory,
+            container_idle_timeout=container_idle_timeout,
+            timeout=timeout,
+            cloud=cloud,
+            region=region,
+        )(cls)
+
+    return decorator
+
+
+@vllm_cls()
 class vLLM(vLLMBase):
     pass
 
 
-@app.cls(
-    gpu=modal.gpu.H100(),
-    image=vllm_image_factory("v0.6.3.post1"),
-    secrets=[hf_secret],
-    container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
-    timeout=TIMEOUT,
-)
+@vllm_cls(image=vllm_image_factory("v0.6.3.post1"))
 class vLLM_v0_6_3_post1(vLLMBase):
     pass
 
