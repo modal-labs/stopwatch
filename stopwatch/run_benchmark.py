@@ -4,8 +4,8 @@ import time
 
 import modal
 
-from .resources import app, results_volume, tunnel_urls
-from .vllm_runner import vLLM
+from .resources import app, hf_secret, results_volume, tunnel_urls
+from .vllm_runner import get_vllm_cls
 
 
 CONTAINER_IDLE_TIMEOUT = 5  # 5 seconds
@@ -24,22 +24,39 @@ with benchmarking_image.imports():
     image=benchmarking_image,
     container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
     timeout=TIMEOUT,
+    secrets=[hf_secret],
     volumes={RESULTS_PATH: results_volume},
 )
-def run_benchmark(model: str, data: str = "neuralmagic/LLM_compression_calibration"):
+def run_benchmark(
+    model: str,
+    data: str = "prompt_tokens=512,generated_tokens=128",
+    gpu: str = "H100",
+    vllm_docker_tag: str = "latest",
+    vllm_env_vars: dict = {},
+    vllm_extra_args: list = [],
+):
     """Benchmarks a model on Modal.
 
     Args:
         model (str): Name of the model to benchmark.
-        data (str, optional): Name of the dataset to use for benchmarking.
-            Defaults to "neuralmagic/LLM_compression_calibration".
+        data (str, optional): The data source to use for benchmarking.
+            Depending on the data-type, it should be a path to a data file
+            containing prompts to run (ex: data.txt), a HuggingFace dataset
+            name (ex: 'neuralmagic/LLM_compression_calibration'), or a
+            configuration for emulated data (ex:
+            'prompt_tokens=128,generated_tokens=128').
     """
 
     fc_id = modal.current_function_call_id()
 
     # Start vLLM server in background
+    vLLM = get_vllm_cls(docker_tag=vllm_docker_tag, gpu=gpu)
     vllm = vLLM()
-    vllm.start.spawn(model=model, caller_id=fc_id)
+    vllm.start.spawn(
+        caller_id=fc_id,
+        env_vars=vllm_env_vars,
+        vllm_args=["--model", model, *vllm_extra_args],
+    )
 
     # Wait for vLLM server to start
     while True:
@@ -62,7 +79,7 @@ def run_benchmark(model: str, data: str = "neuralmagic/LLM_compression_calibrati
         backend="openai_server",
         model=model,
         data=data,
-        data_type="transformers",
+        data_type="emulated",
         tokenizer=None,
         rate_type="sweep",
         rate=None,
