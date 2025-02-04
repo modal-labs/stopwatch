@@ -1,4 +1,4 @@
-# stopwatch ⏱️
+# stopwatch
 
 _A simple solution for benchmarking LLMs on Modal._ ⏱️
 
