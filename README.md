@@ -19,5 +19,11 @@ modal deploy stopwatch
 ## Run benchmark
 
 ```bash
-python run_benchmark.py --model meta-llama/Llama-3.1-8B-Instruct -e VLLM_USE_V1=1
+python cli.py run-benchmark --model meta-llama/Llama-3.1-8B-Instruct -e VLLM_USE_V1=1
+```
+
+## Run and plot multiple benchmarks
+
+```bash
+python cli.py generate-figure benchmarks/vllm-v1-engine.yaml
 ```

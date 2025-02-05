@@ -1,21 +1,23 @@
-import logging
-import os
-import time
-
 import modal
 
-from .resources import app, hf_secret, results_volume, tunnel_urls
+from .benchmark import BenchmarkDefaults, get_benchmark_fingerprint
+from .resources import app, hf_secret, results_dict, results_volume, tunnel_urls
 from .vllm_runner import get_vllm_cls
 
 
 CONTAINER_IDLE_TIMEOUT = 5  # 5 seconds
-MAX_SECONDS_PER_BENCHMARK_RUN = 120
+MAX_SECONDS_PER_BENCHMARK_RUN = 120  # 2 minutes
 RESULTS_PATH = "/results"
 TIMEOUT = 60 * 60  # 1 hour
 
 benchmarking_image = modal.Image.debian_slim().pip_install("guidellm", "requests")
 
 with benchmarking_image.imports():
+    from typing import Dict, List
+    import logging
+    import os
+    import time
+
     from guidellm import generate_benchmark_report
     import requests
 
@@ -33,22 +35,29 @@ with benchmarking_image.imports():
 )
 def run_benchmark(
     model: str,
-    data: str = "prompt_tokens=512,generated_tokens=128",
-    gpu: str = "H100",
-    vllm_docker_tag: str = "latest",
-    vllm_env_vars: dict = {},
-    vllm_extra_args: list = [],
+    data: str = BenchmarkDefaults.DATA,
+    data_type: str = BenchmarkDefaults.DATA_TYPE,
+    gpu: str = BenchmarkDefaults.GPU,
+    vllm_docker_tag: str = BenchmarkDefaults.VLLM_DOCKER_TAG,
+    vllm_env_vars: Dict[str, str] = BenchmarkDefaults.VLLM_ENV_VARS,
+    vllm_extra_args: List[str] = BenchmarkDefaults.VLLM_EXTRA_ARGS,
 ):
     """Benchmarks a model on Modal.
 
     Args:
-        model (str): Name of the model to benchmark.
-        data (str, optional): The data source to use for benchmarking.
-            Depending on the data-type, it should be a path to a data file
-            containing prompts to run (ex: data.txt), a HuggingFace dataset
-            name (ex: 'neuralmagic/LLM_compression_calibration'), or a
-            configuration for emulated data (ex:
-            'prompt_tokens=128,generated_tokens=128').
+        model (str, required): Name of the model to benchmark.
+        data (str): The data source to use for benchmarking. Depending on the
+            data-type, it should be a path to a data file containing prompts to
+            run (ex: data.txt), a HuggingFace dataset name (ex:
+            'neuralmagic/LLM_compression_calibration'), or a configuration for
+            emulated data (ex: 'prompt_tokens=128,generated_tokens=128').
+        data_type (str): The type of data to use, such as 'emulated', 'file',
+            or 'transformers'.
+        gpu (str): The GPU to use for benchmarking.
+        vllm_docker_tag (str): Tag of the vLLM server docker image. Defaults to
+            `latest`.
+        vllm_env_vars (dict): Environment variables to pass to the vLLM server.
+        vllm_extra_args (list): Extra arguments to pass to the vLLM server.
     """
 
     logging.info(f"Starting benchmark for {model}")
@@ -84,7 +93,7 @@ def run_benchmark(
         backend="openai_server",
         model=model,
         data=data,
-        data_type="emulated",
+        data_type=data_type,
         tokenizer=None,
         rate_type="sweep",
         rate=None,
@@ -93,6 +102,20 @@ def run_benchmark(
         output_path=os.path.join(RESULTS_PATH, f"{fc_id}.json"),
         cont_refresh_table=False,
     )
+    results_volume.commit()
 
+    # Cache results path
+    fingerprint = get_benchmark_fingerprint(
+        model=model,
+        data=data,
+        data_type=data_type,
+        gpu=gpu,
+        vllm_docker_tag=vllm_docker_tag,
+        vllm_env_vars=vllm_env_vars,
+        vllm_extra_args=vllm_extra_args,
+    )
+    results_dict[fingerprint] = fc_id
+
+    # Clean up
     logging.info("Benchmark complete")
     vllm_fc.cancel(terminate_containers=True)

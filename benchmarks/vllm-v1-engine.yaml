@@ -1,0 +1,14 @@
+title: meta-llama/Llama-3.1-8B Benchmark Results
+benchmarks:
+  - name: Baseline
+    config:
+      model: meta-llama/Meta-Llama-3.1-8B-Instruct
+  - name: VLLM_USE_V1=1
+    config:
+      model: meta-llama/Meta-Llama-3.1-8B-Instruct
+      vllm_env_vars:
+        VLLM_USE_V1: "1"
+  - name: vLLM v0.6.6
+    config:
+      model: meta-llama/Meta-Llama-3.1-8B-Instruct
+      vllm_docker_tag: v0.6.6

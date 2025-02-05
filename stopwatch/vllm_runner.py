@@ -62,7 +62,7 @@ class vLLMBase:
     @modal.exit()
     def shutdown(self):
         # Remove tunnel URL from dict
-        if hasattr(self, "caller_id"):
+        if hasattr(self, "caller_id") and self.caller_id in tunnel_urls:
             tunnel_urls.pop(self.caller_id)
 
         # Kill vLLM server
@@ -101,16 +101,16 @@ class vLLM(vLLMBase):
     pass
 
 
-@vllm_cls(image=vllm_image_factory("v0.6.3.post1"))
-class vLLM_v0_6_3_post1(vLLMBase):
+@vllm_cls(image=vllm_image_factory("v0.6.6"))
+class vLLM_v0_6_6(vLLMBase):
     pass
 
 
 def get_vllm_cls(docker_tag: str = "latest", gpu: str = "H100"):
     if docker_tag == "latest":
         cls = vLLM
-    elif docker_tag == "v0.6.3.post1":
-        cls = vLLM_v0_6_3_post1
+    elif docker_tag == "v0.6.6":
+        cls = vLLM_v0_6_6
     else:
         raise ValueError(f"Invalid vLLM docker tag: {docker_tag}")
 
