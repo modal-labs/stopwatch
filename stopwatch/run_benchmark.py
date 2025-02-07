@@ -10,16 +10,19 @@ MAX_SECONDS_PER_BENCHMARK_RUN = 120  # 2 minutes
 RESULTS_PATH = "/results"
 TIMEOUT = 60 * 60  # 1 hour
 
-benchmarking_image = modal.Image.debian_slim().pip_install("guidellm", "requests")
+benchmarking_image = modal.Image.debian_slim().pip_install(
+    "guidellm", "prometheus-client", "requests"
+)
 
 with benchmarking_image.imports():
     from typing import Dict, List
-    import logging
     import os
     import time
 
     from guidellm import generate_benchmark_report
     import requests
+
+    from .custom_metrics import vllm_monkey_patch
 
 
 @app.function(
@@ -60,7 +63,7 @@ def run_benchmark(
         vllm_extra_args (list): Extra arguments to pass to the vLLM server.
     """
 
-    logging.info(f"Starting benchmark for {model}")
+    print(f"Starting benchmark for {model}")
     fc_id = modal.current_function_call_id()
 
     # Start vLLM server in background
@@ -82,14 +85,17 @@ def run_benchmark(
 
         try:
             requests.get(url)
-            logging.info(f"Connected to vLLM instance at {url}")
+            print(f"Connected to vLLM instance at {url}")
             break
         except Exception:
             continue
 
+    metrics_url = f"{url}/metrics"
+    vllm_monkey_patch(metrics_url)
+
     # Run benchmark with guidellm
     generate_benchmark_report(
-        target=url,
+        target=f"{url}/v1",
         backend="openai_server",
         model=model,
         data=data,
@@ -117,5 +123,5 @@ def run_benchmark(
     results_dict[fingerprint] = fc_id
 
     # Clean up
-    logging.info("Benchmark complete")
+    print("Benchmark complete")
     vllm_fc.cancel(terminate_containers=True)

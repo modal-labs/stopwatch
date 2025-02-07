@@ -1,4 +1,3 @@
-import logging
 import os
 import subprocess
 
@@ -44,10 +43,10 @@ class vLLMBase:
             os.environ[key] = value
 
         with modal.forward(VLLM_PORT) as tunnel:
-            logging.info(f"Starting vLLM server at {tunnel.url}")
+            print(f"Starting vLLM server at {tunnel.url}")
 
             # Save tunnel URL so that the benchmarking runner can access it
-            tunnel_urls[caller_id] = f"{tunnel.url}/v1"
+            tunnel_urls[caller_id] = tunnel.url
 
             # Start vLLM server
             subprocess.run(
