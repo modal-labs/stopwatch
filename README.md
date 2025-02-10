@@ -1,6 +1,6 @@
 # stopwatch
 
-_A simple solution for benchmarking LLMs on [Modal](https://modal.com/) with [guidellm](https://github.com/neuralmagic/guidellm)._ ⏱️
+_A simple solution for benchmarking [vLLM](https://docs.vllm.ai/en/latest/) on [Modal](https://modal.com/) with [guidellm](https://github.com/neuralmagic/guidellm)._ ⏱️
 
 ## Setup
 
@@ -61,7 +61,9 @@ benchmarks:
 
 ...will generate the following figure:
 
-![](/benchmarks/vllm-v1-engine.png)
+<p align="center">
+  <img src="/benchmarks/vllm-v1-engine.png" style="max-width: 512px;" />
+</p>
 
 ## License
 
