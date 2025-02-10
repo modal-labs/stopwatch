@@ -62,7 +62,7 @@ benchmarks:
 ...will generate the following figure:
 
 <p align="center">
-  <img src="/benchmarks/vllm-v1-engine.png" style="max-width: 512px;" />
+  <img src="/benchmarks/vllm-v1-engine.png" width="512" />
 </p>
 
 ## License
