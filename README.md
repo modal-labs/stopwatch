@@ -1,6 +1,6 @@
 # stopwatch
 
-_A simple solution for benchmarking LLMs on Modal with [guidellm](https://github.com/neuralmagic/guidellm)._ ⏱️
+_A simple solution for benchmarking LLMs on [Modal](https://modal.com/) with [guidellm](https://github.com/neuralmagic/guidellm)._ ⏱️
 
 ## Setup
 
@@ -18,12 +18,51 @@ modal deploy stopwatch
 
 ## Run benchmark
 
+To run a single benchmark, you can use the `run-benchmark` command.
+For example:
+
 ```bash
-python cli.py run-benchmark --model meta-llama/Llama-3.1-8B-Instruct -e VLLM_USE_V1=1
+$ python cli.py run-benchmark --model meta-llama/Llama-3.1-8B-Instruct -e VLLM_USE_V1=1
+Benchmark running at fc-XXXXXXXX
+```
+
+You can then download the results of the benchmark from the `stopwatch-results` volume:
+
+```bash
+modal volume get stopwatch-results fc-XXXXXXXX.json
 ```
 
 ## Run and plot multiple benchmarks
 
+To run multiple benchmarks at once, you can use the `generate-figure` command, along with a configuration file. For example, running the following command...
+
 ```bash
 python cli.py generate-figure benchmarks/vllm-v1-engine.yaml
 ```
+
+...which points to the following config...
+
+```yaml
+title: meta-llama/Llama-3.1-8B Benchmark Results
+benchmarks:
+  - name: Baseline
+    config:
+      model: meta-llama/Meta-Llama-3.1-8B-Instruct
+  - name: VLLM_USE_V1=1
+    config:
+      model: meta-llama/Meta-Llama-3.1-8B-Instruct
+      vllm_env_vars:
+        VLLM_USE_V1: "1"
+  - name: vLLM v0.6.6
+    config:
+      model: meta-llama/Meta-Llama-3.1-8B-Instruct
+      vllm_docker_tag: v0.6.6
+```
+
+...will generate the following figure:
+
+![](/benchmarks/vllm-v1-engine.png)
+
+## License
+
+Stopwatch is available under the MIT license. See the [LICENSE](/LICENSE.md) file for more details.
