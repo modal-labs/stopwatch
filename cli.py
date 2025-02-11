@@ -63,7 +63,7 @@ def run_benchmark(**kwargs):
         k: v for k, v in (e.split("=") for e in kwargs["vllm_env_vars"])
     }
     kwargs["vllm_extra_args"] = (
-        kwargs["vllm_extra_args"].split(" ") if kwargs["vllm_extra_args"] else [],
+        kwargs["vllm_extra_args"].split(" ") if kwargs["vllm_extra_args"] else []
     )
 
     f = modal.Function.from_name("stopwatch", "run_benchmark")
