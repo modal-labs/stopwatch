@@ -1,12 +1,16 @@
+import contextlib
 import os
 import subprocess
+import time
+import urllib.request
 
 import modal
 
-from .resources import app, hf_secret, tunnel_urls
+from .resources import app, hf_secret, traces_volume, tunnel_urls
 
 CONTAINER_IDLE_TIMEOUT = 30  # 30 seconds
 TIMEOUT = 60 * 60  # 1 hour
+TRACES_PATH = "/traces"
 VLLM_PORT = 8000
 
 
@@ -64,6 +68,10 @@ class vLLMBase:
         if hasattr(self, "caller_id") and self.caller_id in tunnel_urls:
             tunnel_urls.pop(self.caller_id)
 
+        # Commit traces volume
+        print(os.listdir(TRACES_PATH))
+        traces_volume.commit()
+
         # Kill vLLM server
         subprocess.run(["pkill", "-9", "python3.vllm"])
 
@@ -72,6 +80,7 @@ def vllm_cls(
     image=vllm_image_factory(),
     secrets=[hf_secret],
     gpu=modal.gpu.H100(),
+    volumes={TRACES_PATH: traces_volume},
     cpu=4,
     memory=65536,
     container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
@@ -84,6 +93,7 @@ def vllm_cls(
             image=image,
             secrets=secrets,
             gpu=gpu,
+            volumes=volumes,
             cpu=cpu,
             memory=memory,
             container_idle_timeout=container_idle_timeout,
@@ -105,7 +115,16 @@ class vLLM_v0_6_6(vLLMBase):
     pass
 
 
-def get_vllm_cls(docker_tag: str = "latest", gpu: str = "H100"):
+@contextlib.contextmanager
+def vllm(
+    model: str,
+    docker_tag: str = "latest",
+    env_vars: dict = {},
+    extra_args: list = [],
+    gpu: str = "H100",
+    profile: bool = False,
+):
+    # Pick vLLM server class
     if docker_tag == "latest":
         cls = vLLM
     elif docker_tag == "v0.6.6":
@@ -113,4 +132,40 @@ def get_vllm_cls(docker_tag: str = "latest", gpu: str = "H100"):
     else:
         raise ValueError(f"Invalid vLLM docker tag: {docker_tag}")
 
-    return cls.with_options(gpu=gpu)
+    caller_id = modal.current_function_call_id()
+
+    # Start the vLLM server
+    vllm = cls.with_options(gpu=gpu)()
+    vllm_fc = vllm.start.spawn(
+        caller_id=caller_id,
+        env_vars=env_vars,
+        vllm_args=["--model", model, *extra_args],
+    )
+
+    # Wait for vLLM server to start
+    while True:
+        time.sleep(5)
+        url = tunnel_urls.get(caller_id, None)
+
+        if url is None:
+            continue
+
+        try:
+            urllib.request.urlopen(f"{url}/metrics")
+            print(f"Connected to vLLM instance at {url}")
+            break
+        except Exception:
+            continue
+
+    if profile:
+        req = urllib.request.Request(f"{url}/start_profile", method="POST")
+        urllib.request.urlopen(req)
+
+    try:
+        yield url
+    finally:
+        if profile:
+            req = urllib.request.Request(f"{url}/stop_profile", method="POST")
+            urllib.request.urlopen(req)
+
+        vllm_fc.cancel()

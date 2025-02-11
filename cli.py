@@ -57,26 +57,36 @@ def cli():
     default="",
     help="Extra arguments to pass to the vLLM server.",
 )
-def run_benchmark(
-    model: str,
-    data: str,
-    data_type: str,
-    gpu: str,
-    vllm_docker_tag: str,
-    vllm_env_vars: list[str],
-    vllm_extra_args: str,
-):
-    f = modal.Function.from_name("stopwatch", "run_benchmark")
-    fc = f.spawn(
-        model=model,
-        data=data,
-        data_type=data_type,
-        gpu=gpu,
-        vllm_docker_tag=vllm_docker_tag,
-        vllm_env_vars={k: v for k, v in (e.split("=") for e in vllm_env_vars)},
-        vllm_extra_args=vllm_extra_args.split(" ") if vllm_extra_args else [],
+def run_benchmark(**kwargs):
+    kwargs["vllm_env_vars"] = {
+        k: v for k, v in (e.split("=") for e in kwargs["vllm_env_vars"])
+    }
+    kwargs["vllm_extra_args"] = (
+        kwargs["vllm_extra_args"].split(" ") if kwargs["vllm_extra_args"] else [],
     )
+
+    f = modal.Function.from_name("stopwatch", "run_benchmark")
+    fc = f.spawn(**kwargs)
     print(f"Benchmark running at {fc.object_id}")
+
+
+@cli.command()
+@click.option(
+    "--model",
+    type=str,
+    help="Name of the model to run while profiling vLLM.",
+    required=True,
+)
+@click.option(
+    "--num-requests",
+    type=int,
+    help="Number of requests to make to vLLM while profiling.",
+    default=10,
+)
+def run_profiler(**kwargs):
+    f = modal.Function.from_name("stopwatch", "run_profiler")
+    fc = f.spawn(**kwargs)
+    print(f"Profiler running at {fc.object_id}")
 
 
 @cli.command()

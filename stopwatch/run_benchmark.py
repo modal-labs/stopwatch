@@ -1,8 +1,8 @@
 import modal
 
 from .benchmark import BenchmarkDefaults, get_benchmark_fingerprint
-from .resources import app, hf_secret, results_dict, results_volume, tunnel_urls
-from .vllm_runner import get_vllm_cls
+from .resources import app, hf_secret, results_dict, results_volume
+from .vllm_runner import vllm
 
 
 CONTAINER_IDLE_TIMEOUT = 5  # 5 seconds
@@ -11,16 +11,14 @@ RESULTS_PATH = "/results"
 TIMEOUT = 60 * 60  # 1 hour
 
 benchmarking_image = modal.Image.debian_slim().pip_install(
-    "guidellm", "prometheus-client", "requests"
+    "guidellm", "prometheus-client"
 )
 
 with benchmarking_image.imports():
     from typing import Dict, List
     import os
-    import time
 
     from guidellm import generate_benchmark_report
-    import requests
 
     from .custom_metrics import vllm_monkey_patch
 
@@ -64,51 +62,35 @@ def run_benchmark(
     """
 
     print(f"Starting benchmark for {model}")
-    fc_id = modal.current_function_call_id()
+    caller_id = modal.current_function_call_id()
 
     # Start vLLM server in background
-    vLLM = get_vllm_cls(docker_tag=vllm_docker_tag, gpu=gpu)
-    vllm = vLLM()
-    vllm_fc = vllm.start.spawn(
-        caller_id=fc_id,
+    with vllm(
+        model,
+        docker_tag=vllm_docker_tag,
         env_vars=vllm_env_vars,
-        vllm_args=["--model", model, *vllm_extra_args],
-    )
+        extra_args=vllm_extra_args,
+        gpu=gpu,
+    ) as vllm_url:
+        metrics_url = f"{vllm_url}/metrics"
+        vllm_monkey_patch(metrics_url)
 
-    # Wait for vLLM server to start
-    while True:
-        time.sleep(5)
-        url = tunnel_urls.get(fc_id, None)
-
-        if url is None:
-            continue
-
-        try:
-            requests.get(url)
-            print(f"Connected to vLLM instance at {url}")
-            break
-        except Exception:
-            continue
-
-    metrics_url = f"{url}/metrics"
-    vllm_monkey_patch(metrics_url)
-
-    # Run benchmark with guidellm
-    generate_benchmark_report(
-        target=f"{url}/v1",
-        backend="openai_server",
-        model=model,
-        data=data,
-        data_type=data_type,
-        tokenizer=None,
-        rate_type="sweep",
-        rate=None,
-        max_seconds=MAX_SECONDS_PER_BENCHMARK_RUN,
-        max_requests=None,
-        output_path=os.path.join(RESULTS_PATH, f"{fc_id}.json"),
-        cont_refresh_table=False,
-    )
-    results_volume.commit()
+        # Run benchmark with guidellm
+        generate_benchmark_report(
+            target=f"{vllm_url}/v1",
+            backend="openai_server",
+            model=model,
+            data=data,
+            data_type=data_type,
+            tokenizer=None,
+            rate_type="sweep",
+            rate=None,
+            max_seconds=MAX_SECONDS_PER_BENCHMARK_RUN,
+            max_requests=None,
+            output_path=os.path.join(RESULTS_PATH, f"{caller_id}.json"),
+            cont_refresh_table=False,
+        )
+        results_volume.commit()
 
     # Cache results path
     fingerprint = get_benchmark_fingerprint(
@@ -120,8 +102,4 @@ def run_benchmark(
         vllm_env_vars=vllm_env_vars,
         vllm_extra_args=vllm_extra_args,
     )
-    results_dict[fingerprint] = fc_id
-
-    # Clean up
-    print("Benchmark complete")
-    vllm_fc.cancel(terminate_containers=True)
+    results_dict[fingerprint] = caller_id
