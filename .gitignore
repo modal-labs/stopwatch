@@ -3,3 +3,4 @@ __pycache__/
 *.json
 *.ipynb
 .DS_Store
+traces/

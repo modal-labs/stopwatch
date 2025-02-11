@@ -1,10 +1,11 @@
+import os
 import subprocess
 import yaml
 
 import click
 import modal
 
-FIGURES_VOLUME_NAME = "stopwatch-figures"
+from stopwatch.resources import figures_volume, traces_volume
 
 
 @click.group()
@@ -86,7 +87,22 @@ def run_benchmark(**kwargs):
 def run_profiler(**kwargs):
     f = modal.Function.from_name("stopwatch", "run_profiler")
     fc = f.spawn(**kwargs)
-    print(f"Profiler running at {fc.object_id}")
+    print(f"Profiler running at {fc.object_id}...")
+    trace_path = fc.get()
+
+    # Download and save trace
+    os.makedirs("traces", exist_ok=True)
+    local_trace_path = os.path.join("traces", trace_path)
+
+    with open(local_trace_path, "wb") as f:
+        for chunk in traces_volume.read_file(trace_path):
+            f.write(chunk)
+
+    # Optionally show file in Finder
+    answer = input(f"Saved to {trace_path}. Show in Finder? [Y/n] ")
+
+    if answer != "n":
+        subprocess.run(["open", "-R", local_trace_path])
 
 
 @cli.command()
@@ -99,7 +115,6 @@ def generate_figure(config_path: str):
     remote_figure_path = fc.get()
 
     # Download and save figure
-    figures_volume = modal.Volume.from_name(FIGURES_VOLUME_NAME)
     local_figure_path = config_path.replace(".yaml", ".png")
 
     with open(local_figure_path, "wb") as f:

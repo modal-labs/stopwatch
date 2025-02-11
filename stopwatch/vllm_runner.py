@@ -69,7 +69,6 @@ class vLLMBase:
             tunnel_urls.pop(self.caller_id)
 
         # Commit traces volume
-        print(os.listdir(TRACES_PATH))
         traces_volume.commit()
 
         # Kill vLLM server

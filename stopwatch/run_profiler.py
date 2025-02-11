@@ -1,7 +1,7 @@
 import modal
 
 from .benchmark import BenchmarkDefaults
-from .resources import app
+from .resources import app, traces_volume
 from .vllm_runner import vllm
 
 
@@ -18,6 +18,7 @@ with profiling_image.imports():
 
 @app.function(
     image=profiling_image,
+    volumes={TRACES_PATH: traces_volume},
     timeout=TIMEOUT,
     cloud="oci",
     region="us-chicago-1",
@@ -66,3 +67,14 @@ def run_profiler(
                 stream=False,
                 logprobs=3,
             )
+
+    # Find and return trace path
+    most_recent_path = None
+    most_recent_timestamp = 0
+
+    for file in traces_volume.iterdir("/"):
+        if file.mtime > most_recent_timestamp:
+            most_recent_timestamp = file.mtime
+            most_recent_path = file.path
+
+    return most_recent_path
