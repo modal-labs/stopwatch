@@ -65,6 +65,18 @@ benchmarks:
   <img src="/benchmarks/vllm-v1-engine.png" width="512" />
 </p>
 
+## Run profiler
+
+To profile vLLM with the PyTorch profiler, use the following command:
+
+```bash
+python cli.py run-profiler --model meta-llama/Llama-3.1-8B-Instruct --num-requests 10
+```
+
+Once the profiling is done, you will be prompted to download the generated trace and reveal it in Finder.
+Keep in mind that generated traces can get very large, so it is recommended to only send a few requests while profiling.
+Traces can then be visualized at [https://ui.perfetto.dev](https://ui.perfetto.dev).
+
 ## License
 
 Stopwatch is available under the MIT license. See the [LICENSE](/LICENSE.md) file for more details.
