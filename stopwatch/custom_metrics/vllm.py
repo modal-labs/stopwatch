@@ -90,56 +90,103 @@ class SchedulerWithvLLMMetrics(Scheduler):
 
 class vLLMMetrics(Serializable):
 
+    end_to_end_request_latency: Histogram = Field(
+        default_factory=Histogram,
+        title="vllm:e2e_request_latency_seconds",
+        description="Histogram of end-to-end request latency in seconds.",
+    )
+
     kv_cache_usage: float = Field(
         default=0,
+        title="vllm:gpu_cache_usage_perc",
         description="GPU KV cache usage. 1 means 100 percent usage.",
+    )
+
+    request_decode_time: Histogram = Field(
+        default_factory=Histogram,
+        title="vllm:request_decode_time_seconds",
+        description="Histogram of time spent in DECODE phase for requests.",
+    )
+
+    request_inference_time: Histogram = Field(
+        default_factory=Histogram,
+        title="vllm:request_inference_time_seconds",
+        description="Histogram of time spent in RUNNING phase for requests.",
+    )
+
+    request_prefill_time: Histogram = Field(
+        default_factory=Histogram,
+        title="vllm:request_prefill_time_seconds",
+        description="Histogram of time spent in PREFILL phase for requests.",
+    )
+
+    request_waiting_time: Histogram = Field(
+        default_factory=Histogram,
+        title="vllm:request_queue_time_seconds",
+        description="Histogram of time spent in WAITING phase for requests.",
+    )
+
+    tokens_per_engine_step: Histogram = Field(
+        default_factory=Histogram,
+        title="vllm:iteration_tokens_total",
+        description="Histogram of number of tokens processed per engine_step.",
+    )
+
+    time_to_first_token: Histogram = Field(
+        default_factory=Histogram,
+        title="vllm:time_to_first_token_seconds",
+        description="Histogram of time to first token in seconds.",
     )
 
     time_per_output_token: Histogram = Field(
         default_factory=Histogram,
+        title="vllm:time_per_output_token_seconds",
         description="Histogram of time per output token in seconds.",
     )
 
     def __init__(self, metric_families, first_metric_families):
         super().__init__()
 
-        # TPOT is returned cumulatively since the vLLM server starts up, so we
-        # need to subtract all samples from the first metric family to get the
-        # values for this benchmark.
-        first_tpot_family_samples = list(
-            filter(
-                lambda sample: sample.name
-                == "vllm:time_per_output_token_seconds_bucket",
-                next(
-                    filter(
-                        lambda family: family.name
-                        == "vllm:time_per_output_token_seconds",
-                        first_metric_families,
-                    )
-                ).samples,
+        def get_histogram_samples(metric_family):
+            return list(
+                filter(
+                    lambda sample: sample.name.endswith("bucket"), metric_family.samples
+                )
             )
-        )
+
+        # All histogram data is returned cumulatively since the vLLM server
+        # started up, so we need to subtract all samples from the first metric
+        # family to get the values for each benchmark.
+        first_histogram_samples = {
+            family.name: get_histogram_samples(family)
+            for family in first_metric_families
+            if family.type == "histogram"
+        }
+
+        vllm_keys_to_field_names = {
+            field_info.title: field_name
+            for field_name, field_info in self.model_fields.items()
+        }
 
         for family in metric_families:
-            if family.name == "vllm:gpu_cache_usage_perc":
-                self.kv_cache_usage = family.samples[0].value
-            elif family.name == "vllm:time_per_output_token_seconds":
-                samples = list(
-                    filter(
-                        lambda sample: sample.name
-                        == "vllm:time_per_output_token_seconds_bucket",
-                        family.samples,
-                    )
-                )
+            if family.name not in vllm_keys_to_field_names:
+                continue
 
-                assert len(samples) == len(first_tpot_family_samples)
+            if family.type == "gauge":
+                setattr(
+                    self, vllm_keys_to_field_names[family.name], family.samples[0].value
+                )
+            elif family.type == "histogram":
+                samples = get_histogram_samples(family)
+
+                assert len(samples) == len(first_histogram_samples[family.name])
 
                 counts = [
-                    sample.value - first_tpot_family_samples[i].value
+                    sample.value - first_histogram_samples[family.name][i].value
                     for i, sample in enumerate(samples)
                 ]
 
-                self.time_per_output_token.set_data(
+                getattr(self, vllm_keys_to_field_names[family.name]).set_data(
                     # The counts are cumulative, so we need to subtract the
                     # counts from the previous bucket to get the actual count
                     # for each bucket.
@@ -156,6 +203,8 @@ class vLLMMetrics(Serializable):
                         ],
                     ],
                 )
+            else:
+                raise ValueError(f"Unsupported metric type: {family.type}")
 
 
 class TextGenerationBenchmarkWithvLLMMetrics(TextGenerationBenchmark):
