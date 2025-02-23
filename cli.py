@@ -1,11 +1,34 @@
 import os
 import subprocess
+import uuid
 import yaml
 
+from jinja2 import Template
 import click
 import modal
 
 from stopwatch.resources import figures_volume, traces_volume
+
+
+def create_deployment(deploy_ids: list[str], configs: list[dict]):
+    # Write to deploy.py
+    with open(os.path.join("stopwatch", "deploy.py"), "w") as f:
+        # Add imports
+        f.write(
+            "from stopwatch.vllm_runner import vLLMBase, vllm_cls, vllm_image_factory"
+            "\n\n"
+        )
+
+        template = Template(
+            open(os.path.join("stopwatch", "vllm_deployment.jinja")).read()
+        )
+
+        # Add vLLM classes
+        for deploy_id, config in zip(deploy_ids, configs):
+            f.write(template.render(vllm_deployment_id=deploy_id, **config))
+
+    # Deploy to Modal
+    os.system("modal deploy stopwatch")
 
 
 @click.group()
@@ -66,8 +89,20 @@ def run_benchmark(**kwargs):
         kwargs["vllm_extra_args"].split(" ") if kwargs["vllm_extra_args"] else []
     )
 
+    # Prepare a vLLM deployment
+    vllm_deployment_id = uuid.uuid4().hex[:8]
+    create_deployment(
+        [vllm_deployment_id],
+        [
+            {
+                "vllm_args": ["--model", kwargs["model"], *kwargs["vllm_extra_args"]],
+                "vllm_env_vars": kwargs["vllm_env_vars"],
+            }
+        ],
+    )
+
     f = modal.Function.from_name("stopwatch", "run_benchmark")
-    fc = f.spawn(**kwargs)
+    fc = f.spawn(vllm_deployment_id, **kwargs)
     print(f"Benchmark running at {fc.object_id}")
 
 

@@ -1,14 +1,14 @@
 import contextlib
 import os
 import subprocess
-import time
 import urllib.request
 
 import modal
 
-from .resources import app, hf_secret, traces_volume, tunnel_urls
+from .resources import app, hf_secret, traces_volume
 
 CONTAINER_IDLE_TIMEOUT = 30  # 30 seconds
+STARTUP_TIMEOUT = 5 * 60  # 5 minutes
 TIMEOUT = 60 * 60  # 1 hour
 TRACES_PATH = "/traces"
 VLLM_PORT = 8000
@@ -30,49 +30,28 @@ class vLLMBase:
     tunnel, the URL for which is stored in a shared dict.
     """
 
-    @modal.method()
-    def start(self, caller_id: str, env_vars: dict = {}, vllm_args: list = []):
-        """Start the vLLM server.
+    env_vars: dict[str, str] = {}
+    vllm_args: list[str] = []
 
-        Args:
-            caller_id (str): ID of the function call that started the vLLM server.
-            env_vars (dict): Environment variables to set for the vLLM server.
-            vllm_args (list): Arguments to pass to the vLLM server.
-        """
+    @modal.web_server(port=VLLM_PORT, startup_timeout=STARTUP_TIMEOUT)
+    def start(self):
+        """Start a vLLM server."""
 
-        self.caller_id = caller_id
+        assert self.vllm_args, "vllm_args must be set"
 
-        # Set environment variables
-        for key, value in env_vars.items():
-            os.environ[key] = value
-
-        with modal.forward(VLLM_PORT) as tunnel:
-            print(f"Starting vLLM server at {tunnel.url}")
-
-            # Save tunnel URL so that the benchmarking runner can access it
-            tunnel_urls[caller_id] = tunnel.url
-
-            # Start vLLM server
-            subprocess.run(
-                [
-                    "python3.vllm",
-                    "-m",
-                    "vllm.entrypoints.openai.api_server",
-                    *vllm_args,
-                ]
-            )
-
-    @modal.exit()
-    def shutdown(self):
-        # Remove tunnel URL from dict
-        if hasattr(self, "caller_id") and self.caller_id in tunnel_urls:
-            tunnel_urls.pop(self.caller_id)
-
-        # Commit traces volume
-        traces_volume.commit()
-
-        # Kill vLLM server
-        subprocess.run(["pkill", "-9", "python3.vllm"])
+        # Start vLLM server
+        subprocess.Popen(
+            [
+                "python3.vllm",
+                "-m",
+                "vllm.entrypoints.openai.api_server",
+                *self.vllm_args,
+            ],
+            env={
+                **os.environ,
+                **self.env_vars,
+            },
+        )
 
 
 def vllm_cls(
@@ -95,6 +74,8 @@ def vllm_cls(
             volumes=volumes,
             cpu=cpu,
             memory=memory,
+            # Set to a high number to prevent auto-scaling
+            allow_concurrent_inputs=1000,
             container_idle_timeout=container_idle_timeout,
             timeout=timeout,
             cloud=cloud,
@@ -104,57 +85,14 @@ def vllm_cls(
     return decorator
 
 
-@vllm_cls()
-class vLLM(vLLMBase):
-    pass
-
-
-@vllm_cls(image=vllm_image_factory("v0.6.6"))
-class vLLM_v0_6_6(vLLMBase):
-    pass
-
-
 @contextlib.contextmanager
-def vllm(
-    model: str,
-    docker_tag: str = "latest",
-    env_vars: dict = {},
-    extra_args: list = [],
-    gpu: str = "H100",
-    profile: bool = False,
-):
-    # Pick vLLM server class
-    if docker_tag == "latest":
-        cls = vLLM
-    elif docker_tag == "v0.6.6":
-        cls = vLLM_v0_6_6
-    else:
-        raise ValueError(f"Invalid vLLM docker tag: {docker_tag}")
-
-    caller_id = modal.current_function_call_id()
-
+def vllm(vllm_deployment_id: str, profile: bool = False):
     # Start the vLLM server
-    vllm = cls.with_options(gpu=gpu)()
-    vllm_fc = vllm.start.spawn(
-        caller_id=caller_id,
-        env_vars=env_vars,
-        vllm_args=["--model", model, *extra_args],
-    )
+    url = f"https://jackcook--stopwatch-vllm-{vllm_deployment_id}-start.modal.run"
 
     # Wait for vLLM server to start
-    while True:
-        time.sleep(5)
-        url = tunnel_urls.get(caller_id, None)
-
-        if url is None:
-            continue
-
-        try:
-            urllib.request.urlopen(f"{url}/metrics")
-            print(f"Connected to vLLM instance at {url}")
-            break
-        except Exception:
-            continue
+    urllib.request.urlopen(f"{url}/metrics")
+    print(f"Connected to vLLM instance at {url}")
 
     if profile:
         req = urllib.request.Request(f"{url}/start_profile", method="POST")
@@ -166,5 +104,3 @@ def vllm(
         if profile:
             req = urllib.request.Request(f"{url}/stop_profile", method="POST")
             urllib.request.urlopen(req)
-
-        vllm_fc.cancel()

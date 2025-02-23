@@ -35,6 +35,7 @@ with benchmarking_image.imports():
     region="us-chicago-1",
 )
 def run_benchmark(
+    vllm_deployment_id: str,
     model: str,
     data: str = BenchmarkDefaults.DATA,
     data_type: str = BenchmarkDefaults.DATA_TYPE,
@@ -43,9 +44,11 @@ def run_benchmark(
     vllm_env_vars: Dict[str, str] = BenchmarkDefaults.VLLM_ENV_VARS,
     vllm_extra_args: List[str] = BenchmarkDefaults.VLLM_EXTRA_ARGS,
 ):
-    """Benchmarks a model on Modal.
+    """Benchmarks a vLLM deployment on Modal.
 
     Args:
+        vllm_deployment_id (str, required): The ID of the vLLM deployment to
+            benchmark.
         model (str, required): Name of the model to benchmark.
         data (str): The data source to use for benchmarking. Depending on the
             data-type, it should be a path to a data file containing prompts to
@@ -61,17 +64,11 @@ def run_benchmark(
         vllm_extra_args (list): Extra arguments to pass to the vLLM server.
     """
 
-    print(f"Starting benchmark for {model}")
+    print(f"Starting benchmark of {model} on vLLM_{vllm_deployment_id}")
     caller_id = modal.current_function_call_id()
 
     # Start vLLM server in background
-    with vllm(
-        model,
-        docker_tag=vllm_docker_tag,
-        env_vars=vllm_env_vars,
-        extra_args=vllm_extra_args,
-        gpu=gpu,
-    ) as vllm_url:
+    with vllm(vllm_deployment_id) as vllm_url:
         metrics_url = f"{vllm_url}/metrics"
         vllm_monkey_patch(metrics_url)
 

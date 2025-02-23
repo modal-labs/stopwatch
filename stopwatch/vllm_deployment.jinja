@@ -1,0 +1,5 @@
+@vllm_cls(
+)
+class vLLM_{{ vllm_deployment_id }}(vLLMBase):
+    vllm_args = {{ vllm_args | tojson }}
+    vllm_env_vars = {{ vllm_env_vars | tojson }}

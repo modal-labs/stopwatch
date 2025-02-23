@@ -10,10 +10,13 @@ _A simple solution for benchmarking [vLLM](https://docs.vllm.ai/en/latest/) on [
 pip install -r requirements.txt
 ```
 
-### Deploy to Modal
+### Update tracking
+
+`stopwatch/deploy.py` will be auto-generated, so we don't want to push changes to git.
+Make sure to set `assume-unchanged` like so:
 
 ```bash
-modal deploy stopwatch
+git update-index --assume-unchanged stopwatch/deploy.py
 ```
 
 ## Run benchmark
