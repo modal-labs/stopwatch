@@ -1,5 +1,32 @@
-@vllm_cls(
+from .resources import app, hf_secret, traces_volume
+from .vllm_runner import vLLMBase, vllm_image_factory
+
+
+CONTAINER_IDLE_TIMEOUT = 30  # 30 seconds
+TIMEOUT = 60 * 60  # 1 hour
+TRACES_PATH = "/traces"
+
+###
+### deploy.py is auto-generated! Edit vllm_deployment.jinja or your benchmark
+### config in order to make changes that will persist across runs.
+###
+
+{% for deployment_id, config in configs %}
+@app.cls(
+    image=vllm_image_factory({% if config.vllm_docker_tag %}docker_tag="{{ config.vllm_docker_tag }}"{% endif %}),
+    secrets=[hf_secret],
+    gpu="H100",
+    volumes={TRACES_PATH: traces_volume},
+    cpu=4,
+    memory=65536,
+    allow_concurrent_inputs=1000,  # Set to a high number to prevent auto-scaling
+    container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
+    timeout=TIMEOUT,
+    cloud="oci",
+    region="us-chicago-1",
 )
-class vLLM_{{ vllm_deployment_id }}(vLLMBase):
-    vllm_args = {{ vllm_args | tojson }}
-    vllm_env_vars = {{ vllm_env_vars | tojson }}
+class vLLM_{{ deployment_id }}(vLLMBase):
+    extra_vllm_args = {% if config.extra_vllm_args %}{{ config.extra_vllm_args | tojson }}{% else %}[]{% endif %}
+    model = "{{ config.model }}"
+    vllm_env_vars = {% if config.vllm_env_vars %}{{ config.vllm_env_vars | tojson }}{% else %}{}{% endif %}
+{% endfor %}

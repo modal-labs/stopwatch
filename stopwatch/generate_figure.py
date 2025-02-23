@@ -65,7 +65,7 @@ def generate_figure(benchmarks: List[Dict[str, Any]], title: str):
         ):
             continue
 
-        fc = run_benchmark.spawn(**benchmark["config"])
+        fc = run_benchmark.spawn(benchmark["vllm_deployment_id"], **benchmark["config"])
         pending_benchmarks.append(fc)
 
     # Wait for all newly run benchmarks to finish

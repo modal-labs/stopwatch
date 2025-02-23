@@ -5,12 +5,8 @@ import urllib.request
 
 import modal
 
-from .resources import app, hf_secret, traces_volume
 
-CONTAINER_IDLE_TIMEOUT = 30  # 30 seconds
 STARTUP_TIMEOUT = 5 * 60  # 5 minutes
-TIMEOUT = 60 * 60  # 1 hour
-TRACES_PATH = "/traces"
 VLLM_PORT = 8000
 
 
@@ -30,14 +26,15 @@ class vLLMBase:
     tunnel, the URL for which is stored in a shared dict.
     """
 
-    env_vars: dict[str, str] = {}
-    vllm_args: list[str] = []
+    extra_vllm_args: list[str] = []
+    model: str
+    vllm_env_vars: dict[str, str] = {}
 
     @modal.web_server(port=VLLM_PORT, startup_timeout=STARTUP_TIMEOUT)
     def start(self):
         """Start a vLLM server."""
 
-        assert self.vllm_args, "vllm_args must be set"
+        assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
 
         # Start vLLM server
         subprocess.Popen(
@@ -45,44 +42,15 @@ class vLLMBase:
                 "python3.vllm",
                 "-m",
                 "vllm.entrypoints.openai.api_server",
-                *self.vllm_args,
+                "--model",
+                self.model,
+                *self.extra_vllm_args,
             ],
             env={
                 **os.environ,
-                **self.env_vars,
+                **self.vllm_env_vars,
             },
         )
-
-
-def vllm_cls(
-    image=vllm_image_factory(),
-    secrets=[hf_secret],
-    gpu=modal.gpu.H100(),
-    volumes={TRACES_PATH: traces_volume},
-    cpu=4,
-    memory=65536,
-    container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
-    timeout=TIMEOUT,
-    cloud="oci",
-    region="us-chicago-1",
-):
-    def decorator(cls):
-        return app.cls(
-            image=image,
-            secrets=secrets,
-            gpu=gpu,
-            volumes=volumes,
-            cpu=cpu,
-            memory=memory,
-            # Set to a high number to prevent auto-scaling
-            allow_concurrent_inputs=1000,
-            container_idle_timeout=container_idle_timeout,
-            timeout=timeout,
-            cloud=cloud,
-            region=region,
-        )(cls)
-
-    return decorator
 
 
 @contextlib.contextmanager
