@@ -127,43 +127,83 @@ def generate_figure(benchmarks: List[Dict[str, Any]], title: str):
             axis=1,
         )
 
+        # Save e2e median from vLLM metrics
+        df["e2e_request_latency_median"] = df.apply(
+            lambda x: 1000
+            * histogram_median(
+                x["vllm_metrics"][-1]["end_to_end_request_latency"]["bins"],
+                x["vllm_metrics"][-1]["end_to_end_request_latency"]["data"],
+            ),
+            axis=1,
+        )
+
         # Save KV cache usage from vLLM metrics
         df["kv_cache_usage_mean"] = df.apply(
             lambda x: np.mean([y["kv_cache_usage"] for y in x["vllm_metrics"]]),
             axis=1,
         )
 
+        # Save request state metrics
+        for metric in [
+            "request_waiting_time",
+            "request_prefill_time",
+            "request_decode_time",
+        ]:
+            df[f"{metric}_median"] = df.apply(
+                lambda x: 1000
+                * histogram_median(
+                    x["vllm_metrics"][-1][metric]["bins"],
+                    x["vllm_metrics"][-1][metric]["data"],
+                ),
+                axis=1,
+            )
+
         df = df.sort_values("requests_per_second", ascending=True)
         benchmarks[i]["df"] = df
 
     # Create figure
-    fig, axs = plt.subplots(3, 1, sharex=True, figsize=(5, 6))
+    fig, axs = plt.subplots(4, 2, sharex=True, figsize=(10, 8))
 
     for benchmark in benchmarks:
-        axs[0].plot(
+        axs[0, 0].plot(
             benchmark["df"]["requests_per_second"],
             benchmark["df"]["tpot_median"],
             label=benchmark["name"],
         )
 
-        (ttft_line,) = axs[1].plot(
+        (ttft_line,) = axs[1, 0].plot(
             benchmark["df"]["requests_per_second"],
             benchmark["df"]["ttft_mean"],
             label=benchmark["name"],
         )
         for i in range(5, 96):
-            axs[1].plot(
+            axs[1, 0].plot(
                 benchmark["df"]["requests_per_second"],
                 benchmark["df"][f"ttft_p{i}"],
                 color=ttft_line.get_color(),
                 alpha=0.1,
             )
 
-        axs[2].plot(
+        axs[2, 0].plot(
+            benchmark["df"]["requests_per_second"],
+            benchmark["df"]["e2e_request_latency_median"],
+            label=benchmark["name"],
+        )
+
+        axs[3, 0].plot(
             benchmark["df"]["requests_per_second"],
             benchmark["df"]["kv_cache_usage_mean"],
             label=benchmark["name"],
         )
+
+        for i, metric in enumerate(
+            ["request_waiting_time", "request_prefill_time", "request_decode_time"]
+        ):
+            axs[i + 1, 1].plot(
+                benchmark["df"]["requests_per_second"],
+                benchmark["df"][f"{metric}_median"],
+                label=benchmark["name"],
+            )
 
     # Configure TPOT plot
     axs[0].set_ylabel("Time per output token (ms)")
