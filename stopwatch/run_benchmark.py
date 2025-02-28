@@ -1,3 +1,5 @@
+import urllib.parse
+
 import modal
 
 from .benchmark import BenchmarkDefaults, get_benchmark_fingerprint
@@ -10,8 +12,10 @@ MAX_SECONDS_PER_BENCHMARK_RUN = 120  # 2 minutes
 RESULTS_PATH = "/results"
 TIMEOUT = 60 * 60  # 1 hour
 
-benchmarking_image = modal.Image.debian_slim().pip_install(
-    "guidellm", "prometheus-client"
+benchmarking_image = (
+    modal.Image.debian_slim()
+    .apt_install("git")
+    .pip_install("git+https://github.com/jackcook/guidellm.git", "prometheus-client")
 )
 
 with benchmarking_image.imports():
@@ -32,10 +36,9 @@ with benchmarking_image.imports():
     container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
     timeout=TIMEOUT,
     cloud="oci",
-    region="us-chicago-1",
+    region="us-ashburn-1",
 )
 def run_benchmark(
-    vllm_deployment_id: str,
     model: str,
     data: str = BenchmarkDefaults.DATA,
     data_type: str = BenchmarkDefaults.DATA_TYPE,
@@ -47,8 +50,6 @@ def run_benchmark(
     """Benchmarks a vLLM deployment on Modal.
 
     Args:
-        vllm_deployment_id (str, required): The ID of the vLLM deployment to
-            benchmark.
         model (str, required): Name of the model to benchmark.
         data (str): The data source to use for benchmarking. Depending on the
             data-type, it should be a path to a data file containing prompts to
@@ -64,12 +65,26 @@ def run_benchmark(
         vllm_extra_args (list): Extra arguments to pass to the vLLM server.
     """
 
-    print(f"Starting benchmark of {model} on vLLM_{vllm_deployment_id}")
     caller_id = modal.current_function_call_id()
+    extra_query = {
+        "model": model,
+    }
+
+    if len(vllm_extra_args) > 0:
+        extra_query["extra_vllm_args"] = " ".join(vllm_extra_args)
+    if len(vllm_env_vars) > 0:
+        extra_query["vllm_env_vars"] = " ".join(
+            f"{k}={v}" for k, v in vllm_env_vars.items()
+        )
 
     # Start vLLM server in background
-    with vllm(vllm_deployment_id) as vllm_url:
-        metrics_url = f"{vllm_url}/metrics"
+    with vllm(
+        docker_tag=vllm_docker_tag,
+        extra_query=extra_query,
+        gpu=gpu,
+    ) as vllm_url:
+        extra_query_args = urllib.parse.urlencode(extra_query)
+        metrics_url = f"{vllm_url}/metrics?{extra_query_args}"
         vllm_monkey_patch(metrics_url)
 
         # Run benchmark with guidellm
@@ -86,6 +101,9 @@ def run_benchmark(
             max_requests=None,
             output_path=os.path.join(RESULTS_PATH, f"{caller_id}.json"),
             cont_refresh_table=False,
+            backend_kwargs={
+                "extra_query": extra_query,
+            },
         )
         results_volume.commit()
 

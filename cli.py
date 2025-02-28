@@ -1,24 +1,11 @@
 import os
 import subprocess
-import uuid
 import yaml
 
-from jinja2 import Template
 import click
 import modal
 
 from stopwatch.resources import figures_volume, traces_volume
-
-
-def create_deployment(deploy_ids: list[str], configs: list[dict]):
-    template = Template(open(os.path.join("stopwatch", "vllm_deployment.jinja")).read())
-
-    # Write vLLM classes to deploy.py
-    with open(os.path.join("stopwatch", "deploy.py"), "w") as f:
-        f.write(template.render(configs=zip(deploy_ids, configs)))
-
-    # Deploy to Modal
-    os.system("modal deploy stopwatch")
 
 
 @click.group()
@@ -79,21 +66,8 @@ def run_benchmark(**kwargs):
         kwargs["vllm_extra_args"].split(" ") if kwargs["vllm_extra_args"] else []
     )
 
-    # Prepare a vLLM deployment
-    vllm_deployment_id = uuid.uuid4().hex[:8]
-    create_deployment(
-        [vllm_deployment_id],
-        [
-            {
-                "extra_vllm_args": kwargs["vllm_extra_args"],
-                "model": kwargs["model"],
-                "vllm_env_vars": kwargs["vllm_env_vars"],
-            }
-        ],
-    )
-
     f = modal.Function.from_name("stopwatch", "run_benchmark")
-    fc = f.spawn(vllm_deployment_id, **kwargs)
+    fc = f.spawn(**kwargs)
     print(f"Benchmark running at {fc.object_id}")
 
 
@@ -134,21 +108,8 @@ def run_profiler(**kwargs):
 @cli.command()
 @click.argument("config-path", type=str)
 def generate_figure(config_path: str):
-    # Prepare a server for each benchmark
-    config = yaml.load(open(config_path), Loader=yaml.SafeLoader)
-    vllm_deployment_ids = [
-        uuid.uuid4().hex[:8] for _ in range(len(config["benchmarks"]))
-    ]
-    create_deployment(
-        vllm_deployment_ids, [benchmark["config"] for benchmark in config["benchmarks"]]
-    )
-
-    for i in range(len(config["benchmarks"])):
-        config["benchmarks"][i]["vllm_deployment_id"] = vllm_deployment_ids[i]
-
-    # Run the figure generation function
     f = modal.Function.from_name("stopwatch", "generate_figure")
-    fc = f.spawn(**config)
+    fc = f.spawn(**yaml.load(open(config_path), Loader=yaml.SafeLoader))
 
     print("Generating figure...")
     remote_figure_path = fc.get()
