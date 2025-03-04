@@ -4,8 +4,8 @@ from typing import Dict, List
 class BenchmarkDefaults:
     DATA = "prompt_tokens=512,generated_tokens=128"
     DATA_TYPE = "emulated"
-    GPU = "H100"
-    VLLM_DOCKER_TAG = "latest"
+    GPU = "H100!"
+    VLLM_DOCKER_TAG = "v0.7.3"
     VLLM_ENV_VARS = {}
     VLLM_EXTRA_ARGS = []
 

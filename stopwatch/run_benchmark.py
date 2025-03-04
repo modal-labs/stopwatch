@@ -7,9 +7,9 @@ from .resources import app, hf_secret, results_dict, results_volume
 from .vllm_runner import vllm
 
 
-CONTAINER_IDLE_TIMEOUT = 5  # 5 seconds
 MAX_SECONDS_PER_BENCHMARK_RUN = 120  # 2 minutes
 RESULTS_PATH = "/results"
+SCALEDOWN_WINDOW = 5  # 5 seconds
 TIMEOUT = 60 * 60  # 1 hour
 
 benchmarking_image = (
@@ -33,9 +33,8 @@ with benchmarking_image.imports():
     volumes={RESULTS_PATH: results_volume},
     cpu=4,
     memory=2048,
-    container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
+    scaledown_window=SCALEDOWN_WINDOW,
     timeout=TIMEOUT,
-    cloud="oci",
     region="us-ashburn-1",
 )
 def run_benchmark(

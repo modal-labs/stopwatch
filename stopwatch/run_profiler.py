@@ -20,7 +20,6 @@ with profiling_image.imports():
     image=profiling_image,
     volumes={TRACES_PATH: traces_volume},
     timeout=TIMEOUT,
-    cloud="oci",
     region="us-ashburn-1",
 )
 def run_profiler(

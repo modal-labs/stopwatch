@@ -10,7 +10,7 @@ import modal
 from .resources import app, hf_secret, traces_volume
 
 
-CONTAINER_IDLE_TIMEOUT = 5 * 60  # 5 minutes
+SCALEDOWN_WINDOW = 2 * 60  # 2 minutes
 STARTUP_TIMEOUT = 5 * 60  # 5 minutes
 TIMEOUT = 60 * 60  # 1 hour
 TRACES_PATH = "/traces"
@@ -30,13 +30,12 @@ def vllm_image_factory(docker_tag: str = "latest"):
 def vllm_cls(
     image=vllm_image_factory(),
     secrets=[hf_secret],
-    gpu=modal.gpu.H100(),
+    gpu="H100!",
     volumes={TRACES_PATH: traces_volume},
     cpu=4,
     memory=65536,
-    container_idle_timeout=CONTAINER_IDLE_TIMEOUT,
+    scaledown_window=SCALEDOWN_WINDOW,
     timeout=TIMEOUT,
-    cloud="oci",
     region="us-ashburn-1",
 ):
     def decorator(cls):
@@ -47,11 +46,10 @@ def vllm_cls(
             volumes=volumes,
             cpu=cpu,
             memory=memory,
-            concurrency_limit=1,
+            max_containers=1,
             allow_concurrent_inputs=1000,  # Set to a high number to prevent auto-scaling
-            container_idle_timeout=container_idle_timeout,
+            scaledown_window=scaledown_window,
             timeout=timeout,
-            cloud=cloud,
             region=region,
         )(cls)
 
@@ -100,7 +98,21 @@ class vLLMBase:
 
 
 @vllm_cls(image=vllm_image_factory("v0.7.3"))
-class vLLM_v0_7_3(vLLMBase):
+class vLLM(vLLMBase):
+    model: str = modal.parameter()
+    extra_vllm_args: str = modal.parameter(default="")
+    vllm_env_vars: str = modal.parameter(default="")
+
+
+@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="A100-40GB")
+class vLLM_A100_40GB(vLLMBase):
+    model: str = modal.parameter()
+    extra_vllm_args: str = modal.parameter(default="")
+    vllm_env_vars: str = modal.parameter(default="")
+
+
+@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="H100!:2")
+class vLLM_2xH100(vLLMBase):
     model: str = modal.parameter()
     extra_vllm_args: str = modal.parameter(default="")
     vllm_env_vars: str = modal.parameter(default="")
@@ -117,19 +129,29 @@ class vLLM_v0_6_6(vLLMBase):
 def vllm(
     docker_tag: str = "latest",
     extra_query: dict = {},
-    gpu: str = "H100",
+    gpu: str = "H100!",
     profile: bool = False,
 ):
     # Pick vLLM server class
-    if docker_tag == "v0.7.3" and gpu == "H100":
-        cls = vLLM_v0_7_3
-    elif docker_tag == "v0.6.6" and gpu == "H100":
-        cls = vLLM_v0_6_6
+    if docker_tag == "v0.7.3":
+        if gpu == "H100!":
+            cls = vLLM
+        elif gpu == "A100-40GB":
+            cls = vLLM_A100_40GB
+        elif gpu == "H100!:2":
+            cls = vLLM_2xH100
+        else:
+            raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu}")
+    elif docker_tag == "v0.6.6":
+        if gpu == "H100!":
+            cls = vLLM_v0_6_6
+        else:
+            raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu}")
     else:
         raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu}")
 
     args = urllib.parse.urlencode(extra_query)
-    url = cls().start.web_url
+    url = cls(model="", extra_vllm_args="", vllm_env_vars="").start.web_url
 
     # Wait for vLLM server to start
     response_body = ""
