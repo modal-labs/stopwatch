@@ -48,10 +48,22 @@ class SchedulerWithvLLMMetrics(Scheduler):
                 # If the last benchmark has completed, stop fetching metrics
                 stop_signal.set()
                 stats_thread.join()
+
+                # Use the first metric family that has every metric
+                metrics_per_metric_family = [
+                    len(set([family.name for family in metric_family]))
+                    for metric_family in vllm_metric_families
+                ]
+                i = 0
+                while i < len(metrics_per_metric_family):
+                    if metrics_per_metric_family[i] == metrics_per_metric_family[-1]:
+                        break
+                    i += 1
+
                 result.benchmark.vllm_metrics.extend(
                     [
                         vLLMMetrics(
-                            metrics, first_metric_families=vllm_metric_families[0]
+                            metrics, first_metric_families=vllm_metric_families[i]
                         )
                         for metrics in vllm_metric_families
                     ]

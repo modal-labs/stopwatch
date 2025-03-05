@@ -41,8 +41,8 @@ def cli():
 @click.option(
     "--vllm-docker-tag",
     type=str,
-    default="latest",
-    help="Docker tag to use for vLLM. Defaults to 'latest'.",
+    default="v0.7.3",
+    help="Docker tag to use for vLLM. Defaults to 'v0.7.3'.",
 )
 @click.option(
     "--vllm-env-vars",

@@ -23,7 +23,6 @@ with figures_image.imports():
 
 def histogram_median(bins, counts):
     assert len(bins) == len(counts) + 1
-    assert sum(counts) > 0
 
     total = sum(counts)
     half = total / 2

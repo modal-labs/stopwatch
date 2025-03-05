@@ -17,7 +17,7 @@ TRACES_PATH = "/traces"
 VLLM_PORT = 8000
 
 
-def vllm_image_factory(docker_tag: str = "latest"):
+def vllm_image_factory(docker_tag: str = "v0.7.3"):
     return modal.Image.from_registry(
         f"vllm/vllm-openai:{docker_tag}",
         setup_dockerfile_commands=[
@@ -118,6 +118,13 @@ class vLLM_2xH100(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
+@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="H100!:4")
+class vLLM_4xH100(vLLMBase):
+    model: str = modal.parameter()
+    extra_vllm_args: str = modal.parameter(default="")
+    vllm_env_vars: str = modal.parameter(default="")
+
+
 @vllm_cls(image=vllm_image_factory("v0.6.6"))
 class vLLM_v0_6_6(vLLMBase):
     model: str = modal.parameter()
@@ -127,7 +134,7 @@ class vLLM_v0_6_6(vLLMBase):
 
 @contextlib.contextmanager
 def vllm(
-    docker_tag: str = "latest",
+    docker_tag: str = "v0.7.3",
     extra_query: dict = {},
     gpu: str = "H100!",
     profile: bool = False,

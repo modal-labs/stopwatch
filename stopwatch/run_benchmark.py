@@ -15,7 +15,7 @@ TIMEOUT = 60 * 60  # 1 hour
 benchmarking_image = (
     modal.Image.debian_slim()
     .apt_install("git")
-    .pip_install("git+https://github.com/jackcook/guidellm.git", "prometheus-client")
+    .pip_install("git+https://github.com/neuralmagic/guidellm.git", "prometheus-client")
 )
 
 with benchmarking_image.imports():
