@@ -111,14 +111,14 @@ class vLLM_A100_40GB(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="H100!:2")
+@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="H100:2")
 class vLLM_2xH100(vLLMBase):
     model: str = modal.parameter()
     extra_vllm_args: str = modal.parameter(default="")
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="H100!:4")
+@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="H100:4")
 class vLLM_4xH100(vLLMBase):
     model: str = modal.parameter()
     extra_vllm_args: str = modal.parameter(default="")
@@ -141,16 +141,18 @@ def vllm(
 ):
     # Pick vLLM server class
     if docker_tag == "v0.7.3":
-        if gpu == "H100!":
+        if gpu == "H100!" or gpu == "H100":
             cls = vLLM
         elif gpu == "A100-40GB":
             cls = vLLM_A100_40GB
-        elif gpu == "H100!:2":
+        elif gpu == "H100:2":
             cls = vLLM_2xH100
+        elif gpu == "H100:4":
+            cls = vLLM_4xH100
         else:
             raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu}")
     elif docker_tag == "v0.6.6":
-        if gpu == "H100!":
+        if gpu == "H100!" or gpu == "H100":
             cls = vLLM_v0_6_6
         else:
             raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu}")

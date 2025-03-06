@@ -73,6 +73,12 @@ def run_benchmark(**kwargs):
 
 @cli.command()
 @click.option(
+    "--gpu",
+    type=str,
+    default="H100!",
+    help="GPU to run the vLLM server on. Defaults to 'H100!'.",
+)
+@click.option(
     "--model",
     type=str,
     help="Name of the model to run while profiling vLLM.",
