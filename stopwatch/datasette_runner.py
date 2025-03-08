@@ -11,7 +11,7 @@ datasette_image = (
     .apt_install("git")
     .pip_install("datasette", "numpy")
     .run_commands(
-        "datasette install git+https://github.com/jackcook/datasette-plot.git"
+        "datasette install git+https://github.com/jackcook/stopwatch-plot.git"
     )
 )
 
