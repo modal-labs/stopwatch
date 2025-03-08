@@ -67,6 +67,9 @@ def run_benchmark(
     caller_id = modal.current_function_call_id()
     extra_query = {
         "model": model,
+        # Include caller_id in extra_query to ensure that similar benchmark
+        # runs are given separate vLLM server instances
+        "caller_id": caller_id,
     }
 
     if len(vllm_extra_args) > 0:

@@ -100,6 +100,7 @@ class vLLMBase:
 @vllm_cls(image=vllm_image_factory("v0.7.3"))
 class vLLM(vLLMBase):
     model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
     extra_vllm_args: str = modal.parameter(default="")
     vllm_env_vars: str = modal.parameter(default="")
 
@@ -107,6 +108,15 @@ class vLLM(vLLMBase):
 @vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="A100-40GB")
 class vLLM_A100_40GB(vLLMBase):
     model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    extra_vllm_args: str = modal.parameter(default="")
+    vllm_env_vars: str = modal.parameter(default="")
+
+
+@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="A100-80GB", region="us-east4")
+class vLLM_A100_80GB(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
     extra_vllm_args: str = modal.parameter(default="")
     vllm_env_vars: str = modal.parameter(default="")
 
@@ -114,6 +124,7 @@ class vLLM_A100_40GB(vLLMBase):
 @vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="H100:2")
 class vLLM_2xH100(vLLMBase):
     model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
     extra_vllm_args: str = modal.parameter(default="")
     vllm_env_vars: str = modal.parameter(default="")
 
@@ -121,6 +132,7 @@ class vLLM_2xH100(vLLMBase):
 @vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="H100:4")
 class vLLM_4xH100(vLLMBase):
     model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
     extra_vllm_args: str = modal.parameter(default="")
     vllm_env_vars: str = modal.parameter(default="")
 
@@ -128,6 +140,7 @@ class vLLM_4xH100(vLLMBase):
 @vllm_cls(image=vllm_image_factory("v0.6.6"))
 class vLLM_v0_6_6(vLLMBase):
     model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
     extra_vllm_args: str = modal.parameter(default="")
     vllm_env_vars: str = modal.parameter(default="")
 
@@ -145,6 +158,8 @@ def vllm(
             cls = vLLM
         elif gpu == "A100-40GB":
             cls = vLLM_A100_40GB
+        elif gpu == "A100-80GB":
+            cls = vLLM_A100_80GB
         elif gpu == "H100:2":
             cls = vLLM_2xH100
         elif gpu == "H100:4":

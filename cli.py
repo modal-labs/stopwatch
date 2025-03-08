@@ -1,3 +1,4 @@
+import itertools
 import os
 import subprocess
 import yaml
@@ -132,6 +133,31 @@ def generate_figure(config_path: str):
 
     if answer != "n":
         subprocess.run(["open", local_figure_path])
+
+
+@cli.command()
+@click.argument("config-path", type=str)
+def run_many_benchmarks(config_path: str):
+    config_specs = yaml.load(open(config_path), Loader=yaml.SafeLoader)["configs"]
+    benchmarks = []
+
+    for config_spec in config_specs:
+        keys = []
+        values = []
+
+        for key, value in config_spec.items():
+            keys.append(key)
+            values.append(value if isinstance(value, list) else [value])
+
+        for combination in itertools.product(*values):
+            benchmarks.append({"config": dict(zip(keys, combination))})
+
+    f = modal.Function.from_name("stopwatch", "run_many_benchmarks")
+    fc = f.spawn(benchmarks=benchmarks)
+
+    print("Running benchmarks...")
+    benchmark_ids = fc.get()
+    print(benchmark_ids)
 
 
 if __name__ == "__main__":

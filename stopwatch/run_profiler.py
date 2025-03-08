@@ -75,7 +75,7 @@ def run_profiler(
             client.completions.create(
                 model=model,
                 prompt=prompt,
-                max_tokens=1,
+                max_tokens=8,
                 echo=False,
                 stream=False,
                 extra_query=extra_query,
