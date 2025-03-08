@@ -1,12 +1,13 @@
 import itertools
 import os
 import subprocess
+import urllib.parse
 import yaml
 
 import click
 import modal
 
-from stopwatch.resources import figures_volume, traces_volume
+from stopwatch.resources import traces_volume
 
 
 @click.group()
@@ -114,34 +115,11 @@ def run_profiler(**kwargs):
 
 @cli.command()
 @click.argument("config-path", type=str)
-def generate_figure(config_path: str):
-    f = modal.Function.from_name("stopwatch", "generate_figure")
-    fc = f.spawn(**yaml.load(open(config_path), Loader=yaml.SafeLoader))
-
-    print("Generating figure...")
-    remote_figure_path = fc.get()
-
-    # Download and save figure
-    local_figure_path = config_path.replace(".yaml", ".png")
-
-    with open(local_figure_path, "wb") as f:
-        for chunk in figures_volume.read_file(remote_figure_path):
-            f.write(chunk)
-
-    # Optionally open figure
-    answer = input(f"Saved to {local_figure_path}. Open it? [Y/n] ")
-
-    if answer != "n":
-        subprocess.run(["open", local_figure_path])
-
-
-@cli.command()
-@click.argument("config-path", type=str)
-def run_many_benchmarks(config_path: str):
-    config_specs = yaml.load(open(config_path), Loader=yaml.SafeLoader)["configs"]
+def run_benchmark_suite(config_path: str):
+    config = yaml.load(open(config_path), Loader=yaml.SafeLoader)
     benchmarks = []
 
-    for config_spec in config_specs:
+    for config_spec in config["configs"]:
         keys = []
         values = []
 
@@ -152,12 +130,19 @@ def run_many_benchmarks(config_path: str):
         for combination in itertools.product(*values):
             benchmarks.append({"config": dict(zip(keys, combination))})
 
-    f = modal.Function.from_name("stopwatch", "run_many_benchmarks")
-    fc = f.spawn(benchmarks=benchmarks)
+    f = modal.Function.from_name("stopwatch", "run_benchmark_suite")
+    fc = f.spawn(benchmarks=benchmarks, suite_id=config.get("id", "stopwatch"))
 
     print("Running benchmarks...")
-    benchmark_ids = fc.get()
-    print(benchmark_ids)
+    fc.get()
+
+    # Optionally open the datasette UI
+    answer = input("All benchmarks have finished. Open the datasette UI? [Y/n] ")
+
+    if answer != "n":
+        url = modal.Cls.from_name("stopwatch", "DatasetteRunner")().start.web_url
+        query = urllib.parse.urlencode({"id": config.get("id", "stopwatch")})
+        subprocess.run(["open", f"{url}?{query}"])
 
 
 if __name__ == "__main__":

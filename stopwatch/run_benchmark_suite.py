@@ -1,39 +1,28 @@
-import itertools
-import json
-import os
-import shutil
-import tempfile
-
 import modal
 
 from .benchmark import get_benchmark_fingerprint
 from .resources import app, datasette_volume, results_dict, results_volume
 from .run_benchmark import run_benchmark
 
+
 DATASETTE_PATH = "/datasette"
 RESULTS_PATH = "/results"
 TIMEOUT = 60 * 60  # 1 hour
 
-DB_FILENAME = "stopwatch.db"
-DB_PATH = os.path.join(DATASETTE_PATH, DB_FILENAME)
 
-many_benchmarks_image = modal.Image.debian_slim().pip_install("pandas", "sqlite-utils")
+benchmark_suite_image = modal.Image.debian_slim().pip_install("pandas", "sqlite-utils")
 
-with many_benchmarks_image.imports():
+with benchmark_suite_image.imports():
     from typing import Any, Dict, List
+    import itertools
+    import json
+    import os
+    import shutil
+    import tempfile
 
     import numpy as np
     import pandas as pd
     import sqlite_utils
-
-datasette_image = (
-    modal.Image.debian_slim()
-    .pip_install("datasette", "numpy")
-    .run_commands("datasette install datasette-plot")
-)
-
-with datasette_image.imports():
-    import asyncio
 
 
 def histogram_median(bins, counts):
@@ -57,11 +46,11 @@ def histogram_median(bins, counts):
 
 
 @app.function(
-    image=many_benchmarks_image,
+    image=benchmark_suite_image,
     volumes={DATASETTE_PATH: datasette_volume, RESULTS_PATH: results_volume},
     timeout=TIMEOUT,
 )
-def run_many_benchmarks(benchmarks: List[Dict[str, Any]]):
+def run_benchmark_suite(benchmarks: List[Dict[str, Any]], suite_id: str = "stopwatch"):
     benchmarks = benchmarks.copy()
 
     # Create fingerprints for each benchmark. This allows us to check if the
@@ -74,9 +63,7 @@ def run_many_benchmarks(benchmarks: List[Dict[str, Any]]):
     pending_benchmarks = []
 
     for i, benchmark in enumerate(benchmarks):
-        if benchmark["fingerprint"] in results_dict and not benchmark.get(
-            "recompute", False
-        ):
+        if benchmark["fingerprint"] in results_dict:
             continue
 
         fc = run_benchmark.spawn(**benchmark["config"])
@@ -88,10 +75,7 @@ def run_many_benchmarks(benchmarks: List[Dict[str, Any]]):
 
     # Insert into SQLite
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_db_path = os.path.join(tmpdir, DB_FILENAME)
-
-        # if os.path.exists(DB_PATH):
-        #     shutil.copyfile(DB_PATH, tmp_db_path)
+        tmp_db_path = os.path.join(tmpdir, f"{suite_id}.db")
 
         db = sqlite_utils.Database(tmp_db_path)
         table = db["benchmarks"]
@@ -195,20 +179,6 @@ def run_many_benchmarks(benchmarks: List[Dict[str, Any]]):
             )
 
         db.close()
-        shutil.copyfile(tmp_db_path, DB_PATH)
+        shutil.copyfile(tmp_db_path, f"{suite_id}.db")
 
     return [benchmark["fingerprint"] for benchmark in benchmarks]
-
-
-@app.function(
-    image=datasette_image,
-    volumes={DATASETTE_PATH: datasette_volume},
-    allow_concurrent_inputs=16,
-)
-@modal.asgi_app()
-def ui():
-    from datasette.app import Datasette
-
-    ds = Datasette(files=[DB_PATH], settings={"sql_time_limit_ms": 10000})
-    asyncio.run(ds.invoke_startup())
-    return ds.app()

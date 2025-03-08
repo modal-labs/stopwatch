@@ -97,7 +97,7 @@ class vLLMBase:
         )
 
 
-@vllm_cls(image=vllm_image_factory("v0.7.3"))
+@vllm_cls(image=vllm_image_factory())
 class vLLM(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -105,7 +105,7 @@ class vLLM(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="A100-40GB")
+@vllm_cls(image=vllm_image_factory(), gpu="A100-40GB")
 class vLLM_A100_40GB(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -113,7 +113,7 @@ class vLLM_A100_40GB(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="A100-80GB", region="us-east4")
+@vllm_cls(image=vllm_image_factory(), gpu="A100-80GB", region="us-east4")
 class vLLM_A100_80GB(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -121,7 +121,7 @@ class vLLM_A100_80GB(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="H100:2")
+@vllm_cls(image=vllm_image_factory(), gpu="H100:2")
 class vLLM_2xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -129,7 +129,7 @@ class vLLM_2xH100(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory("v0.7.3"), gpu="H100:4")
+@vllm_cls(image=vllm_image_factory(), gpu="H100:4")
 class vLLM_4xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -175,7 +175,7 @@ def vllm(
         raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu}")
 
     args = urllib.parse.urlencode(extra_query)
-    url = cls(model="", extra_vllm_args="", vllm_env_vars="").start.web_url
+    url = cls(model="").start.web_url
 
     # Wait for vLLM server to start
     response_body = ""
