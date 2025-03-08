@@ -179,6 +179,6 @@ def run_benchmark_suite(benchmarks: List[Dict[str, Any]], suite_id: str = "stopw
             )
 
         db.close()
-        shutil.copyfile(tmp_db_path, f"{suite_id}.db")
+        shutil.copyfile(tmp_db_path, os.path.join(DATASETTE_PATH, f"{suite_id}.db"))
 
     return [benchmark["fingerprint"] for benchmark in benchmarks]
