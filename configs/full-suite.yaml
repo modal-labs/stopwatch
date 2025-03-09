@@ -1,9 +1,19 @@
 configs:
   - model: meta-llama/Llama-3.1-8B-Instruct
     gpu:
-      - H100!
+      - H100
       - A100-40GB
-      - A100-80GB
+    data:
+      - prompt_tokens=512,generated_tokens=128
+      - prompt_tokens=512,generated_tokens=512
+    vllm_extra_args:
+      - []
+      - ["--enforce-eager"]
+      - ["--enable-chunked-prefill"]
+      - ["--enforce-eager", "--enable-chunked-prefill"]
+  - model: meta-llama/Llama-3.1-8B-Instruct
+    gpu: A100-80GB
+    region: us-east4
     data:
       - prompt_tokens=512,generated_tokens=128
       - prompt_tokens=512,generated_tokens=512

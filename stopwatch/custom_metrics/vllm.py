@@ -51,8 +51,7 @@ class SchedulerWithvLLMMetrics(Scheduler):
 
                 # Use the first metric family that has every metric
                 metrics_per_metric_family = [
-                    len(set([family.name for family in metric_family]))
-                    for metric_family in vllm_metric_families
+                    len(metric_family) for metric_family in vllm_metric_families
                 ]
                 i = 0
                 while i < len(metrics_per_metric_family):
@@ -181,7 +180,10 @@ class vLLMMetrics(Serializable):
         }
 
         for family in metric_families:
-            if family.name not in vllm_keys_to_field_names:
+            if (
+                family.name not in vllm_keys_to_field_names
+                or family.name not in first_histogram_samples
+            ):
                 continue
 
             if family.type == "gauge":

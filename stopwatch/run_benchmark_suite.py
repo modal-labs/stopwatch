@@ -1,6 +1,6 @@
 import modal
 
-from .benchmark import get_benchmark_fingerprint
+from .benchmark import BenchmarkDefaults, get_benchmark_fingerprint
 from .resources import app, datasette_volume, results_dict, results_volume
 from .run_benchmark import run_benchmark
 
@@ -154,18 +154,24 @@ def run_benchmark_suite(benchmarks: List[Dict[str, Any]], suite_id: str = "stopw
                     )
 
             # Get number of prompt tokens and generated tokens
-            data_config = {
-                k: int(v)
-                for param in benchmark["config"]["data"].split(",")
-                for k, v in [param.split("=")]
-            }
+            data_config = (
+                {
+                    k: int(v)
+                    for param in benchmark["config"]["data"].split(",")
+                    for k, v in [param.split("=")]
+                }
+                if "data" in benchmark["config"]
+                else {}
+            )
 
             table.insert_all(
                 [
                     {
                         **benchmark["config"],
                         "id": benchmark["fingerprint"],
-                        "gpu": benchmark["config"]["gpu"].replace("!", ""),
+                        "gpu": benchmark["config"]
+                        .get("gpu", BenchmarkDefaults.GPU)
+                        .replace("!", ""),
                         **data_config,
                         **{
                             key: x[key]

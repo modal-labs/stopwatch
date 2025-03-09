@@ -7,11 +7,12 @@ import urllib.request
 
 import modal
 
+from .benchmark import BenchmarkDefaults
 from .resources import app, hf_secret, traces_volume
 
 
 SCALEDOWN_WINDOW = 2 * 60  # 2 minutes
-STARTUP_TIMEOUT = 5 * 60  # 5 minutes
+STARTUP_TIMEOUT = 30 * 60  # 30 minutes
 TIMEOUT = 60 * 60  # 1 hour
 TRACES_PATH = "/traces"
 VLLM_PORT = 8000
@@ -97,7 +98,7 @@ class vLLMBase:
         )
 
 
-@vllm_cls(image=vllm_image_factory())
+@vllm_cls()
 class vLLM(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -105,7 +106,23 @@ class vLLM(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory(), gpu="A100-40GB")
+@vllm_cls(region="us-east-1")
+class vLLM_AWS_USEAST1(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    extra_vllm_args: str = modal.parameter(default="")
+    vllm_env_vars: str = modal.parameter(default="")
+
+
+@vllm_cls(region="us-east4")
+class vLLM_GCP_USEAST4(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    extra_vllm_args: str = modal.parameter(default="")
+    vllm_env_vars: str = modal.parameter(default="")
+
+
+@vllm_cls(gpu="A100-40GB")
 class vLLM_A100_40GB(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -113,7 +130,7 @@ class vLLM_A100_40GB(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory(), gpu="A100-80GB", region="us-east4")
+@vllm_cls(gpu="A100-80GB", region="us-east4")
 class vLLM_A100_80GB(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -121,7 +138,7 @@ class vLLM_A100_80GB(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory(), gpu="H100:2")
+@vllm_cls(gpu="H100!:2", region="us-east4")
 class vLLM_2xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -129,7 +146,7 @@ class vLLM_2xH100(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory(), gpu="H100:4")
+@vllm_cls(gpu="H100!:4", region="us-east4")
 class vLLM_4xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -145,34 +162,47 @@ class vLLM_v0_6_6(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
+all_vllm_classes = {
+    "v0.7.3": {
+        "H100": {
+            "us-ashburn-1": vLLM,
+            "us-east-1": vLLM_AWS_USEAST1,
+            "us-east4": vLLM_GCP_USEAST4,
+        },
+        "A100-40GB": {
+            "us-ashburn-1": vLLM_A100_40GB,
+        },
+        "A100-80GB": {
+            "us-east4": vLLM_A100_80GB,
+        },
+        "H100:2": {
+            "us-east4": vLLM_2xH100,
+        },
+        "H100:4": {
+            "us-east4": vLLM_4xH100,
+        },
+    },
+    "v0.6.6": {
+        "H100!": {
+            "us-ashburn-1": vLLM_v0_6_6,
+        },
+    },
+}
+
+
 @contextlib.contextmanager
 def vllm(
     docker_tag: str = "v0.7.3",
     extra_query: dict = {},
-    gpu: str = "H100!",
+    gpu: str = BenchmarkDefaults.GPU,
+    region: str = BenchmarkDefaults.REGION,
     profile: bool = False,
 ):
     # Pick vLLM server class
-    if docker_tag == "v0.7.3":
-        if gpu == "H100!" or gpu == "H100":
-            cls = vLLM
-        elif gpu == "A100-40GB":
-            cls = vLLM_A100_40GB
-        elif gpu == "A100-80GB":
-            cls = vLLM_A100_80GB
-        elif gpu == "H100:2":
-            cls = vLLM_2xH100
-        elif gpu == "H100:4":
-            cls = vLLM_4xH100
-        else:
-            raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu}")
-    elif docker_tag == "v0.6.6":
-        if gpu == "H100!" or gpu == "H100":
-            cls = vLLM_v0_6_6
-        else:
-            raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu}")
-    else:
-        raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu}")
+    try:
+        cls = all_vllm_classes[docker_tag][gpu.replace("!", "")][region]
+    except KeyError:
+        raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu} {region}")
 
     args = urllib.parse.urlencode(extra_query)
     url = cls(model="").start.web_url

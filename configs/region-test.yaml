@@ -1,0 +1,7 @@
+id: region-test
+configs:
+  - model: meta-llama/Llama-3.1-8B-Instruct
+    region:
+      - us-ashburn-1
+      - us-east-1
+      - us-east4
