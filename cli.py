@@ -137,7 +137,11 @@ def run_benchmark_suite(config_path: str):
             benchmarks.append({"config": dict(zip(keys, combination))})
 
     f = modal.Function.from_name("stopwatch", "run_benchmark_suite")
-    fc = f.spawn(benchmarks=benchmarks, suite_id=config.get("id", "stopwatch"))
+    fc = f.spawn(
+        benchmarks=benchmarks,
+        suite_id=config.get("id", "stopwatch"),
+        repeats=config.get("repeats", 1),
+    )
 
     print("Running benchmarks (you may safely CTRL+C)...")
     fc.get()

@@ -20,6 +20,10 @@ def get_benchmark_fingerprint(
     vllm_docker_tag: str = BenchmarkDefaults.VLLM_DOCKER_TAG,
     vllm_env_vars: Dict[str, str] = BenchmarkDefaults.VLLM_ENV_VARS,
     vllm_extra_args: List[str] = BenchmarkDefaults.VLLM_EXTRA_ARGS,
+    repeat_index: int = 0,
 ):
     env_vars = "-".join([f"{k}={v}" for k, v in sorted(vllm_env_vars.items())])
-    return f"{model}-{data}-{data_type}-{gpu}-{region}-{vllm_docker_tag}-{env_vars}-{vllm_extra_args}"
+    fingerprint = f"{model}-{data}-{data_type}-{gpu}-{region}-{vllm_docker_tag}-{env_vars}-{vllm_extra_args}"
+    if repeat_index > 0:
+        fingerprint += f"-{repeat_index}"
+    return fingerprint

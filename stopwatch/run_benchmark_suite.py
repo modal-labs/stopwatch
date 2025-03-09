@@ -50,19 +50,28 @@ def histogram_median(bins, counts):
     volumes={DATASETTE_PATH: datasette_volume, RESULTS_PATH: results_volume},
     timeout=TIMEOUT,
 )
-def run_benchmark_suite(benchmarks: List[Dict[str, Any]], suite_id: str = "stopwatch"):
-    benchmarks = benchmarks.copy()
+def run_benchmark_suite(
+    benchmarks: List[Dict[str, Any]], suite_id: str = "stopwatch", repeats: int = 1
+):
+    assert repeats > 0
+
+    benchmarks_to_run = []
 
     # Create fingerprints for each benchmark. This allows us to check if the
     # benchmark has already been run recently, in which case we don't need
     # to run it again.
-    for i, benchmark in enumerate(benchmarks):
-        benchmarks[i]["fingerprint"] = get_benchmark_fingerprint(**benchmark["config"])
+    for benchmark in benchmarks:
+        for repeat_index in range(repeats):
+            repeat_benchmark = benchmark.copy()
+            repeat_benchmark["fingerprint"] = get_benchmark_fingerprint(
+                **benchmark["config"], repeat_index=repeat_index
+            )
+            benchmarks_to_run.append(repeat_benchmark)
 
     # Run benchmarks that aren't already cached
     pending_benchmarks = []
 
-    for i, benchmark in enumerate(benchmarks):
+    for benchmark in benchmarks_to_run:
         if benchmark["fingerprint"] in results_dict:
             continue
 
@@ -80,7 +89,7 @@ def run_benchmark_suite(benchmarks: List[Dict[str, Any]], suite_id: str = "stopw
         db = sqlite_utils.Database(tmp_db_path)
         table = db["benchmarks"]
 
-        for benchmark in benchmarks:
+        for benchmark in benchmarks_to_run:
             results_path = os.path.join(
                 RESULTS_PATH, f"{results_dict[benchmark['fingerprint']]}.json"
             )
@@ -187,4 +196,4 @@ def run_benchmark_suite(benchmarks: List[Dict[str, Any]], suite_id: str = "stopw
         db.close()
         shutil.copyfile(tmp_db_path, os.path.join(DATASETTE_PATH, f"{suite_id}.db"))
 
-    return [benchmark["fingerprint"] for benchmark in benchmarks]
+    return [benchmark["fingerprint"] for benchmark in benchmarks_to_run]
