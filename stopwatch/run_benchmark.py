@@ -46,6 +46,7 @@ def run_benchmark(
     vllm_docker_tag: str = BenchmarkDefaults.VLLM_DOCKER_TAG,
     vllm_env_vars: Dict[str, str] = BenchmarkDefaults.VLLM_ENV_VARS,
     vllm_extra_args: List[str] = BenchmarkDefaults.VLLM_EXTRA_ARGS,
+    repeat_index: int = 0,
 ):
     """Benchmarks a vLLM deployment on Modal.
 
@@ -122,5 +123,6 @@ def run_benchmark(
         vllm_docker_tag=vllm_docker_tag,
         vllm_env_vars=vllm_env_vars,
         vllm_extra_args=vllm_extra_args,
+        repeat_index=repeat_index,
     )
     results_dict[fingerprint] = caller_id

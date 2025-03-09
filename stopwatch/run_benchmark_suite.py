@@ -26,7 +26,10 @@ with benchmark_suite_image.imports():
 
 
 def histogram_median(bins, counts):
-    assert len(bins) == len(counts) + 1
+    if len(bins) == len(counts) == 0:
+        return None
+
+    assert len(bins) == len(counts) + 1, f"len({bins}) != len({counts}) + 1"
 
     total = sum(counts)
     half = total / 2
@@ -63,8 +66,9 @@ def run_benchmark_suite(
     for benchmark in benchmarks:
         for repeat_index in range(repeats):
             repeat_benchmark = benchmark.copy()
+            repeat_benchmark["config"]["repeat_index"] = repeat_index
             repeat_benchmark["fingerprint"] = get_benchmark_fingerprint(
-                **benchmark["config"], repeat_index=repeat_index
+                **repeat_benchmark["config"]
             )
             benchmarks_to_run.append(repeat_benchmark)
 
@@ -172,6 +176,14 @@ def run_benchmark_suite(
                 if "data" in benchmark["config"]
                 else {}
             )
+
+            if "region" not in benchmark["config"]:
+                # TODO: Remove this once older benchmark runs are discarded
+                benchmark["config"]["region"] = (
+                    "us-east4"
+                    if benchmark["config"]["gpu"] == "A100-80GB"
+                    else "us-ashburn-1"
+                )
 
             table.insert_all(
                 [

@@ -9,7 +9,7 @@ DATASETTE_PATH = "/datasette"
 datasette_image = (
     modal.Image.debian_slim()
     .apt_install("git")
-    .pip_install("datasette", "numpy")
+    .pip_install("datasette")
     .run_commands(
         "datasette install git+https://github.com/jackcook/stopwatch-plot.git"
     )
