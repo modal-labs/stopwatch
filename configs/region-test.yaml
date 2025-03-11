@@ -1,5 +1,6 @@
 id: region-test
-repeats: 5
+repeats: 10
+# recompute: true
 configs:
   - model: meta-llama/Llama-3.1-8B-Instruct
     region:

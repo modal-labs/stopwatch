@@ -2,7 +2,7 @@ import modal
 
 from .benchmark import BenchmarkDefaults, get_benchmark_fingerprint
 from .resources import app, datasette_volume, results_dict, results_volume
-from .run_benchmark import run_benchmark
+from .run_benchmark import all_benchmark_runner_classes
 
 
 DATASETTE_PATH = "/datasette"
@@ -14,6 +14,7 @@ benchmark_suite_image = modal.Image.debian_slim().pip_install("pandas", "sqlite-
 
 with benchmark_suite_image.imports():
     from typing import Any, Dict, List
+    import copy
     import itertools
     import json
     import os
@@ -54,7 +55,10 @@ def histogram_median(bins, counts):
     timeout=TIMEOUT,
 )
 def run_benchmark_suite(
-    benchmarks: List[Dict[str, Any]], suite_id: str = "stopwatch", repeats: int = 1
+    benchmarks: List[Dict[str, Any]],
+    suite_id: str = "stopwatch",
+    repeats: int = 1,
+    recompute: bool = False,
 ):
     assert repeats > 0
 
@@ -65,7 +69,7 @@ def run_benchmark_suite(
     # to run it again.
     for benchmark in benchmarks:
         for repeat_index in range(repeats):
-            repeat_benchmark = benchmark.copy()
+            repeat_benchmark = copy.deepcopy(benchmark)
             repeat_benchmark["config"]["repeat_index"] = repeat_index
             repeat_benchmark["fingerprint"] = get_benchmark_fingerprint(
                 **repeat_benchmark["config"]
@@ -76,10 +80,11 @@ def run_benchmark_suite(
     pending_benchmarks = []
 
     for benchmark in benchmarks_to_run:
-        if benchmark["fingerprint"] in results_dict:
+        if benchmark["fingerprint"] in results_dict and not recompute:
             continue
 
-        fc = run_benchmark.spawn(**benchmark["config"])
+        benchmark_cls = all_benchmark_runner_classes[benchmark["config"]["region"]]
+        fc = benchmark_cls().run_benchmark.spawn(**benchmark["config"])
         pending_benchmarks.append(fc)
 
     # Wait for all newly run benchmarks to finish

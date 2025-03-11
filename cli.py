@@ -8,6 +8,7 @@ import click
 import modal
 
 from stopwatch.resources import traces_volume
+from stopwatch.run_benchmark import all_benchmark_runner_classes
 
 
 @click.group()
@@ -74,8 +75,8 @@ def run_benchmark(**kwargs):
         kwargs["vllm_extra_args"].split(" ") if kwargs["vllm_extra_args"] else []
     )
 
-    f = modal.Function.from_name("stopwatch", "run_benchmark")
-    fc = f.spawn(**kwargs)
+    cls = all_benchmark_runner_classes[kwargs["region"]]
+    fc = cls().run_benchmark.spawn(**kwargs)
     print(f"Benchmark running at {fc.object_id}")
 
 
@@ -141,6 +142,7 @@ def run_benchmark_suite(config_path: str):
         benchmarks=benchmarks,
         suite_id=config.get("id", "stopwatch"),
         repeats=config.get("repeats", 1),
+        recompute=config.get("recompute", False),
     )
 
     print("Running benchmarks (you may safely CTRL+C)...")
