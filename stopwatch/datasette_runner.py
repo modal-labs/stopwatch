@@ -11,7 +11,7 @@ datasette_image = (
     .apt_install("git")
     .pip_install("datasette")
     .run_commands(
-        "datasette install git+https://github.com/jackcook/stopwatch-plot.git"
+        "datasette install git+https://github.com/jackcook/stopwatch-plot.git@b11f92e"
     )
 )
 
@@ -22,20 +22,40 @@ with datasette_image.imports():
     from datasette.app import Datasette
 
 
-@app.cls(
+def datasette_cls(
     image=datasette_image,
     volumes={DATASETTE_PATH: datasette_volume},
     allow_concurrent_inputs=100,
-)
+):
+    def decorator(cls):
+        return app.cls(
+            image=image,
+            volumes=volumes,
+            allow_concurrent_inputs=allow_concurrent_inputs,
+        )(cls)
+
+    return decorator
+
+
 class DatasetteRunner:
-
-    id: str = modal.parameter(default="stopwatch")
-
-    @modal.asgi_app(label="datasette")
-    def start(self):
+    def start(self, id):
         ds = Datasette(
-            files=[os.path.join(DATASETTE_PATH, f"{self.id}.db")],
+            files=[os.path.join(DATASETTE_PATH, f"{id}.db")],
             settings={"sql_time_limit_ms": 10000},
         )
         asyncio.run(ds.invoke_startup())
         return ds.app()
+
+
+@datasette_cls()
+class MainDatasetteRunner(DatasetteRunner):
+    @modal.asgi_app(label="datasette")
+    def start(self):
+        return super().start("stopwatch")
+
+
+@datasette_cls()
+class RegionDatasetteRunner(DatasetteRunner):
+    @modal.asgi_app(label="datasette-region")
+    def start(self):
+        return super().start("region-test")

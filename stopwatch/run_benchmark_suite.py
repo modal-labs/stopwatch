@@ -107,6 +107,13 @@ def run_benchmark_suite(
             df = pd.DataFrame(results_data["benchmarks"][0]["benchmarks"])
             df = df[df["mode"] != "throughput"]
 
+            # TODO: Handle this automatically
+            for _, row in df.iterrows():
+                if len(row["results"]) == 0:
+                    raise ValueError(
+                        f"No results found for benchmark {benchmark['fingerprint']}. Please re-run this benchmark."
+                    )
+
             df["duration"] = df.apply(
                 lambda x: x["results"][-1]["end_time"] - x["results"][0]["start_time"],
                 axis=1,
