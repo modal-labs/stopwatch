@@ -8,8 +8,8 @@ from .vllm_runner import vllm
 from .trtllm_runner import trtllm
 
 
-# MAX_SECONDS_PER_BENCHMARK_RUN = 120  # 2 minutes
-MAX_SECONDS_PER_BENCHMARK_RUN = 20  #FIXME # 2 minutes
+MAX_SECONDS_PER_BENCHMARK_RUN = 120  # 2 minutes
+# MAX_SECONDS_PER_BENCHMARK_RUN = 20  #FIXME # 2 minutes
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5  # 5 seconds
 TIMEOUT = 60 * 60  # 1 hour

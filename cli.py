@@ -158,7 +158,7 @@ def run_benchmark_suite(config_path: str):
     answer = input("All benchmarks have finished. Open the datasette UI? [Y/n] ")
 
     if answer != "n":
-        url = modal.Cls.from_name("stopwatch", "DatasetteRunner")().start.web_url
+        url = modal.Cls.from_name("stopwatch", "MainDatasetteRunner")().start.web_url
         query = urllib.parse.urlencode({"id": config.get("id", "stopwatch")})
         subprocess.run(["open", f"{url}?{query}"])
 

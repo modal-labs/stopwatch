@@ -229,6 +229,7 @@ def run_benchmark_suite(
             )
 
         db.close()
+        print("saving db")
         shutil.copyfile(tmp_db_path, os.path.join(DATASETTE_PATH, f"{suite_id}.db"))
 
     return [benchmark["fingerprint"] for benchmark in benchmarks_to_run]
