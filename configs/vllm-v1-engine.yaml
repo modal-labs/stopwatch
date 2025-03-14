@@ -1,10 +1,13 @@
 id: vllm-v1-engine
 configs:
   - model: meta-llama/Llama-3.1-8B-Instruct
-    vllm_docker_tag: v0.7.3
+    llm_engine_type: "vllm"
+    llm_engine_version: 0.7.3
   - model: meta-llama/Llama-3.1-8B-Instruct
-    vllm_docker_tag: v0.7.3
+    llm_engine_type: "vllm"
+    llm_engine_version: 0.7.3
     vllm_env_vars:
       VLLM_USE_V1: "1"
   - model: meta-llama/Llama-3.1-8B-Instruct
-    vllm_docker_tag: v0.6.6
+    llm_engine_type: "vllm"
+    llm_engine_version: 0.6.6

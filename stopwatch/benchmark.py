@@ -19,13 +19,15 @@ def get_benchmark_fingerprint(
     gpu: str = BenchmarkDefaults.GPU,
     region: str = BenchmarkDefaults.REGION,
     llm_engine_type: str = BenchmarkDefaults.LLM_ENGINE_TYPE,
-    llm_engine_version: BenchmarkDefaults.LLM_ENGINE_VERSION, 
+    llm_engine_version: str = BenchmarkDefaults.LLM_ENGINE_VERSION,
     llm_env_vars: Dict[str, str] = BenchmarkDefaults.LLM_ENV_VARS,
     llm_extra_args: List[str] = BenchmarkDefaults.LLM_EXTRA_ARGS,
     repeat_index: int = 0,
 ):
-    env_vars = "-".join([f"{k}={v}" for k, v in sorted(vllm_env_vars.items())])
-    fingerprint = f"{model}-{data}-{data_type}-{gpu}-{region}-{vllm_docker_tag}-{env_vars}-{vllm_extra_args}"
+    env_vars = "-".join([f"{k}={v}" for k, v in sorted(llm_env_vars.items())])
+    fingerprint = (f"{model}-{data}-{data_type}-{gpu}-{region}-"
+        f"{llm_engine_type}-{llm_engine_version}-{env_vars}-{llm_extra_args}"
+    )
     if repeat_index > 0:
         fingerprint += f"-{repeat_index}"
     return fingerprint

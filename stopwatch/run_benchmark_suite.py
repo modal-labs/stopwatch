@@ -53,6 +53,9 @@ def histogram_median(bins, counts):
     image=benchmark_suite_image,
     volumes={DATASETTE_PATH: datasette_volume, RESULTS_PATH: results_volume},
     timeout=TIMEOUT,
+    # No parallel writes to same datasette db:
+    max_containers=1,
+    allow_concurrent_inputs=1,
 )
 def run_benchmark_suite(
     benchmarks: List[Dict[str, Any]],
@@ -90,6 +93,9 @@ def run_benchmark_suite(
     # Wait for all newly run benchmarks to finish
     for fc in pending_benchmarks:
         fc.get()
+
+    # Reload volume to see results
+    results_volume.reload()
 
     # Insert into SQLite
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -164,6 +170,7 @@ def run_benchmark_suite(
                     axis=1,
                 )
             except:
+                # TODO trtllm doesn't have /metrics yet
                 df["kv_cache_usage_mean"] = -1
                 df["tpot_median"] = -1
 

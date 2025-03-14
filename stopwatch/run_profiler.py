@@ -33,9 +33,10 @@ def run_profiler(
     model: str,
     num_requests: int = 10,
     gpu: str = BenchmarkDefaults.GPU,
-    vllm_docker_tag: str = BenchmarkDefaults.VLLM_DOCKER_TAG,
-    vllm_env_vars: Dict[str, str] = BenchmarkDefaults.VLLM_ENV_VARS,
-    vllm_extra_args: List[str] = BenchmarkDefaults.VLLM_EXTRA_ARGS,
+    llm_engine_type: str = BenchmarkDefaults.LLM_ENGINE_TYPE,
+    llm_engine_version: str = BenchmarkDefaults.LLM_ENGINE_VERSION, 
+    llm_env_vars: Dict[str, str] = BenchmarkDefaults.LLM_ENV_VARS,
+    llm_extra_args: List[str] = BenchmarkDefaults.LLM_EXTRA_ARGS,
 ):
     """
     Runs the torch profiler on a model.
@@ -46,8 +47,10 @@ def run_profiler(
 
     print(f"Starting profiler with {model}")
 
-    vllm_env_vars["VLLM_TORCH_PROFILER_DIR"] = TRACES_PATH
-    vllm_env_vars["VLLM_RPC_TIMEOUT"] = "1800000"
+    assert llm_engine_type == "vllm", "trtllm is untested for profiling"
+
+    llm_env_vars["VLLM_TORCH_PROFILER_DIR"] = TRACES_PATH
+    llm_env_vars["VLLM_RPC_TIMEOUT"] = "1800000"
 
     extra_query = {
         "model": model,
@@ -59,6 +62,7 @@ def run_profiler(
         extra_query["vllm_env_vars"] = " ".join(
             f"{k}={v}" for k, v in vllm_env_vars.items()
         )
+
 
     # Start vLLM server in background
     with vllm(

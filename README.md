@@ -1,6 +1,6 @@
 # stopwatch
 
-_A simple solution for benchmarking [vLLM](https://docs.vllm.ai/en/latest/) on [Modal](https://modal.com/) with [guidellm](https://github.com/neuralmagic/guidellm)._ ⏱️
+_A simple solution for benchmarking [vLLM](https://docs.vllm.ai/en/latest/) and [trtLLM](https://github.com/NVIDIA/TensorRT-LLM) on [Modal](https://modal.com/) with [guidellm](https://github.com/neuralmagic/guidellm)._ ⏱️
 
 ## Setup
 
@@ -34,39 +34,11 @@ modal volume get stopwatch-results fc-XXXXXXXX.json
 
 ## Run and plot multiple benchmarks
 
-To run multiple benchmarks at once, you can use the `generate-figure` command, along with a configuration file. For example, running the following command...
+To run multiple benchmarks at once, you can use the `run-benchmark-suite` command, along with a configuration file. For example, running the following command...
 
 ```bash
-python cli.py generate-figure benchmarks/vllm-v1-engine.yaml
+python cli.py run-benchmark-suite configs/vllm-v1-engine.yaml
 ```
-
-...which points to the following config...
-
-```yaml
-title: meta-llama/Llama-3.1-8B Benchmark Results
-benchmarks:
-  - name: Baseline
-    config:
-      model: meta-llama/Meta-Llama-3.1-8B-Instruct
-      vllm_docker_tag: v0.7.3
-  - name: VLLM_USE_V1=1
-    config:
-      model: meta-llama/Meta-Llama-3.1-8B-Instruct
-      vllm_docker_tag: v0.7.3
-      vllm_env_vars:
-        VLLM_USE_V1: "1"
-  - name: vLLM v0.6.6
-    config:
-      model: meta-llama/Meta-Llama-3.1-8B-Instruct
-      vllm_docker_tag: v0.6.6
-```
-
-...will generate the following figure:
-
-<p align="center">
-  <img src="/benchmarks/vllm-v1-engine.png" width="512" />
-</p>
-
 ## Run profiler
 
 To profile vLLM with the PyTorch profiler, use the following command:

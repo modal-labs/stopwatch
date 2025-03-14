@@ -6,7 +6,8 @@ configs:
     data:
       - prompt_tokens=512,generated_tokens=128
       - prompt_tokens=512,generated_tokens=512
-    vllm_extra_args:
+    llm_engine_type: "vllm"
+    llm_extra_args:
       - []
       - ["--enforce-eager"]
       - ["--enable-chunked-prefill"]
@@ -17,7 +18,8 @@ configs:
     data:
       - prompt_tokens=512,generated_tokens=128
       - prompt_tokens=512,generated_tokens=512
-    vllm_extra_args:
+    llm_engine_type: "vllm"
+    llm_extra_args:
       - []
       - ["--enforce-eager"]
       - ["--enable-chunked-prefill"]
@@ -30,7 +32,8 @@ configs:
     data:
       - prompt_tokens=512,generated_tokens=128
       - prompt_tokens=512,generated_tokens=512
-    vllm_extra_args:
+    llm_engine_type: "vllm"
+    llm_extra_args:
       - ["--tensor-parallel-size", "2", "--max-model-len", "8192"]
   - model:
       - meta-llama/Llama-3.1-8B-Instruct
@@ -40,5 +43,6 @@ configs:
     data:
       - prompt_tokens=512,generated_tokens=128
       - prompt_tokens=512,generated_tokens=512
-    vllm_extra_args:
+    llm_engine_type: "vllm"
+    llm_extra_args:
       - ["--tensor-parallel-size", "4", "--max-model-len", "8192"]

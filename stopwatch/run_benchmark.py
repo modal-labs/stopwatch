@@ -8,7 +8,8 @@ from .vllm_runner import vllm
 from .trtllm_runner import trtllm
 
 
-MAX_SECONDS_PER_BENCHMARK_RUN = 120  # 2 minutes
+# MAX_SECONDS_PER_BENCHMARK_RUN = 120  # 2 minutes
+MAX_SECONDS_PER_BENCHMARK_RUN = 20  #FIXME # 2 minutes
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5  # 5 seconds
 TIMEOUT = 60 * 60  # 1 hour
@@ -99,7 +100,7 @@ class BenchmarkRunner:
         }
 
 
-        llm, monkey_patch = engine_name_to_params(llm_engine_type.strip().lower())
+        llm, monkey_patch = engine_name_to_params[llm_engine_type.strip().lower()]
 
         # Start LLM server in background
         with llm(
@@ -141,8 +142,8 @@ class BenchmarkRunner:
             region=region,
             llm_engine_type=llm_engine_type,
             llm_engine_version=llm_engine_version,
-            llm_env_vars=vllm_env_vars,
-            llm_extra_args=vllm_extra_args,
+            llm_env_vars=llm_env_vars,
+            llm_extra_args=llm_extra_args,
             repeat_index=repeat_index,
         )
         results_dict[fingerprint] = caller_id

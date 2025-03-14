@@ -39,40 +39,46 @@ def cli():
     "--gpu",
     type=str,
     default="H100",
-    help="GPU to run the vLLM server on. Defaults to 'H100'.",
+    help="GPU to run the LLM server on. Defaults to 'H100'.",
 )
 @click.option(
     "--region",
     type=str,
     default="us-ashburn-1",
-    help="Region to run the vLLM server on. Defaults to 'us-ashburn-1'.",
+    help="Region to run the LLM server on. Defaults to 'us-ashburn-1'.",
 )
 @click.option(
-    "--vllm-docker-tag",
+    "--llm-engine-type",
     type=str,
-    default="v0.7.3",
-    help="Docker tag to use for vLLM. Defaults to 'v0.7.3'.",
+    default="vllm",
+    help="llm engine to use (vllm or trtllm).",
 )
 @click.option(
-    "--vllm-env-vars",
+    "--llm-engine-version",
+    type=str,
+    default="0.7.3",
+    help="LLM Version to use for. Defaults to '0.7.3' for vllm.",
+)
+@click.option(
+    "--llm-env-vars",
     "-e",
     type=str,
     multiple=True,
     default=[],
-    help="Environment variables to set on the vLLM server. Each argument should be in the format of 'KEY=VALUE'",
+    help="Environment variables to set on the LLM server. Each argument should be in the format of 'KEY=VALUE'",
 )
 @click.option(
-    "--vllm-extra-args",
+    "--llm-extra-args",
     type=str,
     default="",
-    help="Extra arguments to pass to the vLLM server.",
+    help="Extra arguments to pass to the LLM server.",
 )
 def run_benchmark(**kwargs):
-    kwargs["vllm_env_vars"] = {
-        k: v for k, v in (e.split("=") for e in kwargs["vllm_env_vars"])
+    kwargs["llm_env_vars"] = {
+        k: v for k, v in (e.split("=") for e in kwargs["llm_env_vars"])
     }
-    kwargs["vllm_extra_args"] = (
-        kwargs["vllm_extra_args"].split(" ") if kwargs["vllm_extra_args"] else []
+    kwargs["llm_extra_args"] = (
+        kwargs["llm_extra_args"].split(" ") if kwargs["llm_extra_args"] else []
     )
 
     cls = all_benchmark_runner_classes[kwargs["region"]]
@@ -85,18 +91,18 @@ def run_benchmark(**kwargs):
     "--gpu",
     type=str,
     default="H100!",
-    help="GPU to run the vLLM server on. Defaults to 'H100!'.",
+    help="GPU to run the LLM server on. Defaults to 'H100!'.",
 )
 @click.option(
     "--model",
     type=str,
-    help="Name of the model to run while profiling vLLM.",
+    help="Name of the model to run while profiling LLM.",
     required=True,
 )
 @click.option(
     "--num-requests",
     type=int,
-    help="Number of requests to make to vLLM while profiling.",
+    help="Number of requests to make to LLM while profiling.",
     default=10,
 )
 def run_profiler(**kwargs):
