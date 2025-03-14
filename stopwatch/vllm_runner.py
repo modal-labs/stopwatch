@@ -18,9 +18,9 @@ TRACES_PATH = "/traces"
 VLLM_PORT = 8000
 
 
-def vllm_image_factory(docker_tag: str = "v0.7.3"):
+def vllm_image_factory(llm_engine_version: str = "0.7.3"):
     return modal.Image.from_registry(
-        f"vllm/vllm-openai:{docker_tag}",
+        f"vllm/vllm-openai:v{llm_engine_version}",
         setup_dockerfile_commands=[
             "RUN ln -s /usr/bin/python3 /usr/bin/python3.vllm",
         ],
@@ -69,15 +69,15 @@ class vLLMBase:
 
         assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
 
-        extra_vllm_args = (
-            self.extra_vllm_args.split(" ") if self.extra_vllm_args else []
+        extra_llm_args = (
+            self.extra_llm_args.split(" ") if self.extra_llm_args else []
         )
-        vllm_env_vars = (
+        llm_env_vars = (
             {
                 k: v
-                for k, v in (pair.split("=") for pair in self.vllm_env_vars.split(" "))
+                for k, v in (pair.split("=") for pair in self.llm_env_vars.split(" "))
             }
-            if self.vllm_env_vars
+            if self.llm_env_vars
             else {}
         )
 
@@ -89,11 +89,11 @@ class vLLMBase:
                 "vllm.entrypoints.openai.api_server",
                 "--model",
                 self.model,
-                *extra_vllm_args,
+                *extra_llm_args,
             ],
             env={
                 **os.environ,
-                **vllm_env_vars,
+                **llm_env_vars,
             },
         )
 
@@ -102,68 +102,68 @@ class vLLMBase:
 class vLLM(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_vllm_args: str = modal.parameter(default="")
-    vllm_env_vars: str = modal.parameter(default="")
+    extra_llm_args: str = modal.parameter(default="")
+    llm_env_vars: str = modal.parameter(default="")
 
 
 @vllm_cls(region="us-east-1")
 class vLLM_AWS_USEAST1(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_vllm_args: str = modal.parameter(default="")
-    vllm_env_vars: str = modal.parameter(default="")
+    extra_llm_args: str = modal.parameter(default="")
+    llm_env_vars: str = modal.parameter(default="")
 
 
 @vllm_cls(region="us-east4")
 class vLLM_GCP_USEAST4(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_vllm_args: str = modal.parameter(default="")
-    vllm_env_vars: str = modal.parameter(default="")
+    extra_llm_args: str = modal.parameter(default="")
+    llm_env_vars: str = modal.parameter(default="")
 
 
 @vllm_cls(gpu="A100-40GB")
 class vLLM_A100_40GB(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_vllm_args: str = modal.parameter(default="")
-    vllm_env_vars: str = modal.parameter(default="")
+    extra_llm_args: str = modal.parameter(default="")
+    llm_env_vars: str = modal.parameter(default="")
 
 
 @vllm_cls(gpu="A100-80GB", region="us-east4")
 class vLLM_A100_80GB(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_vllm_args: str = modal.parameter(default="")
-    vllm_env_vars: str = modal.parameter(default="")
+    extra_llm_args: str = modal.parameter(default="")
+    llm_env_vars: str = modal.parameter(default="")
 
 
 @vllm_cls(gpu="H100!:2", region="us-east4")
 class vLLM_2xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_vllm_args: str = modal.parameter(default="")
-    vllm_env_vars: str = modal.parameter(default="")
+    extra_llm_args: str = modal.parameter(default="")
+    llm_env_vars: str = modal.parameter(default="")
 
 
 @vllm_cls(gpu="H100!:4", region="us-east4")
 class vLLM_4xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_vllm_args: str = modal.parameter(default="")
-    vllm_env_vars: str = modal.parameter(default="")
+    extra_llm_args: str = modal.parameter(default="")
+    llm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(image=vllm_image_factory("v0.6.6"))
-class vLLM_v0_6_6(vLLMBase):
+@vllm_cls(image=vllm_image_factory("0.6.6"))
+class vLLM_0_6_6(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_vllm_args: str = modal.parameter(default="")
-    vllm_env_vars: str = modal.parameter(default="")
+    extra_llm_args: str = modal.parameter(default="")
+    llm_env_vars: str = modal.parameter(default="")
 
 
 all_vllm_classes = {
-    "v0.7.3": {
+    "0.7.3": {
         "H100": {
             "us-ashburn-1": vLLM,
             "us-east-1": vLLM_AWS_USEAST1,
@@ -182,9 +182,9 @@ all_vllm_classes = {
             "us-east4": vLLM_4xH100,
         },
     },
-    "v0.6.6": {
+    "0.6.6": {
         "H100!": {
-            "us-ashburn-1": vLLM_v0_6_6,
+            "us-ashburn-1": vLLM_0_6_6,
         },
     },
 }
@@ -192,7 +192,7 @@ all_vllm_classes = {
 
 @contextlib.contextmanager
 def vllm(
-    docker_tag: str = "v0.7.3",
+    llm_engine_version: str = "0.7.3",
     extra_query: dict = {},
     gpu: str = BenchmarkDefaults.GPU,
     region: str = BenchmarkDefaults.REGION,
@@ -200,9 +200,9 @@ def vllm(
 ):
     # Pick vLLM server class
     try:
-        cls = all_vllm_classes[docker_tag][gpu.replace("!", "")][region]
+        cls = all_vllm_classes[llm_engine_version][gpu.replace("!", "")][region]
     except KeyError:
-        raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu} {region}")
+        raise ValueError(f"Unsupported vLLM configuration: {llm_engine_version} {gpu} {region}")
 
     args = urllib.parse.urlencode(extra_query)
     url = cls(model="").start.web_url

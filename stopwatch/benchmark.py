@@ -6,9 +6,10 @@ class BenchmarkDefaults:
     DATA_TYPE = "emulated"
     GPU = "H100"
     REGION = "us-ashburn-1"
-    VLLM_DOCKER_TAG = "v0.7.3"
-    VLLM_ENV_VARS = {}
-    VLLM_EXTRA_ARGS = []
+    LLM_ENGINE_TYPE = "vllm"
+    LLM_ENGINE_VERSION = "0.7.3"
+    LLM_ENV_VARS = {}
+    LLM_EXTRA_ARGS = []
 
 
 def get_benchmark_fingerprint(
@@ -17,9 +18,10 @@ def get_benchmark_fingerprint(
     data_type: str = BenchmarkDefaults.DATA_TYPE,
     gpu: str = BenchmarkDefaults.GPU,
     region: str = BenchmarkDefaults.REGION,
-    vllm_docker_tag: str = BenchmarkDefaults.VLLM_DOCKER_TAG,
-    vllm_env_vars: Dict[str, str] = BenchmarkDefaults.VLLM_ENV_VARS,
-    vllm_extra_args: List[str] = BenchmarkDefaults.VLLM_EXTRA_ARGS,
+    llm_engine_type: str = BenchmarkDefaults.LLM_ENGINE_TYPE,
+    llm_engine_version: BenchmarkDefaults.LLM_ENGINE_VERSION, 
+    llm_env_vars: Dict[str, str] = BenchmarkDefaults.LLM_ENV_VARS,
+    llm_extra_args: List[str] = BenchmarkDefaults.LLM_EXTRA_ARGS,
     repeat_index: int = 0,
 ):
     env_vars = "-".join([f"{k}={v}" for k, v in sorted(vllm_env_vars.items())])

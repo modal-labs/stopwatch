@@ -5,6 +5,7 @@ import modal
 from .benchmark import BenchmarkDefaults, get_benchmark_fingerprint
 from .resources import app, hf_secret, results_dict, results_volume
 from .vllm_runner import vllm
+from .trtllm_runner import trtllm
 
 
 MAX_SECONDS_PER_BENCHMARK_RUN = 120  # 2 minutes
@@ -52,12 +53,13 @@ class BenchmarkRunner:
         data_type: str = BenchmarkDefaults.DATA_TYPE,
         gpu: str = BenchmarkDefaults.GPU,
         region: str = BenchmarkDefaults.REGION,
-        vllm_docker_tag: str = BenchmarkDefaults.VLLM_DOCKER_TAG,
-        vllm_env_vars: Dict[str, str] = BenchmarkDefaults.VLLM_ENV_VARS,
-        vllm_extra_args: List[str] = BenchmarkDefaults.VLLM_EXTRA_ARGS,
+        llm_engine_type: str = BenchmarkDefaults.LLM_ENGINE_TYPE, 
+        llm_engine_version: str = BenchmarkDefaults.LLM_ENGINE_VERSION, 
+        llm_env_vars: Dict[str, str] = BenchmarkDefaults.LLM_ENV_VARS,
+        llm_extra_args: List[str] = BenchmarkDefaults.LLM_EXTRA_ARGS,
         repeat_index: int = 0,
     ):
-        """Benchmarks a vLLM deployment on Modal.
+        """Benchmarks a LLM deployment on Modal.
 
         Args:
             model (str, required): Name of the model to benchmark.
@@ -70,10 +72,10 @@ class BenchmarkRunner:
                 or 'transformers'.
             gpu (str): The GPU to use for benchmarking.
             region (str): The region to use for benchmarking.
-            vllm_docker_tag (str): Tag of the vLLM server docker image. Defaults to
-                `latest`.
-            vllm_env_vars (dict): Environment variables to pass to the vLLM server.
-            vllm_extra_args (list): Extra arguments to pass to the vLLM server.
+            llm_engine_type (str): vLLM or TRTLLM
+            llm_engine_version (str): LLM version (e.g. 0.7.3)
+            llm_env_vars (dict): Environment variables to pass to the LLM server.
+            llm_extra_args (list): Extra arguments to pass to the LLM server.
         """
 
         caller_id = modal.current_function_call_id()
@@ -84,27 +86,35 @@ class BenchmarkRunner:
             "caller_id": caller_id,
         }
 
-        if len(vllm_extra_args) > 0:
-            extra_query["extra_vllm_args"] = " ".join(vllm_extra_args)
-        if len(vllm_env_vars) > 0:
-            extra_query["vllm_env_vars"] = " ".join(
-                f"{k}={v}" for k, v in vllm_env_vars.items()
+        if len(llm_extra_args) > 0:
+            extra_query["extra_llm_args"] = " ".join(llm_extra_args)
+        if len(llm_env_vars) > 0:
+            extra_query["llm_env_vars"] = " ".join(
+                f"{k}={v}" for k, v in llm_env_vars.items()
             )
 
-        # Start vLLM server in background
-        with vllm(
-            docker_tag=vllm_docker_tag,
+        engine_name_to_params = {
+            "vllm": (vllm, vllm_monkey_patch),
+            "trtllm": (trtllm, lambda x: None),
+        }
+
+
+        llm, monkey_patch = engine_name_to_params(llm_engine_type.strip().lower())
+
+        # Start LLM server in background
+        with llm(
+            llm_engine_version=llm_engine_version,
             extra_query=extra_query,
             gpu=gpu,
             region=region,
-        ) as vllm_url:
+        ) as llm_url:
             extra_query_args = urllib.parse.urlencode(extra_query)
-            metrics_url = f"{vllm_url}/metrics?{extra_query_args}"
-            vllm_monkey_patch(metrics_url)
+            metrics_url = f"{llm_url}/metrics?{extra_query_args}"
+            monkey_patch(metrics_url)
 
             # Run benchmark with guidellm
             generate_benchmark_report(
-                target=f"{vllm_url}/v1",
+                target=f"{llm_url}/v1",
                 backend="openai_server",
                 model=model,
                 data=data,
@@ -129,9 +139,10 @@ class BenchmarkRunner:
             data_type=data_type,
             gpu=gpu,
             region=region,
-            vllm_docker_tag=vllm_docker_tag,
-            vllm_env_vars=vllm_env_vars,
-            vllm_extra_args=vllm_extra_args,
+            llm_engine_type=llm_engine_type,
+            llm_engine_version=llm_engine_version,
+            llm_env_vars=vllm_env_vars,
+            llm_extra_args=vllm_extra_args,
             repeat_index=repeat_index,
         )
         results_dict[fingerprint] = caller_id

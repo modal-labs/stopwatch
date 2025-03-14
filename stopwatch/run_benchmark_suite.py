@@ -147,21 +147,25 @@ def run_benchmark_suite(
                 axis=1,
             )
 
-            # Save KV cache usage from vLLM metrics
-            df["kv_cache_usage_mean"] = df.apply(
-                lambda x: 100
-                * np.mean([y["kv_cache_usage"] for y in x["vllm_metrics"]]),
-                axis=1,
-            )
+            try:
+                # Save KV cache usage from vLLM metrics
+                df["kv_cache_usage_mean"] = df.apply(
+                    lambda x: 100
+                    * np.mean([y["kv_cache_usage"] for y in x["vllm_metrics"]]),
+                    axis=1,
+                )
 
-            # Save TPOT median from vLLM metrics
-            df["tpot_median"] = df.apply(
-                lambda x: histogram_median(
-                    x["vllm_metrics"][-1]["time_per_output_token"]["bins"],
-                    x["vllm_metrics"][-1]["time_per_output_token"]["data"],
-                ),
-                axis=1,
-            )
+                # Save TPOT median from vLLM metrics
+                df["tpot_median"] = df.apply(
+                    lambda x: histogram_median(
+                        x["vllm_metrics"][-1]["time_per_output_token"]["bins"],
+                        x["vllm_metrics"][-1]["time_per_output_token"]["data"],
+                    ),
+                    axis=1,
+                )
+            except:
+                df["kv_cache_usage_mean"] = -1
+                df["tpot_median"] = -1
 
             # Calculate percentiles of time-to-first-token, time-to-last-token,
             # and inter-token latency
