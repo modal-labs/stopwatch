@@ -11,6 +11,9 @@ configs:
       - prompt_tokens=4096,generated_tokens=128
       - prompt_tokens=512,generated_tokens=512
       - prompt_tokens=4096,generated_tokens=4096
+    vllm_docker_tag:
+      - v0.8.0
+      - v0.7.3
   - model: meta-llama/Llama-3.1-8B-Instruct
     gpu: A100-80GB
     region: us-east4
@@ -35,22 +38,23 @@ configs:
       - ["--enforce-eager", "--enable-chunked-prefill"]
 
   # More GPUs
-  # - model:
-  #     - meta-llama/Llama-3.1-8B-Instruct
-  #     - meta-llama/Llama-3.1-70B-Instruct
-  #   gpu: H100:2
-  #   region: us-east4
-  #   data:
-  #     - prompt_tokens=4096,generated_tokens=128
-  #     - prompt_tokens=128,generated_tokens=4096
-  #     - prompt_tokens=4096,generated_tokens=4096
-  #   vllm_extra_args:
-  #     - ["--tensor-parallel-size", "2", "--max-model-len", "8192"]
+  - model:
+      - meta-llama/Llama-3.1-8B-Instruct
+      # - meta-llama/Llama-3.1-70B-Instruct
+    gpu: H100:2
+    region: us-chicago-1
+    data:
+      - prompt_tokens=4096,generated_tokens=128
+      - prompt_tokens=128,generated_tokens=4096
+      - prompt_tokens=2048,generated_tokens=2048
+    vllm_extra_args:
+      - ["--tensor-parallel-size", "2", "--max-model-len", "8192"]
+
   # - model:
   #     - meta-llama/Llama-3.1-8B-Instruct
   #     - meta-llama/Llama-3.1-70B-Instruct
   #   gpu: H100:4
-  #   region: us-east4
+  #   region: us-chicago-1
   #   data:
   #     - prompt_tokens=4096,generated_tokens=128
   #     - prompt_tokens=128,generated_tokens=4096

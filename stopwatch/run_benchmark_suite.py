@@ -14,7 +14,7 @@ from .run_benchmark import all_benchmark_runner_classes
 
 DATASETTE_PATH = "/datasette"
 DB_PATH = "/db"
-MAX_CONCURRENT_BENCHMARKS = 25
+MAX_CONCURRENT_BENCHMARKS = 20
 NUM_CONSTANT_RATES = 10
 RESULTS_PATH = "/results"
 TIMEOUT = 12 * 60 * 60  # 12 hours
@@ -140,19 +140,28 @@ def run_benchmarks_in_parallel(benchmarks: List[Dict[str, Any]]):
             if isinstance(result, Exception):
                 print("Error retrieving result:", result)
                 continue
-            elif len(result["results"]) == 0:
-                # TODO: Not sure why this happens, but it results in us needing
-                # to re-run this benchmark
-                print("No results for", function_call_id)
-                continue
-
-            print("Saving results for", function_call_id)
 
             benchmark_model = (
                 session.query(Benchmark)
                 .filter_by(function_call_id=function_call_id)
                 .first()
             )
+
+            if len(result["results"]) == 0:
+                # This happens when the benchmark is run with invald parameters
+                # e.g. asking the model to generate more tokens than its
+                # maximum context size. When this happens, requests made to the
+                # vLLM runner return a 400 error, and no results are saved.
+
+                # TODO: Return an error when 400 errors are encountered without
+                # crashing the run_benchmark_suite function.
+
+                print("No results for", function_call_id)
+                benchmark_model.function_call_id = None
+                session.commit()
+                continue
+
+            print("Saving results for", function_call_id)
 
             with open(
                 os.path.join(RESULTS_PATH, f"{benchmark_model.id}.json"), "w"
@@ -173,6 +182,7 @@ def run_benchmarks_in_parallel(benchmarks: List[Dict[str, Any]]):
         DB_PATH: db_volume,
         RESULTS_PATH: results_volume,
     },
+    max_containers=1,
     timeout=TIMEOUT,
 )
 def run_benchmark_suite(

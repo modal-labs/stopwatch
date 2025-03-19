@@ -21,15 +21,19 @@ VLLM_PORT = 8000
 
 
 def vllm_image_factory(docker_tag: str = "v0.7.3"):
+    python_binary = (
+        "/opt/venv/bin/python3" if docker_tag == "v0.8.0" else "/usr/bin/python3"
+    )
+
     return (
         modal.Image.from_registry(
             f"vllm/vllm-openai:{docker_tag}",
             setup_dockerfile_commands=[
-                "RUN ln -s /usr/bin/python3 /usr/bin/python3.vllm",
+                f"RUN echo -n {python_binary} > /vllm-workspace/vllm-python",
             ],
             add_python="3.13",
         )
-        .pip_install("numpy", "SQLAlchemy")
+        .pip_install("grpclib", "numpy", "SQLAlchemy")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH})
         .dockerfile_commands("ENTRYPOINT []")
     )
@@ -91,7 +95,9 @@ class vLLMBase:
         # Start vLLM server
         subprocess.Popen(
             [
-                "python3.vllm",
+                # Read the location of the correct Python binary from the file
+                # created while building the image.
+                open("/vllm-workspace/vllm-python").read(),
                 "-m",
                 "vllm.entrypoints.openai.api_server",
                 "--model",
@@ -103,6 +109,14 @@ class vLLMBase:
                 **vllm_env_vars,
             },
         )
+
+
+@vllm_cls(image=vllm_image_factory("v0.8.0"), region="us-chicago-1")
+class vLLM_v0_8_0(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    extra_vllm_args: str = modal.parameter(default="")
+    vllm_env_vars: str = modal.parameter(default="")
 
 
 @vllm_cls()
@@ -137,7 +151,7 @@ class vLLM_OCI_USCHICAGO1(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(gpu="A100-40GB")
+@vllm_cls(gpu="A100-40GB", region="us-chicago-1")
 class vLLM_A100_40GB(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -153,7 +167,7 @@ class vLLM_A100_80GB(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(gpu="H100!:2", region="us-east4")
+@vllm_cls(gpu="H100!:2", region="us-chicago-1")
 class vLLM_2xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -161,7 +175,7 @@ class vLLM_2xH100(vLLMBase):
     vllm_env_vars: str = modal.parameter(default="")
 
 
-@vllm_cls(gpu="H100!:4", region="us-east4")
+@vllm_cls(gpu="H100!:4", region="us-chicago-1")
 class vLLM_4xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -178,6 +192,11 @@ class vLLM_v0_6_6(vLLMBase):
 
 
 all_vllm_classes = {
+    "v0.8.0": {
+        "H100": {
+            "us-chicago-1": vLLM_v0_8_0,
+        },
+    },
     "v0.7.3": {
         "H100": {
             "us-ashburn-1": vLLM_OCI_USASHBURN1,
@@ -186,20 +205,20 @@ all_vllm_classes = {
             "us-chicago-1": vLLM_OCI_USCHICAGO1,
         },
         "A100-40GB": {
-            "us-ashburn-1": vLLM_A100_40GB,
+            "us-chicago-1": vLLM_A100_40GB,
         },
         "A100-80GB": {
             "us-east4": vLLM_A100_80GB,
         },
         "H100:2": {
-            "us-east4": vLLM_2xH100,
+            "us-chicago-1": vLLM_2xH100,
         },
         "H100:4": {
-            "us-east4": vLLM_4xH100,
+            "us-chicago-1": vLLM_4xH100,
         },
     },
     "v0.6.6": {
-        "H100!": {
+        "H100": {
             "us-ashburn-1": vLLM_v0_6_6,
         },
     },
