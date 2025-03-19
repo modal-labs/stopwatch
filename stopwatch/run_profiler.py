@@ -1,6 +1,6 @@
 import modal
 
-from .benchmark import BenchmarkDefaults
+from .db import BenchmarkDefaults
 from .resources import app, hf_secret, traces_volume
 from .vllm_runner import vllm
 

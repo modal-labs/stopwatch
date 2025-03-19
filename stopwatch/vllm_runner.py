@@ -4,13 +4,15 @@ import subprocess
 import time
 import urllib.parse
 import urllib.request
+import uuid
 
 import modal
 
-from .benchmark import BenchmarkDefaults
-from .resources import app, hf_secret, traces_volume
+from .db import BenchmarkDefaults
+from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
+HF_CACHE_PATH = "/cache"
 SCALEDOWN_WINDOW = 2 * 60  # 2 minutes
 STARTUP_TIMEOUT = 30 * 60  # 30 minutes
 TIMEOUT = 60 * 60  # 1 hour
@@ -19,20 +21,25 @@ VLLM_PORT = 8000
 
 
 def vllm_image_factory(docker_tag: str = "v0.7.3"):
-    return modal.Image.from_registry(
-        f"vllm/vllm-openai:{docker_tag}",
-        setup_dockerfile_commands=[
-            "RUN ln -s /usr/bin/python3 /usr/bin/python3.vllm",
-        ],
-        add_python="3.12",
-    ).dockerfile_commands("ENTRYPOINT []")
+    return (
+        modal.Image.from_registry(
+            f"vllm/vllm-openai:{docker_tag}",
+            setup_dockerfile_commands=[
+                "RUN ln -s /usr/bin/python3 /usr/bin/python3.vllm",
+            ],
+            add_python="3.13",
+        )
+        .pip_install("numpy", "SQLAlchemy")
+        .env({"HF_HUB_CACHE": HF_CACHE_PATH})
+        .dockerfile_commands("ENTRYPOINT []")
+    )
 
 
 def vllm_cls(
     image=vllm_image_factory(),
     secrets=[hf_secret],
     gpu="H100!",
-    volumes={TRACES_PATH: traces_volume},
+    volumes={HF_CACHE_PATH: hf_cache_volume, TRACES_PATH: traces_volume},
     cpu=4,
     memory=65536,
     scaledown_window=SCALEDOWN_WINDOW,
@@ -99,7 +106,7 @@ class vLLMBase:
 
 
 @vllm_cls()
-class vLLM(vLLMBase):
+class vLLM_OCI_USASHBURN1(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     extra_vllm_args: str = modal.parameter(default="")
@@ -116,6 +123,14 @@ class vLLM_AWS_USEAST1(vLLMBase):
 
 @vllm_cls(region="us-east4")
 class vLLM_GCP_USEAST4(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    extra_vllm_args: str = modal.parameter(default="")
+    vllm_env_vars: str = modal.parameter(default="")
+
+
+@vllm_cls(region="us-chicago-1")
+class vLLM_OCI_USCHICAGO1(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     extra_vllm_args: str = modal.parameter(default="")
@@ -165,9 +180,10 @@ class vLLM_v0_6_6(vLLMBase):
 all_vllm_classes = {
     "v0.7.3": {
         "H100": {
-            "us-ashburn-1": vLLM,
+            "us-ashburn-1": vLLM_OCI_USASHBURN1,
             "us-east-1": vLLM_AWS_USEAST1,
             "us-east4": vLLM_GCP_USEAST4,
+            "us-chicago-1": vLLM_OCI_USCHICAGO1,
         },
         "A100-40GB": {
             "us-ashburn-1": vLLM_A100_40GB,
@@ -198,23 +214,43 @@ def vllm(
     region: str = BenchmarkDefaults.REGION,
     profile: bool = False,
 ):
-    # Pick vLLM server class
-    try:
-        cls = all_vllm_classes[docker_tag][gpu.replace("!", "")][region]
-    except KeyError:
-        raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu} {region}")
+    # If the vLLM server takes more than 12.5 minutes to start, the metrics
+    # endpoint will fail with a 303 infinite redirect error. As a workaround,
+    # to handle this issue, we update the caller ID and try to spin up a new
+    # vLLM server instead.
+    connected = False
 
-    args = urllib.parse.urlencode(extra_query)
-    url = cls(model="").start.web_url
+    while not connected:
+        # Pick vLLM server class
+        try:
+            cls = all_vllm_classes[docker_tag][gpu.replace("!", "")][region]
+        except KeyError:
+            raise ValueError(
+                f"Unsupported vLLM configuration: {docker_tag} {gpu} {region}"
+            )
 
-    # Wait for vLLM server to start
-    response_body = ""
-    print(f"Requesting metrics at {url}/metrics?{args}")
+        args = urllib.parse.urlencode(extra_query)
+        url = cls(model="").start.web_url
 
-    while "vllm:num_requests_running" not in response_body:
-        response = urllib.request.urlopen(f"{url}/metrics?{args}")
-        response_body = response.read().decode("utf-8")
-        time.sleep(5)
+        # Wait for vLLM server to start
+        response_body = ""
+        print(f"Requesting metrics at {url}/metrics?{args}")
+
+        while True:
+            try:
+                response = urllib.request.urlopen(f"{url}/metrics?{args}")
+            except urllib.error.HTTPError as e:
+                print(f"Error requesting metrics: {e}")
+                extra_query["caller_id"] = str(uuid.uuid4())
+                break
+
+            response_body = response.read().decode("utf-8")
+
+            if "vllm:gpu_cache_usage_perc" in response_body:
+                connected = True
+                break
+            else:
+                time.sleep(5)
 
     print("Connected to vLLM instance")
 

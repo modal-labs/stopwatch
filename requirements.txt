@@ -1,2 +1,5 @@
 click==8.1.8
-modal==0.73.91
+modal==0.73.114
+numpy==2.2.4
+PyYAML==6.0.2
+SQLAlchemy==2.0.39

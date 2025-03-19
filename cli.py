@@ -1,7 +1,6 @@
 import itertools
 import os
 import subprocess
-import urllib.parse
 import yaml
 
 import click
@@ -122,7 +121,13 @@ def run_profiler(**kwargs):
 
 @cli.command()
 @click.argument("config-path", type=str)
-def run_benchmark_suite(config_path: str):
+@click.option(
+    "--recompute",
+    is_flag=True,
+    default=False,
+    help="Recompute benchmarks that have already been run.",
+)
+def run_benchmark_suite(config_path: str, recompute: bool = False):
     config = yaml.load(open(config_path), Loader=yaml.SafeLoader)
     benchmarks = []
 
@@ -135,14 +140,13 @@ def run_benchmark_suite(config_path: str):
             values.append(value if isinstance(value, list) else [value])
 
         for combination in itertools.product(*values):
-            benchmarks.append({"config": dict(zip(keys, combination))})
+            benchmarks.append(dict(zip(keys, combination)))
 
     f = modal.Function.from_name("stopwatch", "run_benchmark_suite")
     fc = f.spawn(
         benchmarks=benchmarks,
-        suite_id=config.get("id", "stopwatch"),
         repeats=config.get("repeats", 1),
-        recompute=config.get("recompute", False),
+        recompute=recompute,
     )
 
     print("Running benchmarks (you may safely CTRL+C)...")
@@ -153,8 +157,7 @@ def run_benchmark_suite(config_path: str):
 
     if answer != "n":
         url = modal.Cls.from_name("stopwatch", "DatasetteRunner")().start.web_url
-        query = urllib.parse.urlencode({"id": config.get("id", "stopwatch")})
-        subprocess.run(["open", f"{url}?{query}"])
+        subprocess.run(["open", url])
 
 
 if __name__ == "__main__":

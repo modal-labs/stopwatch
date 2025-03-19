@@ -1,44 +1,59 @@
+repeats: 3
 configs:
+  # Data configs
   - model: meta-llama/Llama-3.1-8B-Instruct
-    gpu:
-      - H100
-      - A100-40GB
+    gpu: H100
+    region: us-chicago-1
     data:
-      - prompt_tokens=512,generated_tokens=128
+      - prompt_tokens=32,generated_tokens=1024
+      - prompt_tokens=128,generated_tokens=4096
+      - prompt_tokens=1024,generated_tokens=32
+      - prompt_tokens=4096,generated_tokens=128
       - prompt_tokens=512,generated_tokens=512
-    vllm_extra_args:
-      - []
-      - ["--enforce-eager"]
-      - ["--enable-chunked-prefill"]
-      - ["--enforce-eager", "--enable-chunked-prefill"]
+      - prompt_tokens=4096,generated_tokens=4096
   - model: meta-llama/Llama-3.1-8B-Instruct
     gpu: A100-80GB
     region: us-east4
     data:
-      - prompt_tokens=512,generated_tokens=128
+      - prompt_tokens=32,generated_tokens=1024
+      - prompt_tokens=128,generated_tokens=4096
+      - prompt_tokens=1024,generated_tokens=32
+      - prompt_tokens=4096,generated_tokens=128
       - prompt_tokens=512,generated_tokens=512
+      - prompt_tokens=4096,generated_tokens=4096
+
+  # vLLM extra args
+  - model: meta-llama/Llama-3.1-8B-Instruct
+    gpu: H100
+    region: us-chicago-1
+    data:
+      - prompt_tokens=128,generated_tokens=4096
+      - prompt_tokens=4096,generated_tokens=128
     vllm_extra_args:
-      - []
       - ["--enforce-eager"]
       - ["--enable-chunked-prefill"]
       - ["--enforce-eager", "--enable-chunked-prefill"]
-  - model:
-      - meta-llama/Llama-3.1-8B-Instruct
-      - meta-llama/Llama-3.1-70B-Instruct
-    gpu: H100:2
-    region: us-east4
-    data:
-      - prompt_tokens=512,generated_tokens=128
-      - prompt_tokens=512,generated_tokens=512
-    vllm_extra_args:
-      - ["--tensor-parallel-size", "2", "--max-model-len", "8192"]
-  - model:
-      - meta-llama/Llama-3.1-8B-Instruct
-      - meta-llama/Llama-3.1-70B-Instruct
-    gpu: H100:4
-    region: us-east4
-    data:
-      - prompt_tokens=512,generated_tokens=128
-      - prompt_tokens=512,generated_tokens=512
-    vllm_extra_args:
-      - ["--tensor-parallel-size", "4", "--max-model-len", "8192"]
+
+  # More GPUs
+  # - model:
+  #     - meta-llama/Llama-3.1-8B-Instruct
+  #     - meta-llama/Llama-3.1-70B-Instruct
+  #   gpu: H100:2
+  #   region: us-east4
+  #   data:
+  #     - prompt_tokens=4096,generated_tokens=128
+  #     - prompt_tokens=128,generated_tokens=4096
+  #     - prompt_tokens=4096,generated_tokens=4096
+  #   vllm_extra_args:
+  #     - ["--tensor-parallel-size", "2", "--max-model-len", "8192"]
+  # - model:
+  #     - meta-llama/Llama-3.1-8B-Instruct
+  #     - meta-llama/Llama-3.1-70B-Instruct
+  #   gpu: H100:4
+  #   region: us-east4
+  #   data:
+  #     - prompt_tokens=4096,generated_tokens=128
+  #     - prompt_tokens=128,generated_tokens=4096
+  #     - prompt_tokens=4096,generated_tokens=4096
+  #   vllm_extra_args:
+  #     - ["--tensor-parallel-size", "4", "--max-model-len", "8192"]
