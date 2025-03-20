@@ -68,7 +68,7 @@ def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]], recompute: bool = Fa
             if benchmark.start_time is not None:
                 # TODO: Check errors?
                 continue
-            else:
+            elif benchmark.function_call_id is not None:
                 fc = modal.FunctionCall.from_id(benchmark.function_call_id)
 
                 try:
