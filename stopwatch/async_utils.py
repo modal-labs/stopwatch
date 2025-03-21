@@ -12,7 +12,10 @@ async def _as_completed(function_calls):
         async for finished_task in asyncio.as_completed([task for _, task in tasks]):
             try:
                 result = await finished_task
-            except modal.exception.FunctionTimeoutError as exc:
+            except (
+                modal.exception.FunctionTimeoutError,
+                modal.exception.RemoteError,
+            ) as exc:
                 result = exc
 
             for function_call_id, task in tasks:

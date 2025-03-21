@@ -1,9 +1,0 @@
-id: vllm-profiler
-configs:
-  - model: meta-llama/Llama-3.1-8B-Instruct
-    data: prompt_tokens=512,generated_tokens=8
-
-    llm_env_vars:
-      - {}
-      - VLLM_TORCH_PROFILER_DIR: /tmp
-        VLLM_RPC_TIMEOUT: "1800000"

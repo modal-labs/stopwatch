@@ -1,0 +1,21 @@
+id: vllm-args
+repeats: 3
+base_config:
+  model: meta-llama/Llama-3.1-8B-Instruct
+  llm_server_type: vllm
+  llm_server_config:
+    docker_tag: v0.7.3
+  gpu: H100
+  region: us-chicago-1
+configs:
+  - data:
+      - prompt_tokens=128,generated_tokens=4096
+      - prompt_tokens=4096,generated_tokens=128
+    llm_server_config:
+      - docker_tag: v0.7.3
+      - docker_tag: v0.7.3
+        extra_args: ["--enforce-eager"]
+      - docker_tag: v0.7.3
+        extra_args: ["--enable-chunked-prefill"]
+      - docker_tag: v0.7.3
+        extra_args: ["--enforce-eager", "--enable-chunked-prefill"]

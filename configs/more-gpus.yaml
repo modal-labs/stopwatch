@@ -1,0 +1,43 @@
+id: more-gpus
+repeats: 3
+base_config:
+  llm_server_type: vllm
+configs:
+  - model:
+      - meta-llama/Llama-3.1-8B-Instruct
+      # - meta-llama/Llama-3.1-70B-Instruct
+    gpu: A100-80GB
+    region: us-east4
+  - model:
+      - meta-llama/Llama-3.1-8B-Instruct
+      # - meta-llama/Llama-3.1-70B-Instruct
+    gpu: H100
+    region: us-chicago-1
+    data:
+      - prompt_tokens=4096,generated_tokens=128
+      - prompt_tokens=128,generated_tokens=4096
+      - prompt_tokens=2048,generated_tokens=2048
+  - model:
+      - meta-llama/Llama-3.1-8B-Instruct
+      # - meta-llama/Llama-3.1-70B-Instruct
+    gpu: H100:2
+    region: us-chicago-1
+    data:
+      - prompt_tokens=4096,generated_tokens=128
+      - prompt_tokens=128,generated_tokens=4096
+      - prompt_tokens=2048,generated_tokens=2048
+    llm_server_config:
+      docker_tag: v0.7.3
+      extra_args: ["--tensor-parallel-size", "2", "--max-model-len", "8192"]
+  - model:
+      - meta-llama/Llama-3.1-8B-Instruct
+      # - meta-llama/Llama-3.1-70B-Instruct
+    gpu: H100:4
+    region: us-chicago-1
+    data:
+      - prompt_tokens=4096,generated_tokens=128
+      - prompt_tokens=128,generated_tokens=4096
+      - prompt_tokens=2048,generated_tokens=2048
+    llm_server_config:
+      docker_tag: v0.7.3
+      extra_args: ["--tensor-parallel-size", "4", "--max-model-len", "8192"]

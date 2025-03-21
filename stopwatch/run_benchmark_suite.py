@@ -287,7 +287,44 @@ def run_benchmark_suite(
 
     run_benchmarks_in_parallel(benchmarks_to_run)
 
-    # STEP 3: Average the results together
+    # STEP 3: Average the results together. Start by finding the parameters
+    # that vary between benchmarks in order to get descriptive group IDs for
+    # each averaged benchmark.
+    parameters = {}
+
+    for benchmark in benchmarks:
+        for k in benchmark:
+            if type(benchmark[k]) == dict or k == "group_id":
+                continue
+
+            if k not in parameters:
+                parameters[k] = set()
+
+            parameters[k].add(benchmark[k])
+
+    for k in list(parameters.keys()):
+        if len(parameters[k]) == 1:
+            del parameters[k]
+
+    # Ensure names/group IDs are unique
+    group_ids = set()
+
+    for i, benchmark in enumerate(benchmarks):
+        base_group_id = (
+            "_".join([str(benchmark[k]) for k in sorted(parameters)])
+            if len(parameters) > 0
+            else "benchmark"
+        )
+        group_id = base_group_id
+
+        j = 0
+        while group_id in group_ids:
+            j += 1
+            group_id = f"{base_group_id}_{j}"
+
+        group_ids.add(group_id)
+        benchmarks[i]["group_id"] = group_id
+
     for benchmark in benchmarks:
         benchmark_models = (
             session.query(Benchmark)
@@ -297,16 +334,12 @@ def run_benchmark_suite(
         benchmark_rates = set(
             (benchmark.rate_type, benchmark.rate) for benchmark in benchmark_models
         )
-        group_id = str(uuid.uuid4())[:8]
 
         for rate_type, rate in benchmark_rates:
             averaged_benchmark = AveragedBenchmark(
-                **{
-                    **benchmark,
-                    "group_id": group_id,
-                    "rate_type": rate_type,
-                    "rate": rate,
-                }
+                **benchmark,
+                rate_type=rate_type,
+                rate=rate,
             )
 
             for key in [
@@ -341,4 +374,37 @@ def run_benchmark_suite(
             print(f"Added averaged benchmark {group_id} for {rate_type} {rate}")
 
     session.commit()
+    db_volume.commit()
+
+
+@app.function(
+    image=benchmark_suite_image,
+    volumes={
+        DB_PATH: db_volume,
+        RESULTS_PATH: results_volume,
+    },
+    timeout=TIMEOUT,
+)
+def reload_results():
+    """Full results are saved to disk, while only select statistics are saved
+    to the database. This function saves each benchmark's full results to the
+    database. This can be useful if the save_results function is updated to
+    save new statistics."""
+
+    benchmark_models = session.query(Benchmark).all()
+
+    for benchmark_model in benchmark_models:
+        results_path = os.path.join(RESULTS_PATH, f"{benchmark_model.id}.json")
+
+        if not os.path.exists(results_path):
+            continue
+
+        with open(results_path, "r") as f:
+            results = json.load(f)
+
+        benchmark_model.save_results(
+            results["results"], results.get("vllm_metrics", None)
+        )
+        session.commit()
+
     db_volume.commit()

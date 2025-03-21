@@ -1,9 +1,8 @@
-from typing import List
 import itertools
 
-import numpy as np
 from sqlalchemy import Column, DateTime, Float, Integer, JSON, String
 from sqlalchemy.sql import func
+import numpy as np
 
 from .base import Base
 
@@ -136,9 +135,11 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
                 for decode_time in result["decode_times"]["data"]
             ]
 
-            for key, distribution, statistic in itertools.product(
-                ["itl", "ttft", "ttlt"],
-                [itl_distribution, ttft_distribution, ttlt_distribution],
+            for (key, distribution), statistic in itertools.product(
+                zip(
+                    ["itl", "ttft", "ttlt"],
+                    [itl_distribution, ttft_distribution, ttlt_distribution],
+                ),
                 ["mean", 50, 90, 95, 99],
             ):
                 if statistic == "mean":

@@ -1,0 +1,16 @@
+id: data-distributions
+repeats: 3
+configs:
+  - model: meta-llama/Llama-3.1-8B-Instruct
+    llm_server_type: vllm
+    llm_server_config:
+      docker_tag: v0.7.3
+    gpu: H100
+    region: us-chicago-1
+    data:
+      - prompt_tokens=32,generated_tokens=1024
+      - prompt_tokens=128,generated_tokens=4096
+      - prompt_tokens=1024,generated_tokens=32
+      - prompt_tokens=4096,generated_tokens=128
+      - prompt_tokens=512,generated_tokens=512
+      - prompt_tokens=4096,generated_tokens=4096
