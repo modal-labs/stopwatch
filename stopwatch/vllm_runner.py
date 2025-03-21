@@ -1,5 +1,6 @@
 from typing import Any, Mapping, Optional
 import contextlib
+import json
 import os
 import subprocess
 import time
@@ -80,16 +81,7 @@ class vLLMBase:
         """Start a vLLM server."""
 
         assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
-
-        extra_llm_args = self.extra_llm_args.split(" ") if self.extra_llm_args else []
-        llm_env_vars = (
-            {
-                k: v
-                for k, v in (pair.split("=") for pair in self.llm_env_vars.split(" "))
-            }
-            if self.llm_env_vars
-            else {}
-        )
+        server_config = json.loads(self.server_config)
 
         # Start vLLM server
         subprocess.Popen(
@@ -101,11 +93,11 @@ class vLLMBase:
                 "vllm.entrypoints.openai.api_server",
                 "--model",
                 self.model,
-                *extra_llm_args,
+                *server_config.get("extra_args", []),
             ],
             env={
                 **os.environ,
-                **llm_env_vars,
+                **server_config.get("env_vars", {}),
             },
         )
 
@@ -114,80 +106,70 @@ class vLLMBase:
 class vLLM_v0_8_0(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_vllm_args: str = modal.parameter(default="")
-    vllm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @vllm_cls()
 class vLLM_OCI_USASHBURN1(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_llm_args: str = modal.parameter(default="")
-    llm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @vllm_cls(region="us-east-1")
 class vLLM_AWS_USEAST1(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_llm_args: str = modal.parameter(default="")
-    llm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @vllm_cls(region="us-east4")
 class vLLM_GCP_USEAST4(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_llm_args: str = modal.parameter(default="")
-    llm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @vllm_cls(region="us-chicago-1")
 class vLLM_OCI_USCHICAGO1(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_vllm_args: str = modal.parameter(default="")
-    vllm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @vllm_cls(gpu="A100-40GB", region="us-chicago-1")
 class vLLM_A100_40GB(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_llm_args: str = modal.parameter(default="")
-    llm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @vllm_cls(gpu="A100-80GB", region="us-east4")
 class vLLM_A100_80GB(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_llm_args: str = modal.parameter(default="")
-    llm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @vllm_cls(gpu="H100!:2", region="us-chicago-1")
 class vLLM_2xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_llm_args: str = modal.parameter(default="")
-    llm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @vllm_cls(gpu="H100!:4", region="us-chicago-1")
 class vLLM_4xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_llm_args: str = modal.parameter(default="")
-    llm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @vllm_cls(image=vllm_image_factory("v0.6.6"))
 class vLLM_v0_6_6(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_llm_args: str = modal.parameter(default="")
-    llm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 all_vllm_classes = {
@@ -226,10 +208,10 @@ all_vllm_classes = {
 
 @contextlib.contextmanager
 def vllm(
-    llm_server_config: Optional[Mapping[str, Any]] = None,
-    extra_query: dict = {},
+    model: str,
     gpu: str = BenchmarkDefaults.GPU,
     region: str = BenchmarkDefaults.REGION,
+    llm_server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
     # If the vLLM server takes more than 12.5 minutes to start, the metrics
@@ -241,6 +223,14 @@ def vllm(
     docker_tag = llm_server_config.get(
         "docker_tag", BenchmarkDefaults.LLM_SERVER_CONFIGS["vllm"]["docker_tag"]
     )
+
+    extra_query = {
+        "model": model,
+        # Sort keys to ensure that this parameter doesn't change between runs
+        # with the same vLLM configuration
+        "server_config": json.dumps(llm_server_config, sort_keys=True),
+        "caller_id": modal.current_function_call_id(),
+    }
 
     while not connected:
         # Pick vLLM server class
@@ -281,7 +271,7 @@ def vllm(
         urllib.request.urlopen(req)
 
     try:
-        yield url
+        yield (url, extra_query)
     finally:
         if profile:
             req = urllib.request.Request(f"{url}/stop_profile?{args}", method="POST")

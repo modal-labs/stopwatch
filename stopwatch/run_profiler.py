@@ -53,24 +53,13 @@ def run_profiler(
     llm_server_config["env_vars"]["VLLM_TORCH_PROFILER_DIR"] = TRACES_PATH
     llm_server_config["env_vars"]["VLLM_RPC_TIMEOUT"] = "1800000"
 
-    extra_query = {
-        "model": model,
-    }
-
-    if len(llm_server_config.get("extra_args", [])) > 0:
-        extra_query["extra_vllm_args"] = " ".join(llm_server_config["extra_args"])
-    if len(llm_server_config["env_vars"]) > 0:
-        extra_query["vllm_env_vars"] = " ".join(
-            f"{k}={v}" for k, v in llm_server_config["env_vars"].items()
-        )
-
     # Start vLLM server in background
     with vllm(
+        model=model,
         llm_server_config=llm_server_config,
-        extra_query=extra_query,
         gpu=gpu,
         profile=True,
-    ) as vllm_url:
+    ) as (vllm_url, extra_query):
         client = OpenAI(api_key="EMPTY", base_url=f"{vllm_url}/v1")
         erg = EmulatedRequestGenerator("", tokenizer=model)
 

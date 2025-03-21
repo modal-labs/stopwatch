@@ -99,34 +99,16 @@ class BenchmarkRunner:
                 f"Invalid value for llm_server: {llm_server_type}. Must be one of {BenchmarkDefaults.LLM_SERVER_CONFIGS.keys()}"
             )
         elif llm_server_config is None:
-            llm_server_config = BenchmarkDefaults.LLM_SERVER_CONFIGS[llm_server]
-
-        extra_query = {
-            "model": model,
-            # Include caller_id in extra_query to ensure that similar benchmark
-            # runs are given separate vLLM server instances
-            "caller_id": modal.current_function_call_id(),
-        }
-
-        # TODO: Make vllm a constant
-        if llm_server_type == "vllm":
-            if llm_server_config.get("extra_args", []) > 0:
-                extra_query["extra_llm_args"] = " ".join(
-                    llm_server_config["extra_args"]
-                )
-            if len(llm_server_config.get("env_vars", {})) > 0:
-                extra_query["llm_env_vars"] = " ".join(
-                    f"{k}={v}" for k, v in llm_server_config["env_vars"].items()
-                )
+            llm_server_config = BenchmarkDefaults.LLM_SERVER_CONFIGS[llm_server_type]
 
         # Start LLM server in background
         with llm_server(
-            llm_server_type=llm_server_type,
+            llm_server_type,
+            model,
             llm_server_config=llm_server_config,
-            extra_query=extra_query,
             gpu=gpu,
             region=region,
-        ) as llm_server_url:
+        ) as (llm_server_url, extra_query):
             # Create backend
             backend_inst = Backend.create(
                 backend_type="openai_server",

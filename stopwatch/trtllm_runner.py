@@ -111,7 +111,7 @@ class trtLLMBase:
             "speculative_config": lambda x: LookaheadDecodingConfig(**x),
         }
 
-        engine_kwargs = json.loads(self.extra_llm_args)
+        engine_kwargs = json.loads(self.server_config).get("llm_kwargs", {})
         if "tensor_parallel_size" not in engine_kwargs:
             engine_kwargs["tensor_parallel_size"] = torch.cuda.device_count()
         assert engine_kwargs["tensor_parallel_size"] == torch.cuda.device_count()
@@ -150,14 +150,11 @@ class trtLLMBase:
         from huggingface_hub import snapshot_download
         from tensorrt_llm import LLM
 
-        self.model_path = os.path.join(HF_CACHE_PATH, self.model)
-
-        self.seed_everything()
+        print("Received server config:")
+        print(self.server_config)
 
         print("downloading base model if necessary")
-        hf_cache_volume.reload()
-        snapshot_download(self.model, local_dir=self.model_path)
-        hf_cache_volume.commit()
+        self.model_path = snapshot_download(self.model)
 
         engine_kwargs = self.construct_engine_kwargs()
 
@@ -180,7 +177,6 @@ class trtLLMBase:
         """Start a trtLLM server."""
 
         assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
-        assert self.llm_env_vars == "", "not supported yet"
 
         tokenizer = AutoTokenizer.from_pretrained(self.model)
         server = OpenAIServer(llm=self.llm, model=self.model, hf_tokenizer=tokenizer)
@@ -200,16 +196,6 @@ class trtLLMBase:
     def shutdown(self):
         del self.llm
 
-    def seed_everything(self, seed=0):
-        import torch
-        import numpy as np
-        import random
-
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        random.seed(seed)
-        torch.cuda.manual_seed_all(seed)
-
     def get_config_fingerprint(self, trtllm_version, config_kwargs):
         """Hash config kwargs so we can cache the built engine."""
         return (
@@ -227,23 +213,29 @@ class trtLLMBase:
 class trtLLM(trtLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
-    extra_llm_args: str = modal.parameter(default="{}")
-    llm_env_vars: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @contextlib.contextmanager
 def trtllm(
-    llm_server_config: Optional[Mapping[str, Any]] = None,
-    extra_query: dict = {},
-    gpu: str = "H100!",
+    model: str,
+    gpu: str = BenchmarkDefaults.GPU,
     region: str = BenchmarkDefaults.REGION,
+    llm_server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
+    extra_query = {
+        "model": model,
+        # Sort keys to ensure that this parameter doesn't change between runs
+        # with the same vLLM configuration
+        "server_config": json.dumps(llm_server_config, sort_keys=True),
+        "caller_id": modal.current_function_call_id(),
+    }
 
     cls = trtLLM
 
     args = urllib.parse.urlencode(extra_query)
-    url = cls(model="", extra_trtllm_args="", trtllm_env_vars="").start.web_url
+    url = cls(model="").start.web_url
 
     # Wait for trtLLM server to start
     response_code = -1
@@ -255,8 +247,4 @@ def trtllm(
         time.sleep(5)
 
     print("Connected to trtLLM instance")
-
-    try:
-        yield url
-    finally:
-        pass
+    yield (url, extra_query)

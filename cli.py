@@ -29,12 +29,6 @@ def cli():
     help="The data source to use for benchmarking. Depending on the data-type, it should be a path to a data file containing prompts to run (ex: data.txt), a HuggingFace dataset name (ex: 'neuralmagic/LLM_compression_calibration'), or a configuration for emulated data (ex: 'prompt_tokens=128,generated_tokens=128').",
 )
 @click.option(
-    "--data-type",
-    type=str,
-    default="emulated",
-    help="The type of data to use, such as 'emulated', 'file', or 'transformers'. Defaults to 'emulated'.",
-)
-@click.option(
     "--gpu",
     type=str,
     default="H100",
@@ -52,8 +46,16 @@ def cli():
     default="vllm",
     help="LLM server to use (vllm or trtllm).",
 )
+@click.option(
+    "--rate-type",
+    type=click.Choice(["constant", "throughput", "synchronous"]),
+    default="constant",
+)
+@click.option("--rate", type=float, default=None)
 def run_benchmark(**kwargs):
-    cls = all_benchmark_runner_classes[kwargs["region"]]
+    cls = modal.Cls.from_name(
+        "stopwatch", all_benchmark_runner_classes[kwargs["region"]].__name__
+    )
     fc = cls().run_benchmark.spawn(**kwargs)
     print(f"Benchmark running at {fc.object_id}")
 
@@ -119,7 +121,12 @@ def run_benchmark_suite(config_path: str, recompute: bool = False):
             values.append(value if isinstance(value, list) else [value])
 
         for combination in itertools.product(*values):
-            benchmarks.append(dict(zip(keys, combination)))
+            benchmarks.append(
+                {
+                    **config.get("base_config", {}),
+                    **dict(zip(keys, combination)),
+                }
+            )
 
     f = modal.Function.from_name("stopwatch", "run_benchmark_suite")
     fc = f.spawn(
