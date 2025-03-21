@@ -1,3 +1,4 @@
+id: full-suite
 repeats: 3
 configs:
   # Data configs
@@ -31,9 +32,12 @@ configs:
   - model: meta-llama/Llama-3.1-8B-Instruct
     llm_server_type: vllm
     llm_server_config:
-      - extra_args: ["--enforce-eager"]
-      - extra_args: ["--enable-chunked-prefill"]
-      - extra_args: ["--enforce-eager", "--enable-chunked-prefill"]
+      - docker_tag: v0.7.3
+        extra_args: ["--enforce-eager"]
+      - docker_tag: v0.7.3
+        extra_args: ["--enable-chunked-prefill"]
+      - docker_tag: v0.7.3
+        extra_args: ["--enforce-eager", "--enable-chunked-prefill"]
     gpu: H100
     region: us-chicago-1
     data:
@@ -46,6 +50,7 @@ configs:
       # - meta-llama/Llama-3.1-70B-Instruct
     llm_server_type: vllm
     llm_server_config:
+      docker_tag: v0.7.3
       extra_args: ["--tensor-parallel-size", "2", "--max-model-len", "8192"]
     gpu: H100:2
     region: us-chicago-1

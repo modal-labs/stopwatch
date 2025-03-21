@@ -128,9 +128,13 @@ def run_benchmark_suite(config_path: str, recompute: bool = False):
                 }
             )
 
+    if "id" not in config:
+        raise ValueError("'id' is required in the config")
+
     f = modal.Function.from_name("stopwatch", "run_benchmark_suite")
     fc = f.spawn(
         benchmarks=benchmarks,
+        id=config["id"],
         repeats=config.get("repeats", 1),
         recompute=recompute,
     )
@@ -143,6 +147,7 @@ def run_benchmark_suite(config_path: str, recompute: bool = False):
 
     if answer != "n":
         url = modal.Cls.from_name("stopwatch", "DatasetteRunner")().start.web_url
+        url += f"/stopwatch/-/query?sql=select+*+from+{config['id'].replace('-', '_')}"
         subprocess.run(["open", url])
 
 

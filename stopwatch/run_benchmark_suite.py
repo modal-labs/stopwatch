@@ -2,9 +2,9 @@ import modal
 
 from .async_utils import as_completed
 from .db import (
-    AveragedBenchmark,
     Benchmark,
     BenchmarkDefaults,
+    benchmark_cls_factory,
     create_all,
     session,
 )
@@ -61,7 +61,7 @@ def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]]):
             .all()
         )
 
-        assert len(benchmark_models) <= 1
+        assert len(benchmark_models) <= 1, f"Multiple benchmarks found for {config}"
         benchmark = benchmark_models[0] if benchmark_models else None
 
         if benchmark is not None:
@@ -185,15 +185,23 @@ def run_benchmarks_in_parallel(benchmarks: List[Dict[str, Any]]):
         RESULTS_PATH: results_volume,
     },
     max_containers=1,
+    scaledown_window=2,
     allow_concurrent_inputs=1,
     timeout=TIMEOUT,
 )
 def run_benchmark_suite(
     benchmarks: List[Dict[str, Any]],
+    id: str,
     repeats: int = 1,
     recompute: bool = False,
 ):
+    db_volume.reload()
+    AveragedBenchmark = benchmark_cls_factory(table_name=id.replace("-", "_"))
     create_all()
+
+    # STEP -1: Delete existing averaged benchmarks
+    session.query(AveragedBenchmark).delete()
+    session.commit()
 
     # STEP 0: Validate benchmarks
     for i, benchmark in enumerate(benchmarks):
@@ -292,16 +300,44 @@ def run_benchmark_suite(
         group_id = str(uuid.uuid4())[:8]
 
         for rate_type, rate in benchmark_rates:
-            session.add(
-                AveragedBenchmark(
-                    [
-                        benchmark
-                        for benchmark in benchmark_models
-                        if benchmark.rate_type == rate_type and benchmark.rate == rate
-                    ],
-                    group_id=group_id,
-                )
+            averaged_benchmark = AveragedBenchmark(
+                **{
+                    **benchmark,
+                    "group_id": group_id,
+                    "rate_type": rate_type,
+                    "rate": rate,
+                }
             )
+
+            for key in [
+                "duration",
+                "completed_request_count",
+                "completed_request_rate",
+                "tpot_median",
+                "kv_cache_usage_mean",
+                *[
+                    f"{statistic}_{percentile}"
+                    for statistic, percentile in itertools.product(
+                        ["itl", "ttft", "ttlt"],
+                        ["mean", "p50", "p90", "p95", "p99"],
+                    )
+                ],
+            ]:
+                # TODO: Think about what to do with None values (in tpot_median)
+                data = [
+                    getattr(b, key)
+                    for b in benchmark_models
+                    if b.rate_type == rate_type
+                    and b.rate == rate
+                    and getattr(b, key) is not None
+                ]
+
+                if len(data) == 0:
+                    continue
+
+                setattr(averaged_benchmark, key, np.median(data))
+
+            session.add(averaged_benchmark)
             print(f"Added averaged benchmark {group_id} for {rate_type} {rate}")
 
     session.commit()
