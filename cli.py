@@ -1,7 +1,6 @@
 import itertools
 import os
 import subprocess
-import urllib.parse
 import yaml
 
 import click
@@ -48,39 +47,12 @@ def cli():
     help="Region to run the LLM server on. Defaults to 'us-ashburn-1'.",
 )
 @click.option(
-    "--llm-engine-type",
+    "--llm-server-type",
     type=str,
     default="vllm",
-    help="llm engine to use (vllm or trtllm).",
-)
-@click.option(
-    "--llm-engine-version",
-    type=str,
-    default="0.7.3",
-    help="LLM Version to use for. Defaults to '0.7.3' for vllm.",
-)
-@click.option(
-    "--llm-env-vars",
-    "-e",
-    type=str,
-    multiple=True,
-    default=[],
-    help="Environment variables to set on the LLM server. Each argument should be in the format of 'KEY=VALUE'",
-)
-@click.option(
-    "--llm-extra-args",
-    type=str,
-    default="",
-    help="Extra arguments to pass to the LLM server.",
+    help="LLM server to use (vllm or trtllm).",
 )
 def run_benchmark(**kwargs):
-    kwargs["llm_env_vars"] = {
-        k: v for k, v in (e.split("=") for e in kwargs["llm_env_vars"])
-    }
-    kwargs["llm_extra_args"] = (
-        kwargs["llm_extra_args"].split(" ") if kwargs["llm_extra_args"] else []
-    )
-
     cls = all_benchmark_runner_classes[kwargs["region"]]
     fc = cls().run_benchmark.spawn(**kwargs)
     print(f"Benchmark running at {fc.object_id}")
@@ -128,7 +100,13 @@ def run_profiler(**kwargs):
 
 @cli.command()
 @click.argument("config-path", type=str)
-def run_benchmark_suite(config_path: str):
+@click.option(
+    "--recompute",
+    is_flag=True,
+    default=False,
+    help="Recompute benchmarks that have already been run.",
+)
+def run_benchmark_suite(config_path: str, recompute: bool = False):
     config = yaml.load(open(config_path), Loader=yaml.SafeLoader)
     benchmarks = []
 
@@ -141,14 +119,13 @@ def run_benchmark_suite(config_path: str):
             values.append(value if isinstance(value, list) else [value])
 
         for combination in itertools.product(*values):
-            benchmarks.append({"config": dict(zip(keys, combination))})
+            benchmarks.append(dict(zip(keys, combination)))
 
     f = modal.Function.from_name("stopwatch", "run_benchmark_suite")
     fc = f.spawn(
         benchmarks=benchmarks,
-        suite_id=config.get("id", "stopwatch"),
         repeats=config.get("repeats", 1),
-        recompute=config.get("recompute", False),
+        recompute=recompute,
     )
 
     print("Running benchmarks (you may safely CTRL+C)...")
@@ -158,9 +135,8 @@ def run_benchmark_suite(config_path: str):
     answer = input("All benchmarks have finished. Open the datasette UI? [Y/n] ")
 
     if answer != "n":
-        url = modal.Cls.from_name("stopwatch", "MainDatasetteRunner")().start.web_url
-        query = urllib.parse.urlencode({"id": config.get("id", "stopwatch")})
-        subprocess.run(["open", f"{url}?{query}"])
+        url = modal.Cls.from_name("stopwatch", "DatasetteRunner")().start.web_url
+        subprocess.run(["open", url])
 
 
 if __name__ == "__main__":

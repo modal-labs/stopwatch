@@ -2,5 +2,6 @@ id: vllm-v1-engine
 configs:
   - model: meta-llama/Llama-3.1-8B-Instruct
     region: us-ashburn-1
-    llm_engine_type: "vllm"
-    llm_engine_version: 0.7.3
+    llm_server_type: vllm
+    llm_server_config:
+      docker_tag: 0.7.3

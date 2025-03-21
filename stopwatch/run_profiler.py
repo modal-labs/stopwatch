@@ -1,6 +1,6 @@
 import modal
 
-from .benchmark import BenchmarkDefaults
+from .db import BenchmarkDefaults
 from .resources import app, hf_secret, traces_volume
 from .vllm_runner import vllm
 
@@ -16,7 +16,7 @@ profiling_image = (
 )
 
 with profiling_image.imports():
-    from typing import Dict, List
+    from typing import Any, Mapping, Optional
 
     from guidellm.request import EmulatedRequestGenerator
     from openai import OpenAI
@@ -31,12 +31,10 @@ with profiling_image.imports():
 )
 def run_profiler(
     model: str,
+    llm_server_type: str,
     num_requests: int = 10,
     gpu: str = BenchmarkDefaults.GPU,
-    llm_engine_type: str = BenchmarkDefaults.LLM_ENGINE_TYPE,
-    llm_engine_version: str = BenchmarkDefaults.LLM_ENGINE_VERSION, 
-    llm_env_vars: Dict[str, str] = BenchmarkDefaults.LLM_ENV_VARS,
-    llm_extra_args: List[str] = BenchmarkDefaults.LLM_EXTRA_ARGS,
+    llm_server_config: Optional[Mapping[str, Any]] = None,
 ):
     """
     Runs the torch profiler on a model.
@@ -47,26 +45,28 @@ def run_profiler(
 
     print(f"Starting profiler with {model}")
 
-    assert llm_engine_type == "vllm", "trtllm is untested for profiling"
+    assert llm_server_type == "vllm", "Profiling is only supported with vLLM"
 
-    llm_env_vars["VLLM_TORCH_PROFILER_DIR"] = TRACES_PATH
-    llm_env_vars["VLLM_RPC_TIMEOUT"] = "1800000"
+    if "env_vars" not in llm_server_config:
+        llm_server_config["env_vars"] = {}
+
+    llm_server_config["env_vars"]["VLLM_TORCH_PROFILER_DIR"] = TRACES_PATH
+    llm_server_config["env_vars"]["VLLM_RPC_TIMEOUT"] = "1800000"
 
     extra_query = {
         "model": model,
     }
 
-    if len(vllm_extra_args) > 0:
-        extra_query["extra_vllm_args"] = " ".join(vllm_extra_args)
-    if len(vllm_env_vars) > 0:
+    if len(llm_server_config.get("extra_args", [])) > 0:
+        extra_query["extra_vllm_args"] = " ".join(llm_server_config["extra_args"])
+    if len(llm_server_config["env_vars"]) > 0:
         extra_query["vllm_env_vars"] = " ".join(
-            f"{k}={v}" for k, v in vllm_env_vars.items()
+            f"{k}={v}" for k, v in llm_server_config["env_vars"].items()
         )
-
 
     # Start vLLM server in background
     with vllm(
-        docker_tag=vllm_docker_tag,
+        llm_server_config=llm_server_config,
         extra_query=extra_query,
         gpu=gpu,
         profile=True,
