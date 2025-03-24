@@ -34,6 +34,7 @@ DEFAULT_LLM_SERVER_CONFIGS = {
     "vllm": {
         "docker_tag": "v0.7.3",
     },
+    "sglang": {},
     "trtllm": {},
 }
 

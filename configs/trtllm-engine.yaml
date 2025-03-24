@@ -5,6 +5,7 @@ base_config:
   gpu: H100
   data: prompt_tokens=512,generated_tokens=128
 configs:
+  - llm_server_type: sglang
   - llm_server_type: vllm
   - llm_server_type: vllm
     llm_server_config:

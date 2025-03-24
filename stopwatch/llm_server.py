@@ -2,6 +2,7 @@ from typing import Any, Mapping, Optional
 import contextlib
 import urllib.parse
 
+from .sglang_runner import sglang
 from .trtllm_runner import trtllm
 from .vllm_runner import vllm
 
@@ -36,6 +37,9 @@ def llm_server(
             vllm_monkey_patch(metrics_url)
 
             yield (vllm_url, extra_query)
+    elif llm_server_type == "sglang":
+        with sglang(**llm_server_kwargs) as (sglang_url, extra_query):
+            yield (sglang_url, extra_query)
     elif llm_server_type == "trtllm":
         with trtllm(**llm_server_kwargs) as connection_info:
             yield connection_info

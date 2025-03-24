@@ -49,9 +49,8 @@ def cli():
 )
 @click.option(
     "--llm-server-type",
-    type=str,
+    type=click.Choice(["vllm", "sglang", "trtllm"]),
     default="vllm",
-    help="LLM server to use (vllm or trtllm).",
 )
 @click.option(
     "--llm-server-config",
