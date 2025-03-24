@@ -38,14 +38,14 @@ def cli():
 @click.option(
     "--server-region",
     type=str,
-    default="us-ashburn-1",
-    help="Region to run the LLM server on. Defaults to 'us-ashburn-1'.",
+    default="us-chicago-1",
+    help="Region to run the LLM server on. Defaults to 'us-chicago-1'.",
 )
 @click.option(
     "--client-region",
     type=str,
-    default="us-ashburn-1",
-    help="Region to run the LLM client on. Defaults to 'us-ashburn-1'.",
+    default="us-chicago-1",
+    help="Region to run the LLM client on. Defaults to 'us-chicago-1'.",
 )
 @click.option(
     "--llm-server-type",
