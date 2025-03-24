@@ -10,36 +10,37 @@ _A simple solution for benchmarking [vLLM](https://docs.vllm.ai/en/latest/) and 
 pip install -r requirements.txt
 ```
 
-### Deploy to Modal
+## Run benchmark
+
+To run a single benchmark, you can use the `run-benchmark` command.
+For example, to run a constant-rate benchmark at 5 queries per second:
+
+```bash
+MODEL=meta-llama/Llama-3.1-8B-Instruct
+OUTPUT_PATH=results.json
+
+modal run -w $OUTPUT_PATH cli.py::run_benchmark --model $MODEL --rate-type constant --rate 5
+```
+
+You can then view the results of the benchmark in your newly created JSON file.
+
+## Run and plot multiple benchmarks
+
+To run multiple benchmarks at once, first deploy the project:
 
 ```bash
 modal deploy -m stopwatch
 ```
 
-## Run benchmark
+Then, call the function remotely:
 
-To run a single benchmark, you can use the `run-benchmark` command.
-For example, to run a constant-rate benchmark at 10 queries per second:
-
-```bash
-$ python cli.py run-benchmark --model meta-llama/Llama-3.1-8B-Instruct --rate 10
-Benchmark running at fc-XXXXXXXX
-```
-
-The function call will return the results of the benchmark once it's done, which you can retrieve later with Python:
-
-```python
-import modal
-modal.FunctionCall.from_id("fc-XXXXXXXX").get()
-```
-
-## Run and plot multiple benchmarks
-
-To run multiple benchmarks at once, you can use the `run-benchmark-suite` command, along with a configuration file. For example, running the following command...
+To run multiple benchmarks at once, you can use the `run-benchmark-function` command, along with a configuration file.
 
 ```bash
 python cli.py run-benchmark-suite configs/data-distributions.yaml
 ```
+
+Once the suite has finished, you will be prompted to open a link to a [Datasette](https://datasette.io/){:target="\_blank"} UI with your results.
 
 ## Run profiler
 

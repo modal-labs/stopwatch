@@ -1,3 +1,4 @@
+from typing import Optional
 import itertools
 import json
 import os
@@ -7,7 +8,7 @@ import yaml
 import click
 import modal
 
-from stopwatch.resources import traces_volume
+from stopwatch.resources import app, traces_volume
 from stopwatch.run_benchmark import all_benchmark_runner_classes
 
 
@@ -16,94 +17,47 @@ def cli():
     pass
 
 
-@cli.command()
-@click.option(
-    "--model",
-    type=str,
-    help="Name of the model to benchmark.",
-    required=True,
-)
-@click.option(
-    "--data",
-    type=str,
-    default="prompt_tokens=512,generated_tokens=128",
-    help="The data source to use for benchmarking. Depending on the data-type, it should be a path to a data file containing prompts to run (ex: data.txt), a HuggingFace dataset name (ex: 'neuralmagic/LLM_compression_calibration'), or a configuration for emulated data (ex: 'prompt_tokens=128,generated_tokens=128').",
-)
-@click.option(
-    "--gpu",
-    type=str,
-    default="H100",
-    help="GPU to run the LLM server on. Defaults to 'H100'.",
-)
-@click.option(
-    "--server-region",
-    type=str,
-    default="us-chicago-1",
-    help="Region to run the LLM server on. Defaults to 'us-chicago-1'.",
-)
-@click.option(
-    "--client-region",
-    type=str,
-    default="us-chicago-1",
-    help="Region to run the LLM client on. Defaults to 'us-chicago-1'.",
-)
-@click.option(
-    "--llm-server-type",
-    type=click.Choice(["vllm", "sglang", "trtllm"]),
-    default="vllm",
-)
-@click.option(
-    "--llm-server-config",
-    type=str,
-    default=None,
-    help="Configuration for the LLM server.",
-)
-@click.option(
-    "--rate-type",
-    type=click.Choice(["constant", "throughput", "synchronous"]),
-    default="constant",
-)
-@click.option("--rate", type=float, default=None)
-def run_benchmark(**kwargs):
-    cls = modal.Cls.from_name(
-        "stopwatch", all_benchmark_runner_classes[kwargs["client_region"]].__name__
-    )
+@app.local_entrypoint()
+def run_benchmark(
+    model: str,
+    data: str = "prompt_tokens=512,generated_tokens=128",
+    gpu: str = "H100",
+    server_region: str = "us-chicago-1",
+    client_region: str = "us-chicago-1",
+    llm_server_type: str = "vllm",
+    llm_server_config: Optional[str] = None,
+    rate_type: str = "synchronous",
+    rate: Optional[float] = None,
+):
+    cls = all_benchmark_runner_classes[client_region]
 
-    if kwargs["llm_server_config"] is not None:
+    if llm_server_config is not None:
         try:
-            kwargs["llm_server_config"] = json.loads(kwargs["llm_server_config"])
+            llm_server_config = json.loads(llm_server_config)
         except json.JSONDecodeError:
             raise ValueError("Invalid JSON for --llm-server-config")
 
-    if kwargs["rate_type"] == "constant" and kwargs["rate"] is None:
+    if rate_type == "constant" and rate is None:
         raise ValueError("--rate is required when --rate-type is 'constant'")
 
-    fc = cls().run_benchmark.spawn(**kwargs)
-    print(f"Benchmark running at {fc.object_id}")
+    results = cls().run_benchmark.remote(
+        llm_server_type=llm_server_type,
+        model=model,
+        rate_type=rate_type,
+        data=data,
+        gpu=gpu,
+        server_region=server_region,
+        llm_server_config=llm_server_config,
+        rate=rate,
+    )
+
+    return json.dumps(results, indent=2)
 
 
-@cli.command()
-@click.option(
-    "--gpu",
-    type=str,
-    default="H100",
-    help="GPU to run the LLM server on. Defaults to 'H100'.",
-)
-@click.option(
-    "--model",
-    type=str,
-    help="Name of the model to run while profiling LLM.",
-    required=True,
-)
-@click.option(
-    "--num-requests",
-    type=int,
-    help="Number of requests to make to LLM while profiling.",
-    default=10,
-)
-def run_profiler(**kwargs):
+@app.local_entrypoint()
+def run_profiler(model: str, gpu: str = "H100", num_requests: int = 10):
     f = modal.Function.from_name("stopwatch", "run_profiler")
-    fc = f.spawn(**kwargs)
+    fc = f.spawn(model=model, gpu=gpu, num_requests=num_requests)
     print(f"Profiler running at {fc.object_id}...")
     trace_path = fc.get()
 
