@@ -2,5 +2,6 @@ click==8.1.8
 guidellm @ git+https://github.com/neuralmagic/guidellm.git@55c65c4
 modal==0.73.116
 numpy==2.2.4
+packaging==24.2
 PyYAML==6.0.2
 SQLAlchemy==2.0.39

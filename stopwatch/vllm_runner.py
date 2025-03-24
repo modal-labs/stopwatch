@@ -8,6 +8,7 @@ import urllib.parse
 import urllib.request
 import uuid
 
+from packaging.version import Version
 import modal
 
 from .db import DEFAULT_LLM_SERVER_CONFIGS
@@ -24,7 +25,9 @@ VLLM_PORT = 8000
 
 def vllm_image_factory(docker_tag: str = "v0.7.3"):
     python_binary = (
-        "/opt/venv/bin/python3" if docker_tag == "v0.8.0" else "/usr/bin/python3"
+        "/opt/venv/bin/python3"
+        if Version(docker_tag) >= Version("v0.8.0")
+        else "/usr/bin/python3"
     )
 
     return (
@@ -35,7 +38,7 @@ def vllm_image_factory(docker_tag: str = "v0.7.3"):
             ],
             add_python="3.13",
         )
-        .pip_install("hf-transfer", "grpclib", "numpy", "SQLAlchemy")
+        .pip_install("hf-transfer", "grpclib", "numpy", "packaging", "SQLAlchemy")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands("ENTRYPOINT []")
     )
@@ -100,6 +103,13 @@ class vLLMBase:
                 **server_config.get("env_vars", {}),
             },
         )
+
+
+@vllm_cls(image=vllm_image_factory("v0.8.1"), region="us-chicago-1")
+class vLLM_v0_8_1(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @vllm_cls(image=vllm_image_factory("v0.8.0"), region="us-chicago-1")
@@ -173,6 +183,11 @@ class vLLM_v0_6_6(vLLMBase):
 
 
 all_vllm_classes = {
+    "v0.8.1": {
+        "H100": {
+            "us-chicago-1": vLLM_v0_8_1,
+        },
+    },
     "v0.8.0": {
         "H100": {
             "us-chicago-1": vLLM_v0_8_0,

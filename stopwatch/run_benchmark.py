@@ -15,6 +15,7 @@ benchmarking_image = (
     .apt_install("git")
     .pip_install(
         "git+https://github.com/neuralmagic/guidellm.git@55c65c4",
+        "packaging",
         "prometheus-client",
         "SQLAlchemy",
         "tiktoken",

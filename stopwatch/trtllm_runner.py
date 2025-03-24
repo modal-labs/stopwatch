@@ -10,7 +10,6 @@ import warnings
 
 import modal
 
-from .db import DEFAULT_LLM_SERVER_CONFIGS
 from .resources import app, hf_cache_volume, hf_secret
 
 
@@ -18,7 +17,6 @@ HF_CACHE_PATH = "/cache"
 SCALEDOWN_WINDOW = 2 * 60  # 2 minutes
 STARTUP_TIMEOUT = 30 * 60  # 30 minutes
 TIMEOUT = 60 * 60  # 1 hour
-# TRTLLM_PORT = 8000
 
 
 def trtllm_image_factory(
@@ -42,6 +40,7 @@ def trtllm_image_factory(
             "huggingface_hub==0.28.1",
             "fastapi",
             "numpy",
+            "packaging",
             "SQLAlchemy",
         )
         .env(

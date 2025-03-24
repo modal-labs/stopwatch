@@ -8,7 +8,7 @@ configs:
   - llm_server_type: vllm
   - llm_server_type: vllm
     llm_server_config:
-      docker_tag: v0.8.0
+      docker_tag: v0.8.1
   - llm_server_type: trtllm
     llm_server_config:
       - version: 0.17.0.post1

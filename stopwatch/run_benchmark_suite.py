@@ -22,7 +22,7 @@ TIMEOUT = 12 * 60 * 60  # 12 hours
 
 
 benchmark_suite_image = modal.Image.debian_slim(python_version="3.13").pip_install(
-    "numpy", "SQLAlchemy"
+    "numpy", "SQLAlchemy", "packaging"
 )
 
 with benchmark_suite_image.imports():
