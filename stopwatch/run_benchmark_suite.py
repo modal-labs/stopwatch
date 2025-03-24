@@ -6,6 +6,7 @@ from .db import (
     DEFAULT_LLM_SERVER_CONFIGS,
     benchmark_cls_factory,
     create_all,
+    engine,
     session,
 )
 from .resources import app, db_volume, results_volume
@@ -204,10 +205,6 @@ def run_benchmark_suite(
     AveragedBenchmark = benchmark_cls_factory(table_name=id.replace("-", "_"))
     create_all()
 
-    # STEP -1: Delete existing averaged benchmarks
-    session.query(AveragedBenchmark).delete()
-    session.commit()
-
     # STEP 0: Validate benchmarks
     for i, benchmark in enumerate(benchmarks):
         for key in [
@@ -298,6 +295,10 @@ def run_benchmark_suite(
             )
 
     run_benchmarks_in_parallel(benchmarks_to_run)
+
+    # STEP 2.5: Delete existing averaged benchmarks
+    AveragedBenchmark.__table__.drop(engine, checkfirst=True)
+    AveragedBenchmark.__table__.create(engine)
 
     # STEP 3: Average the results together. Start by finding the parameters
     # that vary between benchmarks in order to get descriptive group IDs for

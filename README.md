@@ -19,17 +19,18 @@ modal deploy -m stopwatch
 ## Run benchmark
 
 To run a single benchmark, you can use the `run-benchmark` command.
-For example:
+For example, to run a constant-rate benchmark at 10 queries per second:
 
 ```bash
-$ python cli.py run-benchmark --model meta-llama/Llama-3.1-8B-Instruct -e VLLM_USE_V1=1
+$ python cli.py run-benchmark --model meta-llama/Llama-3.1-8B-Instruct --rate 10
 Benchmark running at fc-XXXXXXXX
 ```
 
-You can then download the results of the benchmark from the `stopwatch-results` volume:
+The function call will return the results of the benchmark once it's done, which you can retrieve later with Python:
 
-```bash
-modal volume get stopwatch-results fc-XXXXXXXX.json
+```python
+import modal
+modal.FunctionCall.from_id("fc-XXXXXXXX").get()
 ```
 
 ## Run and plot multiple benchmarks
@@ -37,8 +38,9 @@ modal volume get stopwatch-results fc-XXXXXXXX.json
 To run multiple benchmarks at once, you can use the `run-benchmark-suite` command, along with a configuration file. For example, running the following command...
 
 ```bash
-python cli.py run-benchmark-suite configs/vllm-v1-engine.yaml
+python cli.py run-benchmark-suite configs/data-distributions.yaml
 ```
+
 ## Run profiler
 
 To profile vLLM with the PyTorch profiler, use the following command:

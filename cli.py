@@ -1,4 +1,5 @@
 import itertools
+import json
 import os
 import subprocess
 import yaml
@@ -53,6 +54,12 @@ def cli():
     help="LLM server to use (vllm or trtllm).",
 )
 @click.option(
+    "--llm-server-config",
+    type=str,
+    default=None,
+    help="Configuration for the LLM server.",
+)
+@click.option(
     "--rate-type",
     type=click.Choice(["constant", "throughput", "synchronous"]),
     default="constant",
@@ -62,6 +69,16 @@ def run_benchmark(**kwargs):
     cls = modal.Cls.from_name(
         "stopwatch", all_benchmark_runner_classes[kwargs["client_region"]].__name__
     )
+
+    if kwargs["llm_server_config"] is not None:
+        try:
+            kwargs["llm_server_config"] = json.loads(kwargs["llm_server_config"])
+        except json.JSONDecodeError:
+            raise ValueError("Invalid JSON for --llm-server-config")
+
+    if kwargs["rate_type"] == "constant" and kwargs["rate"] is None:
+        raise ValueError("--rate is required when --rate-type is 'constant'")
+
     fc = cls().run_benchmark.spawn(**kwargs)
     print(f"Benchmark running at {fc.object_id}")
 
@@ -70,8 +87,8 @@ def run_benchmark(**kwargs):
 @click.option(
     "--gpu",
     type=str,
-    default="H100!",
-    help="GPU to run the LLM server on. Defaults to 'H100!'.",
+    default="H100",
+    help="GPU to run the LLM server on. Defaults to 'H100'.",
 )
 @click.option(
     "--model",
