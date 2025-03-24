@@ -3,7 +3,7 @@ import modal
 from .async_utils import as_completed
 from .db import (
     Benchmark,
-    BenchmarkDefaults,
+    DEFAULT_LLM_SERVER_CONFIGS,
     benchmark_cls_factory,
     create_all,
     session,
@@ -48,11 +48,11 @@ def find_function_call(
     return None
 
 
-def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]]):
+def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]], dry_run: bool = False):
     pending_function_calls = []
 
     for config in benchmarks:
-        if len(pending_function_calls) >= MAX_CONCURRENT_BENCHMARKS:
+        if len(pending_function_calls) >= MAX_CONCURRENT_BENCHMARKS and not dry_run:
             break
 
         benchmark_models = (
@@ -115,11 +115,15 @@ def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]]):
             session.add(benchmark)
             session.commit()
 
-        benchmark_cls = all_benchmark_runner_classes[benchmark.region]
+        benchmark_cls = all_benchmark_runner_classes[benchmark.client_region]
         print("Starting benchmark with config", benchmark.get_config())
-        fc = benchmark_cls().run_benchmark.spawn(**benchmark.get_config())
 
-        benchmark.function_call_id = fc.object_id
+        if dry_run:
+            fc = None
+        else:
+            fc = benchmark_cls().run_benchmark.spawn(**benchmark.get_config())
+            benchmark.function_call_id = fc.object_id
+
         session.commit()
 
         pending_function_calls.append((benchmark.id, fc))
@@ -128,11 +132,11 @@ def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]]):
     return pending_function_calls
 
 
-def run_benchmarks_in_parallel(benchmarks: List[Dict[str, Any]]):
+def run_benchmarks_in_parallel(benchmarks: List[Dict[str, Any]], dry_run: bool = False):
     while True:
-        pending_benchmarks = get_benchmarks_to_run(benchmarks)
+        pending_benchmarks = get_benchmarks_to_run(benchmarks, dry_run)
 
-        if len(pending_benchmarks) == 0:
+        if dry_run or len(pending_benchmarks) == 0:
             break
 
         for function_call_id, result in as_completed(
@@ -193,6 +197,7 @@ def run_benchmark_suite(
     benchmarks: List[Dict[str, Any]],
     id: str,
     repeats: int = 1,
+    dry_run: bool = False,
     recompute: bool = False,
 ):
     db_volume.reload()
@@ -205,16 +210,19 @@ def run_benchmark_suite(
 
     # STEP 0: Validate benchmarks
     for i, benchmark in enumerate(benchmarks):
-        for key in ["model", "data", "llm_server_type"]:
+        for key in [
+            "llm_server_type",
+            "model",
+            "data",
+            "gpu",
+            "server_region",
+            "client_region",
+        ]:
             if benchmark.get(key) is None:
                 raise ValueError(f"Benchmark {i} has no {key}")
 
-        for key in ["gpu", "region"]:
-            if benchmark.get(key) is None:
-                benchmarks[i][key] = getattr(BenchmarkDefaults, key.upper())
-
         if "llm_server_config" not in benchmark:
-            benchmark["llm_server_config"] = BenchmarkDefaults.LLM_SERVER_CONFIGS[
+            benchmark["llm_server_config"] = DEFAULT_LLM_SERVER_CONFIGS[
                 benchmark["llm_server_type"]
             ]
 
@@ -244,7 +252,11 @@ def run_benchmark_suite(
                 benchmarks, ["synchronous", "throughput"], range(repeats)
             )
         ],
+        dry_run=dry_run,
     )
+
+    if dry_run:
+        return
 
     # STEP 2: Run benchmarks at constant rates
     benchmarks_to_run = []

@@ -10,7 +10,7 @@ import uuid
 
 import modal
 
-from .db import BenchmarkDefaults
+from .db import DEFAULT_LLM_SERVER_CONFIGS
 from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
@@ -209,9 +209,9 @@ all_vllm_classes = {
 @contextlib.contextmanager
 def vllm(
     model: str,
-    gpu: str = BenchmarkDefaults.GPU,
-    region: str = BenchmarkDefaults.REGION,
-    llm_server_config: Optional[Mapping[str, Any]] = None,
+    gpu: str,
+    region: str,
+    server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
     # If the vLLM server takes more than 12.5 minutes to start, the metrics
@@ -220,15 +220,15 @@ def vllm(
     # vLLM server instead.
     connected = False
 
-    docker_tag = llm_server_config.get(
-        "docker_tag", BenchmarkDefaults.LLM_SERVER_CONFIGS["vllm"]["docker_tag"]
+    docker_tag = server_config.get(
+        "docker_tag", DEFAULT_LLM_SERVER_CONFIGS["vllm"]["docker_tag"]
     )
 
     extra_query = {
         "model": model,
         # Sort keys to ensure that this parameter doesn't change between runs
         # with the same vLLM configuration
-        "server_config": json.dumps(llm_server_config, sort_keys=True),
+        "server_config": json.dumps(server_config, sort_keys=True),
         "caller_id": modal.current_function_call_id(),
     }
 

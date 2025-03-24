@@ -1,6 +1,6 @@
 import modal
 
-from .db import BenchmarkDefaults
+from .db import DEFAULT_LLM_SERVER_CONFIGS
 from .resources import app, hf_secret, results_volume
 from .llm_server import llm_server
 
@@ -66,48 +66,47 @@ class BenchmarkRunner:
     @modal.method()
     def run_benchmark(
         self,
-        model: str,
         llm_server_type: str,
+        model: str,
         rate_type: str,
         data: str,
-        gpu: str = BenchmarkDefaults.GPU,
-        region: str = BenchmarkDefaults.REGION,
+        gpu: str,
+        server_region: str,
         llm_server_config: Optional[Mapping[str, Any]] = None,
         rate: Optional[float] = None,
-        repeat_index: int = 0,
+        **kwargs,
     ):
         """Benchmarks a LLM deployment on Modal.
 
         Args:
-            model (str, required): Name of the model to benchmark.
             llm_server_type (str): The server to use for benchmarking, either
                 'vllm' or 'trtllm'.
+            model (str): Name of the model to benchmark.
             rate_type (str): The type of rate to use for benchmarking, either
                 'constant', 'synchronous', or 'throughput'.
             data (str): A configuration for emulated data (e.g.:
                 'prompt_tokens=128,generated_tokens=128').
             gpu (str): The GPU to use for benchmarking.
-            region (str): The region to use for benchmarking.
+            server_region (str): Region to run the LLM server on.
             llm_server_config (dict): Configuration for the LLM server.
             rate (float): If rate_type is 'constant', optionally specify the
                 number of requests that should be made per second.
-            repeat_index (int): The index of the repeat to run.
         """
 
-        if llm_server_type not in BenchmarkDefaults.LLM_SERVER_CONFIGS:
+        if llm_server_type not in DEFAULT_LLM_SERVER_CONFIGS:
             raise ValueError(
-                f"Invalid value for llm_server: {llm_server_type}. Must be one of {BenchmarkDefaults.LLM_SERVER_CONFIGS.keys()}"
+                f"Invalid value for llm_server: {llm_server_type}. Must be one of {DEFAULT_LLM_SERVER_CONFIGS.keys()}"
             )
         elif llm_server_config is None:
-            llm_server_config = BenchmarkDefaults.LLM_SERVER_CONFIGS[llm_server_type]
+            llm_server_config = DEFAULT_LLM_SERVER_CONFIGS[llm_server_type]
 
         # Start LLM server in background
         with llm_server(
             llm_server_type,
-            model,
-            llm_server_config=llm_server_config,
+            model=model,
             gpu=gpu,
-            region=region,
+            region=server_region,
+            server_config=llm_server_config,
         ) as (llm_server_url, extra_query):
             # Create backend
             backend_inst = Backend.create(

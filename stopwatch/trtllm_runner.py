@@ -6,10 +6,11 @@ import os
 import time
 import urllib.parse
 import urllib.request
+import warnings
 
 import modal
 
-from .db import BenchmarkDefaults
+from .db import DEFAULT_LLM_SERVER_CONFIGS
 from .resources import app, hf_cache_volume, hf_secret
 
 
@@ -219,16 +220,23 @@ class trtLLM(trtLLMBase):
 @contextlib.contextmanager
 def trtllm(
     model: str,
-    gpu: str = BenchmarkDefaults.GPU,
-    region: str = BenchmarkDefaults.REGION,
-    llm_server_config: Optional[Mapping[str, Any]] = None,
+    gpu: str,
+    region: str,
+    server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
+    if profile:
+        raise ValueError("Profiling is not supported for trtLLM")
+
+    warnings.warn(
+        "GPU and region selection are not yet supported for trtLLM. Spinning up an H100 in us-chicago-1..."
+    )
+
     extra_query = {
         "model": model,
         # Sort keys to ensure that this parameter doesn't change between runs
         # with the same vLLM configuration
-        "server_config": json.dumps(llm_server_config, sort_keys=True),
+        "server_config": json.dumps(server_config, sort_keys=True),
         "caller_id": modal.current_function_call_id(),
     }
 

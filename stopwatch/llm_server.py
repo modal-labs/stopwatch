@@ -2,7 +2,6 @@ from typing import Any, Mapping, Optional
 import contextlib
 import urllib.parse
 
-from .db import BenchmarkDefaults
 from .trtllm_runner import trtllm
 from .vllm_runner import vllm
 
@@ -10,11 +9,11 @@ from .vllm_runner import vllm
 @contextlib.contextmanager
 def llm_server(
     llm_server_type: str,
-    model: str,
     *,
-    llm_server_config: Optional[Mapping[str, Any]] = None,
-    gpu: str = BenchmarkDefaults.GPU,
-    region: str = BenchmarkDefaults.REGION,
+    model: str,
+    gpu: str,
+    region: str,
+    server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
     if profile and llm_server_type != "vllm":
@@ -24,7 +23,7 @@ def llm_server(
         "model": model,
         "gpu": gpu,
         "region": region,
-        "llm_server_config": llm_server_config,
+        "server_config": server_config,
         "profile": profile,
     }
 

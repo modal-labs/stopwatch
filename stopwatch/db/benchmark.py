@@ -30,15 +30,12 @@ def histogram_median(bins, counts):
         cumulative = new_cumulative
 
 
-class BenchmarkDefaults:
-    GPU = "H100"
-    REGION = "us-ashburn-1"
-    LLM_SERVER_CONFIGS = {
-        "vllm": {
-            "docker_tag": "v0.7.3",
-        },
-        "trtllm": {},
-    }
+DEFAULT_LLM_SERVER_CONFIGS = {
+    "vllm": {
+        "docker_tag": "v0.7.3",
+    },
+    "trtllm": {},
+}
 
 
 def benchmark_cls_factory(table_name: str = "benchmarks"):
@@ -55,12 +52,23 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
         # Parameters
         llm_server_type = Column(String, nullable=False)
         llm_server_config = Column(JSON, nullable=False)
-        rate = Column(Float)
-        rate_type = Column(String, nullable=False)
         model = Column(String, nullable=False)
+        rate_type = Column(String, nullable=False)
+        rate = Column(Float)
         data = Column(String, nullable=False)
-        gpu = Column(String, default=BenchmarkDefaults.GPU, nullable=False)
-        region = Column(String, default=BenchmarkDefaults.REGION, nullable=False)
+        gpu = Column(String, nullable=False)
+        server_region = Column(String, nullable=False)
+        client_region = Column(String, nullable=False)
+
+        # Data
+        generated_tokens = Column(Integer)
+        generated_tokens_variance = Column(Integer)
+        prompt_tokens = Column(Integer)
+        prompt_tokens_variance = Column(Integer)
+
+        # vLLM metrics
+        tpot_median = Column(Float)
+        kv_cache_usage_mean = Column(Float)
 
         # Results
         start_time = Column(Float)
@@ -68,11 +76,6 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
         duration = Column(Float)
         completed_request_count = Column(Integer)
         completed_request_rate = Column(Float)
-        generated_tokens = Column(Integer)
-        tpot_median = Column(Float)
-
-        kv_cache_usage_mean = Column(Float)
-        prompt_tokens = Column(Integer)
 
         itl_mean = Column(Float)
         itl_p50 = Column(Float)
@@ -94,12 +97,13 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
             return {
                 "llm_server_type": self.llm_server_type,
                 "llm_server_config": self.llm_server_config,
-                "rate": self.rate,
-                "rate_type": self.rate_type,
                 "model": self.model,
+                "rate_type": self.rate_type,
+                "rate": self.rate,
                 "data": self.data,
                 "gpu": self.gpu,
-                "region": self.region,
+                "server_region": self.server_region,
+                "client_region": self.client_region,
             }
 
         def save_results(self, results, vllm_metrics=None):

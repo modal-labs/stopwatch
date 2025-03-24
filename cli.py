@@ -35,10 +35,16 @@ def cli():
     help="GPU to run the LLM server on. Defaults to 'H100'.",
 )
 @click.option(
-    "--region",
+    "--server-region",
     type=str,
     default="us-ashburn-1",
     help="Region to run the LLM server on. Defaults to 'us-ashburn-1'.",
+)
+@click.option(
+    "--client-region",
+    type=str,
+    default="us-ashburn-1",
+    help="Region to run the LLM client on. Defaults to 'us-ashburn-1'.",
 )
 @click.option(
     "--llm-server-type",
@@ -54,7 +60,7 @@ def cli():
 @click.option("--rate", type=float, default=None)
 def run_benchmark(**kwargs):
     cls = modal.Cls.from_name(
-        "stopwatch", all_benchmark_runner_classes[kwargs["region"]].__name__
+        "stopwatch", all_benchmark_runner_classes[kwargs["client_region"]].__name__
     )
     fc = cls().run_benchmark.spawn(**kwargs)
     print(f"Benchmark running at {fc.object_id}")
@@ -103,12 +109,20 @@ def run_profiler(**kwargs):
 @cli.command()
 @click.argument("config-path", type=str)
 @click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Run the benchmark suite without actually running any benchmarks.",
+)
+@click.option(
     "--recompute",
     is_flag=True,
     default=False,
     help="Recompute benchmarks that have already been run.",
 )
-def run_benchmark_suite(config_path: str, recompute: bool = False):
+def run_benchmark_suite(
+    config_path: str, dry_run: bool = False, recompute: bool = False
+):
     config = yaml.load(open(config_path), Loader=yaml.SafeLoader)
     benchmarks = []
 
@@ -121,12 +135,17 @@ def run_benchmark_suite(config_path: str, recompute: bool = False):
             values.append(value if isinstance(value, list) else [value])
 
         for combination in itertools.product(*values):
-            benchmarks.append(
-                {
-                    **config.get("base_config", {}),
-                    **dict(zip(keys, combination)),
-                }
-            )
+            benchmark_config = {
+                **config.get("base_config", {}),
+                **dict(zip(keys, combination)),
+            }
+
+            if "region" in benchmark_config:
+                benchmark_config["server_region"] = benchmark_config["region"]
+                benchmark_config["client_region"] = benchmark_config["region"]
+                del benchmark_config["region"]
+
+            benchmarks.append(benchmark_config)
 
     if "id" not in config:
         raise ValueError("'id' is required in the config")
@@ -136,6 +155,7 @@ def run_benchmark_suite(config_path: str, recompute: bool = False):
         benchmarks=benchmarks,
         id=config["id"],
         repeats=config.get("repeats", 1),
+        dry_run=dry_run,
         recompute=recompute,
     )
 

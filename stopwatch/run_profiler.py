@@ -1,6 +1,5 @@
 import modal
 
-from .db import BenchmarkDefaults
 from .resources import app, hf_secret, traces_volume
 from .vllm_runner import vllm
 
@@ -32,8 +31,8 @@ with profiling_image.imports():
 def run_profiler(
     model: str,
     llm_server_type: str,
+    gpu: str,
     num_requests: int = 10,
-    gpu: str = BenchmarkDefaults.GPU,
     llm_server_config: Optional[Mapping[str, Any]] = None,
 ):
     """
