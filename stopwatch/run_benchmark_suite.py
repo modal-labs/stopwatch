@@ -1,6 +1,5 @@
 import modal
 
-from .async_utils import as_completed
 from .db import (
     Benchmark,
     DEFAULT_LLM_SERVER_CONFIGS,
@@ -15,7 +14,7 @@ from .run_benchmark import all_benchmark_runner_classes
 
 DATASETTE_PATH = "/datasette"
 DB_PATH = "/db"
-MAX_CONCURRENT_BENCHMARKS = 20
+MAX_CONCURRENT_BENCHMARKS = 45
 NUM_CONSTANT_RATES = 10
 RESULTS_PATH = "/results"
 TIMEOUT = 12 * 60 * 60  # 12 hours
@@ -26,7 +25,8 @@ benchmark_suite_image = modal.Image.debian_slim(python_version="3.13").pip_insta
 )
 
 with benchmark_suite_image.imports():
-    from typing import Any, Dict, List
+    from typing import Any, Dict, List, Optional
+    import asyncio
     import itertools
     import json
     import os
@@ -49,13 +49,8 @@ def find_function_call(
     return None
 
 
-def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]], dry_run: bool = False):
-    pending_function_calls = []
-
+def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]]):
     for config in benchmarks:
-        if len(pending_function_calls) >= MAX_CONCURRENT_BENCHMARKS and not dry_run:
-            break
-
         benchmark_models = (
             session.query(Benchmark)
             .filter_by(**{k: v for k, v in config.items() if k != "group_id"})
@@ -91,9 +86,9 @@ def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]], dry_run: bool = Fals
                             previous_function_call.status
                             == modal.call_graph.InputStatus.PENDING
                         ):
-                            # The previous function call is still  running, so we
-                            # don't need to run it again
-                            pending_function_calls.append((benchmark.id, fc))
+                            # The previous function call is still running, so
+                            # we don't need to run it again
+                            yield (benchmark.id, fc)
                             continue
                         elif (
                             previous_function_call.status
@@ -109,78 +104,87 @@ def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]], dry_run: bool = Fals
                                 # saved to the database
                                 pass
                             else:
-                                pending_function_calls.append((benchmark.id, fc))
+                                yield (benchmark.id, fc)
                                 continue
         else:
             benchmark = Benchmark(**config)
             session.add(benchmark)
             session.commit()
+            db_volume.commit()
 
-        benchmark_cls = all_benchmark_runner_classes[benchmark.client_region]
-        print("Starting benchmark with config", benchmark.get_config())
+        yield (benchmark.id, None)
 
-        if dry_run:
-            fc = None
-        else:
+
+async def run_benchmark(
+    benchmark_id: str,
+    fc: Optional[modal.FunctionCall],
+    semaphore: asyncio.Semaphore,
+):
+    async with semaphore:
+        benchmark = session.query(Benchmark).filter_by(id=benchmark_id).first()
+
+        if fc is None:
+            benchmark_cls = all_benchmark_runner_classes[benchmark.client_region]
+            print("Starting benchmark with config", benchmark.get_config())
             fc = benchmark_cls().run_benchmark.spawn(**benchmark.get_config())
             benchmark.function_call_id = fc.object_id
-
-        session.commit()
-
-        pending_function_calls.append((benchmark.id, fc))
-
-    db_volume.commit()
-    return pending_function_calls
-
-
-def run_benchmarks_in_parallel(benchmarks: List[Dict[str, Any]], dry_run: bool = False):
-    while True:
-        pending_benchmarks = get_benchmarks_to_run(benchmarks, dry_run)
-
-        if dry_run or len(pending_benchmarks) == 0:
-            break
-
-        for function_call_id, result in as_completed(
-            [fc for _, fc in pending_benchmarks]
-        ):
-            if isinstance(result, Exception):
-                print("Error retrieving result:", result)
-                continue
-
-            benchmark_model = (
-                session.query(Benchmark)
-                .filter_by(function_call_id=function_call_id)
-                .first()
-            )
-
-            if len(result["results"]) == 0:
-                # This happens when the benchmark is run with invald parameters
-                # e.g. asking the model to generate more tokens than its
-                # maximum context size. When this happens, requests made to the
-                # vLLM runner return a 400 error, and no results are saved.
-
-                # TODO: Return an error when 400 errors are encountered without
-                # crashing the run_benchmark_suite function.
-
-                print("No results for", function_call_id)
-                benchmark_model.function_call_id = None
-                session.commit()
-                continue
-
-            print("Saving results for", function_call_id)
-
-            with open(
-                os.path.join(RESULTS_PATH, f"{benchmark_model.id}.json"), "w"
-            ) as f:
-                # The full results are saved to disk since they are too big to
-                # fit into the database (~20MB per benchmark)
-                json.dump(result, f)
-
-            benchmark_model.save_results(
-                result["results"], result.get("vllm_metrics", None)
-            )
             session.commit()
             db_volume.commit()
+
+        result = await fc.get.aio()
+
+        if isinstance(result, Exception):
+            print("Error retrieving result:", result)
+            return
+
+        if len(result["results"]) == 0:
+            # This happens when the benchmark is run with invald parameters
+            # e.g. asking the model to generate more tokens than its
+            # maximum context size. When this happens, requests made to the
+            # vLLM runner return a 400 error, and no results are saved.
+
+            # TODO: Return an error when 400 errors are encountered without
+            # crashing the run_benchmark_suite function.
+
+            print("No results for", fc.object_id)
+            benchmark.function_call_id = None
+            session.commit()
+            db_volume.commit()
+            return
+
+        print("Saving results for", fc.object_id)
+
+        with open(os.path.join(RESULTS_PATH, f"{benchmark.id}.json"), "w") as f:
+            # The full results are saved to disk since they are too big to
+            # fit into the database (~20MB per benchmark)
+            json.dump(result, f)
+
+        benchmark.save_results(result["results"], result.get("vllm_metrics", None))
+        session.commit()
+        db_volume.commit()
+
+
+async def run_benchmarks_in_parallel(
+    benchmarks: List[Dict[str, Any]], dry_run: bool = False
+):
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_BENCHMARKS)
+
+    while True:
+        tasks = []
+
+        for benchmark_id, fc in get_benchmarks_to_run(benchmarks):
+            if dry_run:
+                benchmark = session.query(Benchmark).filter_by(id=benchmark_id).first()
+                print("Would run benchmark with config", benchmark.get_config())
+                continue
+
+            task = asyncio.create_task(run_benchmark(benchmark_id, fc, semaphore))
+            tasks.append(task)
+
+        if dry_run or len(tasks) == 0:
+            break
+
+        await asyncio.gather(*tasks)
 
 
 @app.function(
@@ -194,7 +198,7 @@ def run_benchmarks_in_parallel(benchmarks: List[Dict[str, Any]], dry_run: bool =
     allow_concurrent_inputs=1,
     timeout=TIMEOUT,
 )
-def run_benchmark_suite(
+async def run_benchmark_suite(
     benchmarks: List[Dict[str, Any]],
     id: str,
     repeats: int = 1,
@@ -238,7 +242,7 @@ def run_benchmark_suite(
     # STEP 1: Run synchronous and throughput benchmarks
     # TODO: If repeat_index is increased, all of the constant rate benchmarks
     # need to be re-run with the new synchronous and throughput rates in mind
-    run_benchmarks_in_parallel(
+    await run_benchmarks_in_parallel(
         [
             {
                 **benchmark,
@@ -294,7 +298,7 @@ def run_benchmark_suite(
                 }
             )
 
-    run_benchmarks_in_parallel(benchmarks_to_run)
+    await run_benchmarks_in_parallel(benchmarks_to_run)
 
     # STEP 2.5: Delete existing averaged benchmarks
     AveragedBenchmark.__table__.drop(engine, checkfirst=True)
