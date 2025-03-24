@@ -52,8 +52,7 @@ def sglang_cls(
             volumes=volumes,
             cpu=cpu,
             memory=memory,
-            max_containers=1,
-            allow_concurrent_inputs=1000,  # Set to a high number to prevent auto-scaling
+            allow_concurrent_inputs=1000000,  # Set to a high number to prevent auto-scaling
             scaledown_window=scaledown_window,
             timeout=timeout,
             region=region,
