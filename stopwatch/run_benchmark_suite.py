@@ -21,7 +21,7 @@ TIMEOUT = 12 * 60 * 60  # 12 hours
 
 
 benchmark_suite_image = modal.Image.debian_slim(python_version="3.13").pip_install(
-    "numpy", "SQLAlchemy", "packaging"
+    "numpy", "SQLAlchemy"
 )
 
 with benchmark_suite_image.imports():
@@ -49,7 +49,9 @@ def find_function_call(
     return None
 
 
-def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]]):
+def get_benchmarks_to_run(
+    benchmarks: List[Dict[str, Any]], ignore_previous_errors: bool = False
+):
     for config in benchmarks:
         benchmark_models = (
             session.query(Benchmark)
@@ -81,31 +83,47 @@ def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]]):
                         call_graph, benchmark.function_call_id
                     )
 
-                    if previous_function_call is not None:
-                        if (
-                            previous_function_call.status
-                            == modal.call_graph.InputStatus.PENDING
-                        ):
-                            # The previous function call is still running, so
-                            # we don't need to run it again
+                    if (
+                        previous_function_call is not None
+                        and previous_function_call.status
+                        in [
+                            modal.call_graph.InputStatus.PENDING,
+                            modal.call_graph.InputStatus.SUCCESS,
+                        ]
+                    ):
+                        try:
+                            # If the previous function call has already
+                            # completed, we should check if the input is valid.
+                            fc.get(timeout=0)
+                        except modal.exception.OutputExpiredError:
+                            # The result has expired, so we need to re-run the
+                            # benchmark since its result wasn't previously
+                            # saved to the database
+                            pass
+                        except TimeoutError:
+                            # The previous function call is still running
+                            # (since we called get with timeout=0), so we can
+                            # save its results directly.
                             yield (benchmark.id, fc)
                             continue
-                        elif (
-                            previous_function_call.status
-                            == modal.call_graph.InputStatus.SUCCESS
-                        ):
-                            try:
-                                # The previous function call has already completed,
-                                # so we should check if the input is valid
-                                fc.get(timeout=0)
-                            except modal.exception.OutputExpiredError:
-                                # The result has expired, so we need to re-run the
-                                # benchmark since its result wasn't previously
-                                # saved to the database
+                        except Exception as e:
+                            # This function call likely crashed, so we should
+                            # only re-run it if ignore_previous_errors is set
+                            # to true.
+                            if ignore_previous_errors:
+                                print(
+                                    "WARNING: Unexpected error when checking previous function call",
+                                    e,
+                                )
                                 pass
                             else:
-                                yield (benchmark.id, fc)
-                                continue
+                                raise e
+                        else:
+                            # The previous function call has completed
+                            # successfully, so we can save its results
+                            # directly.
+                            yield (benchmark.id, fc)
+                            continue
         else:
             benchmark = Benchmark(**config)
             session.add(benchmark)
@@ -165,14 +183,18 @@ async def run_benchmark(
 
 
 async def run_benchmarks_in_parallel(
-    benchmarks: List[Dict[str, Any]], dry_run: bool = False
+    benchmarks: List[Dict[str, Any]],
+    dry_run: bool = False,
+    ignore_previous_errors: bool = False,
 ):
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_BENCHMARKS)
 
     while True:
         tasks = []
 
-        for benchmark_id, fc in get_benchmarks_to_run(benchmarks):
+        for benchmark_id, fc in get_benchmarks_to_run(
+            benchmarks, ignore_previous_errors=ignore_previous_errors
+        ):
             if dry_run:
                 benchmark = session.query(Benchmark).filter_by(id=benchmark_id).first()
                 print("Would run benchmark with config", benchmark.get_config())
@@ -203,6 +225,7 @@ async def run_benchmark_suite(
     id: str,
     repeats: int = 1,
     dry_run: bool = False,
+    ignore_previous_errors: bool = False,
     recompute: bool = False,
 ):
     db_volume.reload()
@@ -254,6 +277,7 @@ async def run_benchmark_suite(
             )
         ],
         dry_run=dry_run,
+        ignore_previous_errors=ignore_previous_errors,
     )
 
     if dry_run:

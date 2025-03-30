@@ -27,7 +27,7 @@ def sglang_image_factory():
                 "RUN ln -s /usr/bin/python3 /usr/bin/python",
             ],
         )
-        .pip_install("hf-transfer", "grpclib", "numpy", "packaging", "SQLAlchemy")
+        .pip_install("hf-transfer", "grpclib", "numpy", "SQLAlchemy")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands("ENTRYPOINT []")
     )
@@ -101,10 +101,11 @@ class SGLang_2xH100(SGLangBase):
     server_config: str = modal.parameter(default="{}")
 
 
-all_sglang_classes = {
-    "H100": SGLang,
-    "H100:2": SGLang_2xH100,
-}
+@sglang_cls(gpu="H100!:4")
+class SGLang_4xH100(SGLangBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @contextlib.contextmanager
@@ -115,6 +116,12 @@ def sglang(
     server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
+    all_sglang_classes = {
+        "H100": SGLang,
+        "H100:2": SGLang_2xH100,
+        "H100:4": SGLang_4xH100,
+    }
+
     # If the SGLang server takes more than 12.5 minutes to start, the metrics
     # endpoint will fail with a 303 infinite redirect error. As a workaround,
     # to handle this issue, we update the caller ID and try to spin up a new

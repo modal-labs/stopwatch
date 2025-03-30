@@ -8,7 +8,6 @@ import urllib.parse
 import urllib.request
 import uuid
 
-from packaging.version import Version
 import modal
 
 from .db import DEFAULT_LLM_SERVER_CONFIGS
@@ -24,9 +23,11 @@ VLLM_PORT = 8000
 
 
 def vllm_image_factory(docker_tag: str = "v0.8.2"):
+    # This change was introduced in v0.8.0, and then reverted in v0.8.2...
+    # kinda crazy if you ask me
     python_binary = (
         "/opt/venv/bin/python3"
-        if Version(docker_tag) >= Version("v0.8.0")
+        if docker_tag in ["v0.8.0", "v0.8.1"]
         else "/usr/bin/python3"
     )
 
@@ -38,7 +39,7 @@ def vllm_image_factory(docker_tag: str = "v0.8.2"):
             ],
             add_python="3.13",
         )
-        .pip_install("hf-transfer", "grpclib", "numpy", "packaging", "SQLAlchemy")
+        .pip_install("hf-transfer", "grpclib", "numpy", "SQLAlchemy")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands("ENTRYPOINT []")
     )
@@ -161,30 +162,6 @@ class vLLM_4xH100(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-all_vllm_classes = {
-    "v0.8.2": {
-        "H100": {
-            "us-ashburn-1": vLLM_OCI_USASHBURN1,
-            "us-east-1": vLLM_AWS_USEAST1,
-            "us-east4": vLLM_GCP_USEAST4,
-            "us-chicago-1": vLLM_OCI_USCHICAGO1,
-        },
-        "A100-40GB": {
-            "us-chicago-1": vLLM_A100_40GB,
-        },
-        "A100-80GB": {
-            "us-east4": vLLM_A100_80GB,
-        },
-        "H100:2": {
-            "us-chicago-1": vLLM_2xH100,
-        },
-        "H100:4": {
-            "us-chicago-1": vLLM_4xH100,
-        },
-    },
-}
-
-
 @contextlib.contextmanager
 def vllm(
     model: str,
@@ -193,6 +170,29 @@ def vllm(
     server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
+    all_vllm_classes = {
+        "v0.8.2": {
+            "H100": {
+                "us-ashburn-1": vLLM_OCI_USASHBURN1,
+                "us-east-1": vLLM_AWS_USEAST1,
+                "us-east4": vLLM_GCP_USEAST4,
+                "us-chicago-1": vLLM_OCI_USCHICAGO1,
+            },
+            "A100-40GB": {
+                "us-chicago-1": vLLM_A100_40GB,
+            },
+            "A100-80GB": {
+                "us-east4": vLLM_A100_80GB,
+            },
+            "H100:2": {
+                "us-chicago-1": vLLM_2xH100,
+            },
+            "H100:4": {
+                "us-chicago-1": vLLM_4xH100,
+            },
+        },
+    }
+
     # If the vLLM server takes more than 12.5 minutes to start, the metrics
     # endpoint will fail with a 303 infinite redirect error. As a workaround,
     # to handle this issue, we update the caller ID and try to spin up a new

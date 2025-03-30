@@ -85,13 +85,22 @@ def run_profiler(model: str, gpu: str = "H100", num_requests: int = 10):
     help="Run the benchmark suite without actually running any benchmarks.",
 )
 @click.option(
+    "--ignore-previous-errors",
+    is_flag=True,
+    default=False,
+    help="Ignore errors when checking the results of previous function calls.",
+)
+@click.option(
     "--recompute",
     is_flag=True,
     default=False,
     help="Recompute benchmarks that have already been run.",
 )
 def run_benchmark_suite(
-    config_path: str, dry_run: bool = False, recompute: bool = False
+    config_path: str,
+    dry_run: bool = False,
+    ignore_previous_errors: bool = False,
+    recompute: bool = False,
 ):
     config = yaml.load(open(config_path), Loader=yaml.SafeLoader)
     benchmarks = []
@@ -124,6 +133,7 @@ def run_benchmark_suite(
         id=config["id"],
         repeats=config.get("repeats", 1),
         dry_run=dry_run,
+        ignore_previous_errors=ignore_previous_errors,
         recompute=recompute,
     )
 

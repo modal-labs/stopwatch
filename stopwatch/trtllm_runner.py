@@ -40,7 +40,6 @@ def trtllm_image_factory(
             "huggingface_hub==0.28.1",
             "fastapi",
             "numpy",
-            "packaging",
             "SQLAlchemy",
         )
         .env(
@@ -223,10 +222,11 @@ class trtLLM_2xH100(trtLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-all_trtllm_classes = {
-    "H100": trtLLM,
-    "H100:2": trtLLM_2xH100,
-}
+@trtllm_cls(gpu="H100!:4")
+class trtLLM_4xH100(trtLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
 
 
 @contextlib.contextmanager
@@ -237,6 +237,12 @@ def trtllm(
     server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
+    all_trtllm_classes = {
+        "H100": trtLLM,
+        "H100:2": trtLLM_2xH100,
+        "H100:4": trtLLM_4xH100,
+    }
+
     if profile:
         raise ValueError("Profiling is not supported for trtLLM")
 

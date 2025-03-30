@@ -32,7 +32,7 @@ def histogram_median(bins, counts):
 
 DEFAULT_LLM_SERVER_CONFIGS = {
     "vllm": {
-        "docker_tag": "v0.7.3",
+        "docker_tag": "v0.8.2",
     },
     "sglang": {},
     "trtllm": {},
