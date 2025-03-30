@@ -14,7 +14,7 @@ from .resources import app, hf_cache_volume, hf_secret
 
 
 HF_CACHE_PATH = "/cache"
-SCALEDOWN_WINDOW = 2 * 60  # 2 minutes
+SCALEDOWN_WINDOW = 30  # 30 seconds
 STARTUP_TIMEOUT = 30 * 60  # 30 minutes
 TIMEOUT = 60 * 60  # 1 hour
 
@@ -61,7 +61,7 @@ def trtllm_cls(
     memory=65536,
     scaledown_window=SCALEDOWN_WINDOW,
     timeout=TIMEOUT,
-    region="us-ashburn-1",
+    region="us-chicago-1",
 ):
     def decorator(cls):
         return app.cls(
@@ -71,7 +71,8 @@ def trtllm_cls(
             volumes=volumes,
             cpu=cpu,
             memory=memory,
-            allow_concurrent_inputs=1000000,  # Set to a high number to prevent auto-scaling
+            max_containers=1,
+            allow_concurrent_inputs=1000,  # Set to a high number to prevent auto-scaling
             scaledown_window=scaledown_window,
             timeout=timeout,
             region=region,
@@ -208,11 +209,24 @@ class trtLLMBase:
         )
 
 
-@trtllm_cls(region="us-chicago-1")
+@trtllm_cls()
 class trtLLM(trtLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
+
+
+@trtllm_cls(gpu="H100!:2")
+class trtLLM_2xH100(trtLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
+all_trtllm_classes = {
+    "H100": trtLLM,
+    "H100:2": trtLLM_2xH100,
+}
 
 
 @contextlib.contextmanager
@@ -238,7 +252,10 @@ def trtllm(
         "caller_id": modal.current_function_call_id(),
     }
 
-    cls = trtLLM
+    try:
+        cls = all_trtllm_classes[gpu]
+    except KeyError:
+        raise ValueError(f"Invalid GPU: {gpu}")
 
     args = urllib.parse.urlencode(extra_query)
     url = cls(model="").start.web_url

@@ -12,7 +12,7 @@ from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
 HF_CACHE_PATH = "/cache"
-SCALEDOWN_WINDOW = 2 * 60  # 2 minutes
+SCALEDOWN_WINDOW = 30  # 30 seconds
 SGLANG_PORT = 30000
 STARTUP_TIMEOUT = 30 * 60  # 30 minutes
 TIMEOUT = 60 * 60  # 1 hour
@@ -52,7 +52,8 @@ def sglang_cls(
             volumes=volumes,
             cpu=cpu,
             memory=memory,
-            allow_concurrent_inputs=1000000,  # Set to a high number to prevent auto-scaling
+            max_containers=1,
+            allow_concurrent_inputs=1000,  # Set to a high number to prevent auto-scaling
             scaledown_window=scaledown_window,
             timeout=timeout,
             region=region,
@@ -93,6 +94,19 @@ class SGLang(SGLangBase):
     server_config: str = modal.parameter(default="{}")
 
 
+@sglang_cls(gpu="H100!:2")
+class SGLang_2xH100(SGLangBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
+all_sglang_classes = {
+    "H100": SGLang,
+    "H100:2": SGLang_2xH100,
+}
+
+
 @contextlib.contextmanager
 def sglang(
     model: str,
@@ -116,8 +130,10 @@ def sglang(
     }
 
     while not connected:
-        # TODO: Pick SGLang server class
-        cls = SGLang
+        try:
+            cls = all_sglang_classes[gpu]
+        except KeyError:
+            raise ValueError(f"Unsupported SGLang configuration: {gpu}")
 
         args = urllib.parse.urlencode(extra_query)
         url = cls(model="").start.web_url

@@ -12,17 +12,28 @@ pip install -r requirements.txt
 
 ## Run benchmark
 
-To run a single benchmark, you can use the `run-benchmark` command.
-For example, to run a constant-rate benchmark at 5 queries per second:
+To run a single benchmark, you can use the `run-benchmark` command, which will save your results to a local file.
+For example, to run a synchronous-rate benchmark with vLLM:
 
 ```bash
-MODEL=meta-llama/Llama-3.1-8B-Instruct
+MODEL=Qwen/Qwen2.5-Coder-7B-Instruct
 OUTPUT_PATH=results.json
 
-modal run -w $OUTPUT_PATH cli.py::run_benchmark --model $MODEL --rate-type constant --rate 5
+modal run -w $OUTPUT_PATH cli.py::run_benchmark --model $MODEL --llm-server-type vllm
 ```
 
-You can then view the results of the benchmark in your newly created JSON file.
+Or, to run a fixed-rate multi-GPU benchmark with SGLang:
+
+```bash
+MODEL=meta-llama/Llama-3.3-70B-Instruct
+modal run -w $OUTPUT_PATH cli.py::run_benchmark --model $MODEL --llm-server-type sglang --rate-type constant --rate 5 --llm-server-config '{"extra_args": ["--tp-size", "2"]}'
+```
+
+Or, to run a throughput test with TensorRT-LLM:
+
+```bash
+modal run -w $OUTPUT_PATH cli.py::run_benchmark --model $MODEL --llm-server-type trtllm --rate-type throughput
+```
 
 ## Run and plot multiple benchmarks
 

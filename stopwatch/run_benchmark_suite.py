@@ -70,7 +70,7 @@ def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]]):
                 try:
                     call_graph = fc.get_call_graph()
                 except grpclib.exceptions.GRPCError as e:
-                    if e.code == grpclib.const.Status.NOT_FOUND:
+                    if e.status == grpclib.const.Status.NOT_FOUND:
                         # The function call ID is invalid, so we need to re-run
                         # the benchmark
                         pass

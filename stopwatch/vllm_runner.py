@@ -16,14 +16,14 @@ from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
 HF_CACHE_PATH = "/cache"
-SCALEDOWN_WINDOW = 2 * 60  # 2 minutes
+SCALEDOWN_WINDOW = 30  # 30 seconds
 STARTUP_TIMEOUT = 30 * 60  # 30 minutes
 TIMEOUT = 60 * 60  # 1 hour
 TRACES_PATH = "/traces"
 VLLM_PORT = 8000
 
 
-def vllm_image_factory(docker_tag: str = "v0.7.3"):
+def vllm_image_factory(docker_tag: str = "v0.8.2"):
     python_binary = (
         "/opt/venv/bin/python3"
         if Version(docker_tag) >= Version("v0.8.0")
@@ -53,7 +53,7 @@ def vllm_cls(
     memory=65536,
     scaledown_window=SCALEDOWN_WINDOW,
     timeout=TIMEOUT,
-    region="us-ashburn-1",
+    region="us-chicago-1",
 ):
     def decorator(cls):
         return app.cls(
@@ -63,7 +63,8 @@ def vllm_cls(
             volumes=volumes,
             cpu=cpu,
             memory=memory,
-            allow_concurrent_inputs=1000000,  # Set to a high number to prevent auto-scaling
+            max_containers=1,
+            allow_concurrent_inputs=1000,  # Set to a high number to prevent auto-scaling
             scaledown_window=scaledown_window,
             timeout=timeout,
             region=region,
@@ -104,21 +105,7 @@ class vLLMBase:
         )
 
 
-@vllm_cls(image=vllm_image_factory("v0.8.1"), region="us-chicago-1")
-class vLLM_v0_8_1(vLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@vllm_cls(image=vllm_image_factory("v0.8.0"), region="us-chicago-1")
-class vLLM_v0_8_0(vLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@vllm_cls()
+@vllm_cls(region="us-ashburn-1")
 class vLLM_OCI_USASHBURN1(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -146,7 +133,7 @@ class vLLM_OCI_USCHICAGO1(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(gpu="A100-40GB", region="us-chicago-1")
+@vllm_cls(gpu="A100-40GB")
 class vLLM_A100_40GB(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -160,39 +147,22 @@ class vLLM_A100_80GB(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(gpu="H100!:2", region="us-chicago-1")
+@vllm_cls(gpu="H100!:2")
 class vLLM_2xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(gpu="H100!:4", region="us-chicago-1")
+@vllm_cls(gpu="H100!:4")
 class vLLM_4xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(image=vllm_image_factory("v0.6.6"))
-class vLLM_v0_6_6(vLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
 all_vllm_classes = {
-    "v0.8.1": {
-        "H100": {
-            "us-chicago-1": vLLM_v0_8_1,
-        },
-    },
-    "v0.8.0": {
-        "H100": {
-            "us-chicago-1": vLLM_v0_8_0,
-        },
-    },
-    "v0.7.3": {
+    "v0.8.2": {
         "H100": {
             "us-ashburn-1": vLLM_OCI_USASHBURN1,
             "us-east-1": vLLM_AWS_USEAST1,
@@ -210,11 +180,6 @@ all_vllm_classes = {
         },
         "H100:4": {
             "us-chicago-1": vLLM_4xH100,
-        },
-    },
-    "v0.6.6": {
-        "H100": {
-            "us-ashburn-1": vLLM_v0_6_6,
         },
     },
 }

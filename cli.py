@@ -97,6 +97,7 @@ def run_benchmark_suite(
     benchmarks = []
 
     for config_spec in config["configs"]:
+        config_spec = {**config.get("base_config", {}), **config_spec}
         keys = []
         values = []
 
@@ -105,10 +106,7 @@ def run_benchmark_suite(
             values.append(value if isinstance(value, list) else [value])
 
         for combination in itertools.product(*values):
-            benchmark_config = {
-                **config.get("base_config", {}),
-                **dict(zip(keys, combination)),
-            }
+            benchmark_config = dict(zip(keys, combination))
 
             if "region" in benchmark_config:
                 benchmark_config["server_region"] = benchmark_config["region"]
