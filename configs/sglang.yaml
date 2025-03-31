@@ -1,0 +1,24 @@
+id: sglang
+repeats: 3
+base_config:
+  region: us-chicago-1
+  llm_server_type: sglang
+  data:
+    - prompt_tokens=256,generated_tokens=4096
+    - prompt_tokens=4096,generated_tokens=256
+    - prompt_tokens=2048,generated_tokens=2048
+configs:
+  - model: Qwen/Qwen2.5-Coder-7B-Instruct
+    gpu: H100
+  - model: meta-llama/Llama-3.3-70B-Instruct
+    gpu: H100:2
+    llm_server_config:
+      extra_args: ["--tp-size", "2"]
+  - model: meta-llama/Llama-3.3-70B-Instruct
+    gpu: H100:2
+    llm_server_config:
+      extra_args: ["--tp-size", "2", "--context-length", "8192"]
+  - model: meta-llama/Llama-3.3-70B-Instruct
+    gpu: H100:4
+    llm_server_config:
+      extra_args: ["--tp-size", "4"]

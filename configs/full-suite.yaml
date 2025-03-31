@@ -1,0 +1,14 @@
+id: full-suite
+repeats: 3
+configs:
+  - region: us-chicago-1
+    llm_server_type:
+      - sglang
+      - vllm
+      - trtllm
+    model: Qwen/Qwen2.5-Coder-7B-Instruct
+    gpu: H100
+    data:
+      - prompt_tokens=256,generated_tokens=4096
+      - prompt_tokens=4096,generated_tokens=256
+      - prompt_tokens=2048,generated_tokens=2048
