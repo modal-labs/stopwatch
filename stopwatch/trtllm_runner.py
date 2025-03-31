@@ -229,6 +229,13 @@ class trtLLM_4xH100(trtLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
+@trtllm_cls(gpu="H100!:8")
+class trtLLM_8xH100(trtLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
 @contextlib.contextmanager
 def trtllm(
     model: str,
@@ -241,13 +248,14 @@ def trtllm(
         "H100": trtLLM,
         "H100:2": trtLLM_2xH100,
         "H100:4": trtLLM_4xH100,
+        "H100:8": trtLLM_8xH100,
     }
 
     if profile:
         raise ValueError("Profiling is not supported for trtLLM")
 
     warnings.warn(
-        "GPU and region selection are not yet supported for trtLLM. Spinning up an H100 in us-chicago-1..."
+        "Region selection is not yet supported for trtLLM. Spinning up an instance in us-chicago-1..."
     )
 
     extra_query = {

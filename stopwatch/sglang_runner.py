@@ -108,6 +108,13 @@ class SGLang_4xH100(SGLangBase):
     server_config: str = modal.parameter(default="{}")
 
 
+@sglang_cls(gpu="H100!:8")
+class SGLang_8xH100(SGLangBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
 @contextlib.contextmanager
 def sglang(
     model: str,
@@ -120,6 +127,7 @@ def sglang(
         "H100": SGLang,
         "H100:2": SGLang_2xH100,
         "H100:4": SGLang_4xH100,
+        "H100:8": SGLang_8xH100,
     }
 
     # If the SGLang server takes more than 12.5 minutes to start, the metrics

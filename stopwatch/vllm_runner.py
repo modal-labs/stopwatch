@@ -162,6 +162,13 @@ class vLLM_4xH100(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
+@vllm_cls(gpu="H100!:8")
+class vLLM_8xH100(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
 @contextlib.contextmanager
 def vllm(
     model: str,
@@ -189,6 +196,9 @@ def vllm(
             },
             "H100:4": {
                 "us-chicago-1": vLLM_4xH100,
+            },
+            "H100:8": {
+                "us-chicago-1": vLLM_8xH100,
             },
         },
     }
