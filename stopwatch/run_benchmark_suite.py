@@ -117,7 +117,9 @@ def get_benchmarks_to_run(
                                 )
                                 pass
                             else:
-                                raise e
+                                raise Exception(
+                                    f"The previous function call {benchmark.function_call_id} for benchmark {benchmark.id} crashed. You may ignore this error with --ignore-previous-errors"
+                                ) from e
                         else:
                             # The previous function call has completed
                             # successfully, so we can save its results
@@ -149,10 +151,14 @@ async def run_benchmark(
             session.commit()
             db_volume.commit()
 
-        result = await fc.get.aio()
-
-        if isinstance(result, Exception):
-            print("Error retrieving result:", result)
+        try:
+            result = await fc.get.aio()
+        except modal.exception.RemoteError as e:
+            # Happens when the function call is interrupted manually
+            print("WARNING: Function call result could not be retrieved:", e)
+            return
+        except modal.exception.FunctionTimeoutError:
+            print("Benchmark timed out")
             return
 
         if len(result["results"]) == 0:
