@@ -4,8 +4,6 @@ import hashlib
 import json
 import os
 import time
-import urllib.parse
-import urllib.request
 import warnings
 
 import modal
@@ -40,6 +38,7 @@ def trtllm_image_factory(
             "huggingface_hub==0.28.1",
             "fastapi",
             "numpy",
+            "requests",
             "SQLAlchemy",
         )
         .env(
@@ -229,7 +228,7 @@ class trtLLM_4xH100(trtLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@trtllm_cls(gpu="H100!:8")
+@trtllm_cls(gpu="H100!:8", cpu=8)
 class trtLLM_8xH100(trtLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -244,6 +243,8 @@ def trtllm(
     server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
+    import requests
+
     all_trtllm_classes = {
         "H100": trtLLM,
         "H100:2": trtLLM_2xH100,
@@ -271,16 +272,15 @@ def trtllm(
     except KeyError:
         raise ValueError(f"Invalid GPU: {gpu}")
 
-    args = urllib.parse.urlencode(extra_query)
     url = cls(model="").start.web_url
 
     # Wait for trtLLM server to start
     response_code = -1
-    print(f"Requesting health at {url}/health?{args}")
+    print(f"Requesting health at {url}/health with params {extra_query}")
 
     while response_code != 200:
-        response = urllib.request.urlopen(f"{url}/health?{args}")
-        response_code = response.code
+        response = requests.get(f"{url}/health", params=extra_query)
+        response_code = response.status_code
         time.sleep(5)
 
     print("Connected to trtLLM instance")

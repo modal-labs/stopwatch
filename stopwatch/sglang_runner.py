@@ -3,7 +3,6 @@ import contextlib
 import json
 import subprocess
 import time
-import urllib.request
 import uuid
 
 import modal
@@ -27,7 +26,7 @@ def sglang_image_factory():
                 "RUN ln -s /usr/bin/python3 /usr/bin/python",
             ],
         )
-        .pip_install("hf-transfer", "grpclib", "numpy", "SQLAlchemy")
+        .pip_install("hf-transfer", "grpclib", "numpy", "requests", "SQLAlchemy")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands("ENTRYPOINT []")
     )
@@ -108,7 +107,7 @@ class SGLang_4xH100(SGLangBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@sglang_cls(gpu="H100!:8")
+@sglang_cls(gpu="H100!:8", cpu=8)
 class SGLang_8xH100(SGLangBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -123,6 +122,8 @@ def sglang(
     server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
+    import requests
+
     all_sglang_classes = {
         "H100": SGLang,
         "H100:2": SGLang_2xH100,
@@ -150,21 +151,22 @@ def sglang(
         except KeyError:
             raise ValueError(f"Unsupported SGLang configuration: {gpu}")
 
-        args = urllib.parse.urlencode(extra_query)
         url = cls(model="").start.web_url
 
         # Wait for SGLang server to start
-        print(f"Requesting health check at {url}/health_generate?{args}")
+        print(
+            f"Requesting health check at {url}/health_generate with params {extra_query}"
+        )
 
         while True:
             try:
-                response = urllib.request.urlopen(f"{url}/health_generate?{args}")
-            except urllib.error.HTTPError as e:
+                response = requests.get(f"{url}/health_generate", params=extra_query)
+            except requests.HTTPError as e:
                 print(f"Error requesting health check: {e}")
                 extra_query["caller_id"] = str(uuid.uuid4())
                 break
 
-            if response.status == 200:
+            if response.status_code == 200:
                 connected = True
                 break
             else:

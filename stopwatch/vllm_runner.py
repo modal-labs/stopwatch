@@ -4,8 +4,6 @@ import json
 import os
 import subprocess
 import time
-import urllib.parse
-import urllib.request
 import uuid
 
 import modal
@@ -39,7 +37,7 @@ def vllm_image_factory(docker_tag: str = "v0.8.2"):
             ],
             add_python="3.13",
         )
-        .pip_install("hf-transfer", "grpclib", "numpy", "SQLAlchemy")
+        .pip_install("hf-transfer", "grpclib", "numpy", "requests", "SQLAlchemy")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands("ENTRYPOINT []")
     )
@@ -162,7 +160,7 @@ class vLLM_4xH100(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(gpu="H100!:8")
+@vllm_cls(gpu="H100!:8", cpu=8)
 class vLLM_8xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -177,6 +175,8 @@ def vllm(
     server_config: Optional[Mapping[str, Any]] = None,
     profile: bool = False,
 ):
+    import requests
+
     all_vllm_classes = {
         "v0.8.2": {
             "H100": {
@@ -230,22 +230,21 @@ def vllm(
                 f"Unsupported vLLM configuration: {docker_tag} {gpu} {region}"
             )
 
-        args = urllib.parse.urlencode(extra_query)
         url = cls(model="").start.web_url
 
         # Wait for vLLM server to start
         response_body = ""
-        print(f"Requesting metrics at {url}/metrics?{args}")
+        print(f"Requesting metrics at {url}/metrics with params {extra_query}")
 
         while True:
             try:
-                response = urllib.request.urlopen(f"{url}/metrics?{args}")
-            except urllib.error.HTTPError as e:
+                response = requests.get(f"{url}/metrics", params=extra_query)
+            except requests.HTTPError as e:
                 print(f"Error requesting metrics: {e}")
                 extra_query["caller_id"] = str(uuid.uuid4())
                 break
 
-            response_body = response.read().decode("utf-8")
+            response_body = response.text
 
             if "vllm:gpu_cache_usage_perc" in response_body:
                 connected = True
@@ -256,12 +255,10 @@ def vllm(
     print("Connected to vLLM instance")
 
     if profile:
-        req = urllib.request.Request(f"{url}/start_profile?{args}", method="POST")
-        urllib.request.urlopen(req)
+        requests.post(f"{url}/start_profile", params=extra_query)
 
     try:
         yield (url, extra_query)
     finally:
         if profile:
-            req = urllib.request.Request(f"{url}/stop_profile?{args}", method="POST")
-            urllib.request.urlopen(req)
+            requests.post(f"{url}/stop_profile", params=extra_query)

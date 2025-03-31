@@ -1,7 +1,6 @@
 from typing import AsyncGenerator, ClassVar, List, Optional
 import threading
 import time
-import urllib.request
 
 from guidellm.core.report import GuidanceReport
 from guidellm.core.result import TextGenerationBenchmark, TextGenerationBenchmarkReport
@@ -90,12 +89,11 @@ class SchedulerWithvLLMMetrics(Scheduler):
             metrics (list): A list to store the fetched metrics.
             stop_signal (threading.Event): A signal to stop the metrics refresh.
         """
+        import requests
 
         while not stop_signal.is_set():
-            with urllib.request.urlopen(metrics_url) as response:
-                r_metrics = text_string_to_metric_families(response.read().decode())
-
-            metrics.append(list(r_metrics))
+            res = requests.get(metrics_url)
+            metrics.append(list(text_string_to_metric_families(res.text)))
             time.sleep(REFRESH_INTERVAL)
 
 
