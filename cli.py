@@ -102,36 +102,48 @@ def run_benchmark_suite(
     ignore_previous_errors: bool = False,
     recompute: bool = False,
 ):
-    config = yaml.load(open(config_path), Loader=yaml.SafeLoader)
-    benchmarks = []
+    def load_benchmarks_from_config(config_path: str):
+        config = yaml.load(open(config_path), Loader=yaml.SafeLoader)
 
-    for config_spec in config["configs"]:
-        config_spec = {**config.get("base_config", {}), **config_spec}
-        keys = []
-        values = []
+        if "id" not in config:
+            raise ValueError("'id' is required in the config")
 
-        for key, value in config_spec.items():
-            keys.append(key)
-            values.append(value if isinstance(value, list) else [value])
+        benchmarks = []
 
-        for combination in itertools.product(*values):
-            benchmark_config = dict(zip(keys, combination))
+        for config_spec in config.get("configs", []):
+            config_spec = {**config.get("base_config", {}), **config_spec}
+            keys = []
+            values = []
 
-            if "region" in benchmark_config:
-                benchmark_config["server_region"] = benchmark_config["region"]
-                benchmark_config["client_region"] = benchmark_config["region"]
-                del benchmark_config["region"]
+            for key, value in config_spec.items():
+                keys.append(key)
+                values.append(value if isinstance(value, list) else [value])
 
-            benchmarks.append(benchmark_config)
+            for combination in itertools.product(*values):
+                benchmark_config = dict(zip(keys, combination))
 
-    if "id" not in config:
-        raise ValueError("'id' is required in the config")
+                if "region" in benchmark_config:
+                    benchmark_config["server_region"] = benchmark_config["region"]
+                    benchmark_config["client_region"] = benchmark_config["region"]
+                    del benchmark_config["region"]
+
+                benchmarks.append(benchmark_config)
+
+        for file in config.get("files", []):
+            file_benchmarks, _, _ = load_benchmarks_from_config(
+                os.path.join(os.path.dirname(config_path), file)
+            )
+            benchmarks.extend(file_benchmarks)
+
+        return benchmarks, config["id"], config.get("repeats", 1)
+
+    benchmarks, id, repeats = load_benchmarks_from_config(config_path)
 
     f = modal.Function.from_name("stopwatch", "run_benchmark_suite")
     fc = f.spawn(
         benchmarks=benchmarks,
-        id=config["id"],
-        repeats=config.get("repeats", 1),
+        id=id,
+        repeats=repeats,
         dry_run=dry_run,
         ignore_previous_errors=ignore_previous_errors,
         recompute=recompute,
@@ -145,7 +157,7 @@ def run_benchmark_suite(
 
     if answer != "n":
         url = modal.Cls.from_name("stopwatch", "DatasetteRunner")().start.web_url
-        url += f"/stopwatch/-/query?sql=select+*+from+{config['id'].replace('-', '_')}"
+        url += f"/stopwatch/-/query?sql=select+*+from+{id.replace('-', '_')}"
         subprocess.run(["open", url])
 
 
