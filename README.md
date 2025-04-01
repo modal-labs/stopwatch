@@ -1,6 +1,6 @@
 # stopwatch
 
-_A simple solution for benchmarking [vLLM](https://docs.vllm.ai/en/latest/) and [trtLLM](https://github.com/NVIDIA/TensorRT-LLM) on [Modal](https://modal.com/) with [guidellm](https://github.com/neuralmagic/guidellm)._ ⏱️
+_A simple solution for benchmarking [vLLM](https://docs.vllm.ai/en/latest/), [SGLang](https://docs.sglang.ai/), and [TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM) on [Modal](https://modal.com/) with [guidellm](https://github.com/neuralmagic/guidellm)._ ⏱️
 
 ## Setup
 
@@ -32,7 +32,7 @@ modal run -w $OUTPUT_PATH cli.py::run_benchmark --model $MODEL --llm-server-type
 Or, to run a throughput test with TensorRT-LLM:
 
 ```bash
-modal run -w $OUTPUT_PATH cli.py::run_benchmark --model $MODEL --llm-server-type trtllm --rate-type throughput
+modal run -w $OUTPUT_PATH cli.py::run_benchmark --model $MODEL --llm-server-type tensorrt-llm --rate-type throughput
 ```
 
 ## Run and plot multiple benchmarks

@@ -17,8 +17,8 @@ STARTUP_TIMEOUT = 30 * 60  # 30 minutes
 TIMEOUT = 60 * 60  # 1 hour
 
 
-def trtllm_image_factory(
-    trtllm_version: str = "0.17.0.post1", cuda_version: str = "12.8.0"
+def tensorrt_llm_image_factory(
+    tensorrt_llm_version: str = "0.17.0.post1", cuda_version: str = "12.8.0"
 ):
     return (
         modal.Image.from_registry(
@@ -28,7 +28,7 @@ def trtllm_image_factory(
         .entrypoint([])  # remove verbose logging by base image on entry
         .apt_install("openmpi-bin", "libopenmpi-dev", "git", "git-lfs", "wget")
         .pip_install(
-            f"tensorrt-llm=={trtllm_version}",
+            f"tensorrt-llm=={tensorrt_llm_version}",
             "pynvml<12",  # avoid breaking change to pynvml version API
             pre=True,
             extra_index_url="https://pypi.nvidia.com",
@@ -50,8 +50,8 @@ def trtllm_image_factory(
     )
 
 
-def trtllm_cls(
-    image=trtllm_image_factory(),
+def tensorrt_llm_cls(
+    image=tensorrt_llm_image_factory(),
     secrets=[hf_secret],
     gpu="H100!",
     volumes={HF_CACHE_PATH: hf_cache_volume},
@@ -79,13 +79,12 @@ def trtllm_cls(
     return decorator
 
 
-class trtLLMBase:
+class TensorRTLLMBase:
     """
-    A Modal class that runs an OpenAI-compatible trtLLM server.
+    A Modal class that runs an OpenAI-compatible TensorRT-LLM server.
     """
 
     def construct_engine_kwargs(self) -> dict:
-        import torch
         import tensorrt_llm
         from tensorrt_llm import BuildConfig
         from tensorrt_llm.llmapi import (
@@ -95,8 +94,6 @@ class trtLLMBase:
             LookaheadDecodingConfig,
         )
         from tensorrt_llm.plugin.plugin import PluginConfig
-
-        print("converting engine kwarg strings into config objects")
 
         config_name_to_constructor = {
             "quant_config": lambda x: QuantConfig(**x),
@@ -109,13 +106,10 @@ class trtLLMBase:
             "speculative_config": lambda x: LookaheadDecodingConfig(**x),
         }
 
-        engine_kwargs = json.loads(self.server_config).get("llm_kwargs", {})
-        if "tensor_parallel_size" not in engine_kwargs:
-            engine_kwargs["tensor_parallel_size"] = torch.cuda.device_count()
-        assert engine_kwargs["tensor_parallel_size"] == torch.cuda.device_count()
+        llm_kwargs = json.loads(self.server_config).get("llm_kwargs", {})
 
         self.config_fingerprint = self.get_config_fingerprint(
-            tensorrt_llm.__version__, engine_kwargs
+            tensorrt_llm.__version__, llm_kwargs
         )
 
         def construct_configs(x):
@@ -126,14 +120,10 @@ class trtLLMBase:
                     x[key] = config_name_to_constructor[key](value)
             return x
 
-        engine_kwargs = construct_configs(engine_kwargs)
+        llm_kwargs = construct_configs(llm_kwargs)
+        self.lookahead_config = llm_kwargs.get("speculative_config")
 
-        self.lookahead_config = engine_kwargs.get("speculative_config")
-
-        print("number of GPUs:", engine_kwargs["tensor_parallel_size"])
-        assert engine_kwargs["tensor_parallel_size"] == torch.cuda.device_count()
-
-        return engine_kwargs
+        return llm_kwargs
 
     def build_engine(self, engine_path, engine_kwargs) -> None:
         from tensorrt_llm import LLM
@@ -151,14 +141,14 @@ class trtLLMBase:
         print("Received server config:")
         print(self.server_config)
 
-        print("downloading base model if necessary")
+        print("Downloading base model if necessary")
         self.model_path = snapshot_download(self.model)
 
         engine_kwargs = self.construct_engine_kwargs()
 
         # FIXME just make this trttlm version-engine
         engine_path = os.path.join(
-            self.model_path, "trtllm_engine", self.config_fingerprint
+            self.model_path, "tensorrt_llm_engine", self.config_fingerprint
         )
         if not os.path.exists(engine_path):
             self.build_engine(engine_path, engine_kwargs)
@@ -170,23 +160,16 @@ class trtLLMBase:
     def start(self):
         from transformers import AutoTokenizer
         from tensorrt_llm.serve import OpenAIServer
-        from fastapi.responses import JSONResponse
 
-        """Start a trtLLM server."""
+        """Start a TensorRT-LLM server."""
 
         assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
 
-        tokenizer = AutoTokenizer.from_pretrained(self.model)
+        engine_kwargs = self.construct_engine_kwargs()
+        tokenizer = AutoTokenizer.from_pretrained(
+            engine_kwargs.get("tokenizer", self.model)
+        )
         server = OpenAIServer(llm=self.llm, model=self.model, hf_tokenizer=tokenizer)
-
-        async def get_iteration_stats(self) -> JSONResponse:
-            stats = []
-            return JSONResponse(content=stats)
-            # async for stat in self.llm.get_stats_async(2):
-            # stats.append(stat)
-            # return JSONResponse(content=stats)
-
-        server.app.add_api_route("/metrics", get_iteration_stats, methods=["GET"])
 
         return server.app
 
@@ -194,10 +177,10 @@ class trtLLMBase:
     def shutdown(self):
         del self.llm
 
-    def get_config_fingerprint(self, trtllm_version, config_kwargs):
+    def get_config_fingerprint(self, tensorrt_llm_version, config_kwargs):
         """Hash config kwargs so we can cache the built engine."""
         return (
-            trtllm_version
+            tensorrt_llm_version
             + "-"
             + self.model
             + "-"
@@ -207,36 +190,36 @@ class trtLLMBase:
         )
 
 
-@trtllm_cls()
-class trtLLM(trtLLMBase):
+@tensorrt_llm_cls()
+class TensorRTLLM(TensorRTLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@trtllm_cls(gpu="H100!:2")
-class trtLLM_2xH100(trtLLMBase):
+@tensorrt_llm_cls(gpu="H100!:2")
+class TensorRTLLM_2xH100(TensorRTLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@trtllm_cls(gpu="H100!:4")
-class trtLLM_4xH100(trtLLMBase):
+@tensorrt_llm_cls(gpu="H100!:4")
+class TensorRTLLM_4xH100(TensorRTLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@trtllm_cls(gpu="H100!:8", cpu=8)
-class trtLLM_8xH100(trtLLMBase):
+@tensorrt_llm_cls(gpu="H100!:8", cpu=8)
+class TensorRTLLM_8xH100(TensorRTLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
 @contextlib.contextmanager
-def trtllm(
+def tensorrt_llm(
     model: str,
     gpu: str,
     region: str,
@@ -245,18 +228,18 @@ def trtllm(
 ):
     import requests
 
-    all_trtllm_classes = {
-        "H100": trtLLM,
-        "H100:2": trtLLM_2xH100,
-        "H100:4": trtLLM_4xH100,
-        "H100:8": trtLLM_8xH100,
+    all_tensorrt_llm_classes = {
+        "H100": TensorRTLLM,
+        "H100:2": TensorRTLLM_2xH100,
+        "H100:4": TensorRTLLM_4xH100,
+        "H100:8": TensorRTLLM_8xH100,
     }
 
     if profile:
-        raise ValueError("Profiling is not supported for trtLLM")
+        raise ValueError("Profiling is not supported for TensorRT-LLM")
 
     warnings.warn(
-        "Region selection is not yet supported for trtLLM. Spinning up an instance in us-chicago-1..."
+        "Region selection is not yet supported for TensorRT-LLM. Spinning up an instance in us-chicago-1..."
     )
 
     extra_query = {
@@ -268,13 +251,13 @@ def trtllm(
     }
 
     try:
-        cls = all_trtllm_classes[gpu]
+        cls = all_tensorrt_llm_classes[gpu]
     except KeyError:
         raise ValueError(f"Invalid GPU: {gpu}")
 
     url = cls(model="").start.web_url
 
-    # Wait for trtLLM server to start
+    # Wait for TensorRT-LLM server to start
     response_code = -1
     print(f"Requesting health at {url}/health with params {extra_query}")
 
@@ -283,5 +266,5 @@ def trtllm(
         response_code = response.status_code
         time.sleep(5)
 
-    print("Connected to trtLLM instance")
+    print("Connected to TensorRT-LLM instance")
     yield (url, extra_query)

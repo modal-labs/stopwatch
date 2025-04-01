@@ -80,7 +80,7 @@ class BenchmarkRunner:
 
         Args:
             llm_server_type (str): The server to use for benchmarking, either
-                'vllm' or 'trtllm'.
+                'vllm', 'sglang', or 'tensorrt-llm'.
             model (str): Name of the model to benchmark.
             rate_type (str): The type of rate to use for benchmarking, either
                 'constant', 'synchronous', or 'throughput'.

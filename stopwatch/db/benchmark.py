@@ -35,7 +35,7 @@ DEFAULT_LLM_SERVER_CONFIGS = {
         "docker_tag": "v0.8.2",
     },
     "sglang": {},
-    "trtllm": {},
+    "tensorrt-llm": {},
 }
 
 
