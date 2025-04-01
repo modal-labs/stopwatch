@@ -2,11 +2,14 @@ id: tensorrt-llm
 repeats: 3
 base_config:
   region: us-chicago-1
-  llm_server_type: trtllm
+  llm_server_type: tensorrt-llm
   data:
     - prompt_tokens=256,generated_tokens=4096
     - prompt_tokens=4096,generated_tokens=256
     - prompt_tokens=2048,generated_tokens=2048
 configs:
-  - model: Qwen/Qwen2.5-Coder-7B-Instruct
+  - model: zed-industries/zeta
     gpu: H100
+    llm_server_config:
+      llm_kwargs:
+        tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
