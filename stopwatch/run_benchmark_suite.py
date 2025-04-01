@@ -15,7 +15,8 @@ from .run_benchmark import all_benchmark_runner_classes
 DATASETTE_PATH = "/datasette"
 DB_PATH = "/db"
 MAX_CONCURRENT_BENCHMARKS = 45
-NUM_CONSTANT_RATES = 10
+MAX_CONSTANT_RATES = 10
+MIN_QPS_STEP_SIZE = 0.5
 RESULTS_PATH = "/results"
 TIMEOUT = 12 * 60 * 60  # 12 hours
 
@@ -316,7 +317,15 @@ async def run_benchmark_suite(
 
         assert min_rate < max_rate
 
-        constant_rates = np.linspace(min_rate, max_rate, NUM_CONSTANT_RATES + 1)[1:]
+        # By default, run 10 constant-rate runs per benchmark. However, if the
+        # QPS step size between constant rates is less than 0.5, run fewer than
+        # 10 constant-rate runs.
+        for num_constant_rates in range(MAX_CONSTANT_RATES, -1, -1):
+            constant_rates = np.linspace(min_rate, max_rate, num_constant_rates + 1)[1:]
+            qps_step_size = (max_rate - min_rate) / num_constant_rates
+
+            if qps_step_size >= MIN_QPS_STEP_SIZE:
+                break
 
         for rate, repeat_index in itertools.product(constant_rates, range(repeats)):
             benchmarks_to_run.append(
