@@ -2,8 +2,7 @@ from typing import Any, Mapping, Optional
 import contextlib
 import json
 import subprocess
-import time
-import uuid
+import warnings
 
 import modal
 
@@ -26,7 +25,7 @@ def sglang_image_factory():
                 "RUN ln -s /usr/bin/python3 /usr/bin/python",
             ],
         )
-        .pip_install("hf-transfer", "grpclib", "numpy", "requests", "SQLAlchemy")
+        .pip_install("hf-transfer", "grpclib", "requests")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands("ENTRYPOINT []")
     )
@@ -81,6 +80,11 @@ class SGLangBase:
                 self.model,
                 "--host",
                 "0.0.0.0",
+                *(
+                    ["--tokenizer-path", server_config["tokenizer"]]
+                    if "tokenizer" in server_config
+                    else []
+                ),
                 *server_config.get("extra_args", []),
             ]
         )
@@ -124,6 +128,9 @@ def sglang(
 ):
     import requests
 
+    if profile:
+        raise ValueError("Profiling is not supported for SGLang")
+
     all_sglang_classes = {
         "H100": SGLang,
         "H100:2": SGLang_2xH100,
@@ -131,11 +138,9 @@ def sglang(
         "H100:8": SGLang_8xH100,
     }
 
-    # If the SGLang server takes more than 12.5 minutes to start, the metrics
-    # endpoint will fail with a 303 infinite redirect error. As a workaround,
-    # to handle this issue, we update the caller ID and try to spin up a new
-    # SGLang server instead.
-    connected = False
+    warnings.warn(
+        "Region selection is not yet supported for SGLang. Spinning up an instance in us-chicago-1..."
+    )
 
     extra_query = {
         "model": model,
@@ -145,32 +150,23 @@ def sglang(
         "caller_id": modal.current_function_call_id(),
     }
 
-    while not connected:
-        try:
-            cls = all_sglang_classes[gpu]
-        except KeyError:
-            raise ValueError(f"Unsupported SGLang configuration: {gpu}")
+    # Pick SGLang server class
+    try:
+        cls = all_sglang_classes[gpu]
+    except KeyError:
+        raise ValueError(f"Unsupported SGLang configuration: {gpu}")
 
-        url = cls(model="").start.web_url
+    url = cls(model="").start.web_url
 
-        # Wait for SGLang server to start
-        print(
-            f"Requesting health check at {url}/health_generate with params {extra_query}"
+    # Wait for SGLang server to start
+    print(f"Requesting health check at {url}/health_generate with params {extra_query}")
+
+    res = requests.get(f"{url}/health_generate", params=extra_query)
+
+    if res.status_code != 200:
+        raise ValueError(
+            f"Failed to connect to SGLang instance: {res.status_code} {res.text}"
         )
-
-        while True:
-            try:
-                response = requests.get(f"{url}/health_generate", params=extra_query)
-            except requests.HTTPError as e:
-                print(f"Error requesting health check: {e}")
-                extra_query["caller_id"] = str(uuid.uuid4())
-                break
-
-            if response.status_code == 200:
-                connected = True
-                break
-            else:
-                time.sleep(5)
 
     print("Connected to SGLang instance")
     yield (url, extra_query)

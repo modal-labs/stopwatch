@@ -11,8 +11,28 @@ configs:
   - model: zed-industries/zeta
     gpu: H100
     llm_server_config:
-      extra_args: ["--tokenizer", "Qwen/Qwen2.5-Coder-7B-Instruct"]
+      tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
   - model: meta-llama/Llama-3.3-70B-Instruct
     gpu: H100:4
     llm_server_config:
       extra_args: ["--tensor-parallel-size", "4", "--max-model-len", "8192"]
+  - model: cognitivecomputations/DeepSeek-V3-0324-AWQ
+    gpu: H100:8
+    llm_server_config:
+      extra_args: [
+          "--tensor-parallel-size",
+          "8",
+          "--max-model-len",
+          "8192",
+          # "--enable-chunked-prefill",
+          # "--enable-prefix-caching",
+          "--gpu-memory-utilization",
+          "0.95",
+          "--dtype",
+          "half",
+          "--trust-remote-code",
+        ]
+      env_vars:
+        VLLM_USE_V1: "0"
+        VLLM_WORKER_MULTIPROC_METHOD: spawn
+        VLLM_MARLIN_USE_ATOMIC_ADD: "1"

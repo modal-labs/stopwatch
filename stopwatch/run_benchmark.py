@@ -1,10 +1,10 @@
 import modal
 
-from .db import DEFAULT_LLM_SERVER_CONFIGS
 from .resources import app, hf_secret, results_volume
 from .llm_server import llm_server
 
 
+LLM_SERVER_TYPES = ["vllm", "sglang", "tensorrt-llm"]
 MAX_SECONDS_PER_BENCHMARK = 120  # 2 minutes
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5  # 5 seconds
@@ -16,7 +16,6 @@ benchmarking_image = (
     .pip_install(
         "git+https://github.com/neuralmagic/guidellm.git@55c65c4",
         "prometheus-client",
-        "SQLAlchemy",
         "tiktoken",
     )
 )
@@ -95,12 +94,12 @@ class BenchmarkRunner:
 
         from transformers import AutoTokenizer
 
-        if llm_server_type not in DEFAULT_LLM_SERVER_CONFIGS:
+        if llm_server_type not in LLM_SERVER_TYPES:
             raise ValueError(
-                f"Invalid value for llm_server: {llm_server_type}. Must be one of {DEFAULT_LLM_SERVER_CONFIGS.keys()}"
+                f"Invalid value for llm_server: {llm_server_type}. Must be one of {LLM_SERVER_TYPES}"
             )
         elif llm_server_config is None:
-            llm_server_config = DEFAULT_LLM_SERVER_CONFIGS[llm_server_type]
+            llm_server_config = {}
 
         # Start LLM server in background
         with llm_server(

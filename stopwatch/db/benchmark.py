@@ -2,7 +2,6 @@ import itertools
 
 from sqlalchemy import Column, DateTime, Float, Integer, JSON, String
 from sqlalchemy.sql import func
-import numpy as np
 
 from .base import Base
 
@@ -30,16 +29,9 @@ def histogram_median(bins, counts):
         cumulative = new_cumulative
 
 
-DEFAULT_LLM_SERVER_CONFIGS = {
-    "vllm": {
-        "docker_tag": "v0.8.2",
-    },
-    "sglang": {},
-    "tensorrt-llm": {},
-}
-
-
 def benchmark_cls_factory(table_name: str = "benchmarks"):
+    import numpy as np
+
     class Benchmark(Base):
         __tablename__ = table_name
 

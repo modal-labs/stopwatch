@@ -8,10 +8,10 @@ import uuid
 
 import modal
 
-from .db import DEFAULT_LLM_SERVER_CONFIGS
 from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
+DEFAULT_DOCKER_TAG = "v0.8.2"
 HF_CACHE_PATH = "/cache"
 SCALEDOWN_WINDOW = 30  # 30 seconds
 STARTUP_TIMEOUT = 30 * 60  # 30 minutes
@@ -20,7 +20,7 @@ TRACES_PATH = "/traces"
 VLLM_PORT = 8000
 
 
-def vllm_image_factory(docker_tag: str = "v0.8.2"):
+def vllm_image_factory(docker_tag: str = DEFAULT_DOCKER_TAG):
     # This change was introduced in v0.8.0, and then reverted in v0.8.2...
     # kinda crazy if you ask me
     python_binary = (
@@ -37,7 +37,7 @@ def vllm_image_factory(docker_tag: str = "v0.8.2"):
             ],
             add_python="3.13",
         )
-        .pip_install("hf-transfer", "grpclib", "numpy", "requests", "SQLAlchemy")
+        .pip_install("hf-transfer", "grpclib", "requests")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands("ENTRYPOINT []")
     )
@@ -95,6 +95,11 @@ class vLLMBase:
                 "vllm.entrypoints.openai.api_server",
                 "--model",
                 self.model,
+                *(
+                    ["--tokenizer", server_config["tokenizer"]]
+                    if "tokenizer" in server_config
+                    else []
+                ),
                 *server_config.get("extra_args", []),
             ],
             env={
@@ -203,15 +208,7 @@ def vllm(
         },
     }
 
-    # If the vLLM server takes more than 12.5 minutes to start, the metrics
-    # endpoint will fail with a 303 infinite redirect error. As a workaround,
-    # to handle this issue, we update the caller ID and try to spin up a new
-    # vLLM server instead.
-    connected = False
-
-    docker_tag = server_config.get(
-        "docker_tag", DEFAULT_LLM_SERVER_CONFIGS["vllm"]["docker_tag"]
-    )
+    docker_tag = server_config.get("docker_tag", DEFAULT_DOCKER_TAG)
 
     extra_query = {
         "model": model,
@@ -221,36 +218,32 @@ def vllm(
         "caller_id": modal.current_function_call_id(),
     }
 
-    while not connected:
-        # Pick vLLM server class
+    # Pick vLLM server class
+    try:
+        cls = all_vllm_classes[docker_tag][gpu.replace("!", "")][region]
+    except KeyError:
+        raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu} {region}")
+
+    url = cls(model="").start.web_url
+
+    # Wait for vLLM server to start
+    response_body = ""
+    print(f"Requesting metrics at {url}/metrics with params {extra_query}")
+
+    while True:
         try:
-            cls = all_vllm_classes[docker_tag][gpu.replace("!", "")][region]
-        except KeyError:
-            raise ValueError(
-                f"Unsupported vLLM configuration: {docker_tag} {gpu} {region}"
-            )
+            response = requests.get(f"{url}/metrics", params=extra_query)
+        except requests.HTTPError as e:
+            print(f"Error requesting metrics: {e}")
+            extra_query["caller_id"] = str(uuid.uuid4())
+            break
 
-        url = cls(model="").start.web_url
+        response_body = response.text
 
-        # Wait for vLLM server to start
-        response_body = ""
-        print(f"Requesting metrics at {url}/metrics with params {extra_query}")
-
-        while True:
-            try:
-                response = requests.get(f"{url}/metrics", params=extra_query)
-            except requests.HTTPError as e:
-                print(f"Error requesting metrics: {e}")
-                extra_query["caller_id"] = str(uuid.uuid4())
-                break
-
-            response_body = response.text
-
-            if "vllm:gpu_cache_usage_perc" in response_body:
-                connected = True
-                break
-            else:
-                time.sleep(5)
+        if "vllm:gpu_cache_usage_perc" in response_body:
+            break
+        else:
+            time.sleep(5)
 
     print("Connected to vLLM instance")
 

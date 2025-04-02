@@ -6,7 +6,6 @@ import os
 import subprocess
 import time
 import warnings
-import yaml
 
 import modal
 
@@ -34,16 +33,12 @@ def tensorrt_llm_image_factory(
         .pip_install(
             f"tensorrt-llm=={tensorrt_llm_version}",
             "pynvml",
-            pre=True,
             extra_index_url="https://pypi.nvidia.com",
         )
         .pip_install(
-            "hf-transfer==0.1.9",
-            "huggingface_hub==0.28.1",
-            "fastapi",
-            "numpy",
+            "hf-transfer",
+            "huggingface_hub",
             "requests",
-            "SQLAlchemy",
         )
         .env(
             {
@@ -95,6 +90,7 @@ class TensorRTLLMBase:
         from tensorrt_llm.llmapi.llm_args import update_llm_args_with_extra_dict
         from tensorrt_llm.plugin import PluginConfig
         import tensorrt_llm
+        import yaml
 
         server_config = json.loads(self.server_config)
         llm_kwargs = server_config.get("llm_kwargs", {})
@@ -215,15 +211,15 @@ def tensorrt_llm(
 ):
     import requests
 
+    if profile:
+        raise ValueError("Profiling is not supported for TensorRT-LLM")
+
     all_tensorrt_llm_classes = {
         "H100": TensorRTLLM,
         "H100:2": TensorRTLLM_2xH100,
         "H100:4": TensorRTLLM_4xH100,
         "H100:8": TensorRTLLM_8xH100,
     }
-
-    if profile:
-        raise ValueError("Profiling is not supported for TensorRT-LLM")
 
     warnings.warn(
         "Region selection is not yet supported for TensorRT-LLM. Spinning up an instance in us-chicago-1..."

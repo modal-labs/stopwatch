@@ -1,13 +1,5 @@
 import modal
 
-from .db import (
-    Benchmark,
-    DEFAULT_LLM_SERVER_CONFIGS,
-    benchmark_cls_factory,
-    create_all,
-    engine,
-    session,
-)
 from .resources import app, db_volume, results_volume
 from .run_benchmark import all_benchmark_runner_classes
 
@@ -35,6 +27,14 @@ with benchmark_suite_image.imports():
 
     import grpclib
     import numpy as np
+
+    from .db import (
+        Benchmark,
+        benchmark_cls_factory,
+        create_all,
+        engine,
+        session,
+    )
 
 
 def find_function_call(
@@ -253,9 +253,7 @@ async def run_benchmark_suite(
                 raise ValueError(f"Benchmark {i} has no {key}")
 
         if "llm_server_config" not in benchmark:
-            benchmark["llm_server_config"] = DEFAULT_LLM_SERVER_CONFIGS[
-                benchmark["llm_server_type"]
-            ]
+            benchmark["llm_server_config"] = {}
 
         benchmark["group_id"] = str(uuid.uuid4())[:8]
 
