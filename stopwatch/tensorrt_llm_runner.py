@@ -3,8 +3,10 @@ import contextlib
 import hashlib
 import json
 import os
+import subprocess
 import time
 import warnings
+import yaml
 
 import modal
 
@@ -18,7 +20,7 @@ TIMEOUT = 60 * 60  # 1 hour
 
 
 def tensorrt_llm_image_factory(
-    tensorrt_llm_version: str = "0.17.0.post1", cuda_version: str = "12.8.0"
+    tensorrt_llm_version: str = "0.19.0.dev2025040100", cuda_version: str = "12.8.0"
 ):
     return (
         modal.Image.from_registry(
@@ -29,7 +31,7 @@ def tensorrt_llm_image_factory(
         .apt_install("openmpi-bin", "libopenmpi-dev", "git", "git-lfs", "wget")
         .pip_install(
             f"tensorrt-llm=={tensorrt_llm_version}",
-            "pynvml<12",  # avoid breaking change to pynvml version API
+            "pynvml",  # avoid breaking change to pynvml version API
             pre=True,
             extra_index_url="https://pypi.nvidia.com",
         )
@@ -106,7 +108,7 @@ class TensorRTLLMBase:
             "speculative_config": lambda x: LookaheadDecodingConfig(**x),
         }
 
-        llm_kwargs = json.loads(self.server_config).get("llm_kwargs", {})
+        llm_kwargs = json.loads(self.server_config).get("engine_kwargs", {})
 
         self.config_fingerprint = self.get_config_fingerprint(
             tensorrt_llm.__version__, llm_kwargs
@@ -133,10 +135,12 @@ class TensorRTLLMBase:
         llm.save(engine_path)
         del llm
 
+        with open(os.path.join(engine_path, "engine_kwargs.yaml"), "w") as f:
+            yaml.dump(json.loads(self.server_config).get("engine_kwargs", {}), f)
+
     @modal.enter()
     def enter(self):
         from huggingface_hub import snapshot_download
-        from tensorrt_llm import LLM
 
         print("Received server config:")
         print(self.server_config)
@@ -144,38 +148,36 @@ class TensorRTLLMBase:
         print("Downloading base model if necessary")
         self.model_path = snapshot_download(self.model)
 
-        engine_kwargs = self.construct_engine_kwargs()
+        self.engine_kwargs = self.construct_engine_kwargs()
 
         # FIXME just make this trttlm version-engine
-        engine_path = os.path.join(
+        self.engine_path = os.path.join(
             self.model_path, "tensorrt_llm_engine", self.config_fingerprint
         )
-        if not os.path.exists(engine_path):
-            self.build_engine(engine_path, engine_kwargs)
+        if not os.path.exists(self.engine_path):
+            self.build_engine(self.engine_path, self.engine_kwargs)
 
-        print(f"loading engine from {engine_path}")
-        self.llm = LLM(model=engine_path, **engine_kwargs)
-
-    @modal.asgi_app()
+    @modal.web_server(port=8000, startup_timeout=STARTUP_TIMEOUT)
     def start(self):
-        from transformers import AutoTokenizer
-        from tensorrt_llm.serve import OpenAIServer
-
-        """Start a TensorRT-LLM server."""
-
-        assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
-
         server_config = json.loads(self.server_config)
-        tokenizer = AutoTokenizer.from_pretrained(
-            server_config.get("tokenizer", self.model)
+
+        print("Starting with trtllm-serve")
+        subprocess.Popen(
+            [
+                "trtllm-serve",
+                self.engine_path,
+                "--host",
+                "0.0.0.0",
+                "--extra_llm_api_options",
+                os.path.join(self.engine_path, "engine_kwargs.yaml"),
+                *(
+                    ["--tokenizer", server_config["tokenizer"]]
+                    if "tokenizer" in server_config
+                    else []
+                ),
+                *server_config.get("extra_args", []),
+            ]
         )
-        server = OpenAIServer(llm=self.llm, model=self.model, hf_tokenizer=tokenizer)
-
-        return server.app
-
-    @modal.exit()
-    def shutdown(self):
-        del self.llm
 
     def get_config_fingerprint(self, tensorrt_llm_version, config_kwargs):
         """Hash config kwargs so we can cache the built engine."""
