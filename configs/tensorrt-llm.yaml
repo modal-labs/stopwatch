@@ -12,7 +12,7 @@ configs:
     gpu: H100
     llm_server_config:
       tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
-      engine_kwargs:
+      llm_kwargs:
         kv_cache_config:
           free_gpu_memory_fraction: 0.1
         build_config:

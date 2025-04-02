@@ -14,9 +14,11 @@ from .resources import app, hf_cache_volume, hf_secret
 
 
 HF_CACHE_PATH = "/cache"
+LLM_KWARGS_PATH = "llm_kwargs.yaml"
 SCALEDOWN_WINDOW = 30  # 30 seconds
 STARTUP_TIMEOUT = 30 * 60  # 30 minutes
 TIMEOUT = 60 * 60  # 1 hour
+TRTLLM_PORT = 8000
 
 
 def tensorrt_llm_image_factory(
@@ -25,13 +27,13 @@ def tensorrt_llm_image_factory(
     return (
         modal.Image.from_registry(
             f"nvidia/cuda:{cuda_version}-devel-ubuntu22.04",
-            add_python="3.12",  # TRT-LLM requires Python 3.12
+            add_python="3.12",
         )
-        .entrypoint([])  # remove verbose logging by base image on entry
+        .entrypoint([])  # Remove verbose logging by base image on entry
         .apt_install("openmpi-bin", "libopenmpi-dev", "git", "git-lfs", "wget")
         .pip_install(
             f"tensorrt-llm=={tensorrt_llm_version}",
-            "pynvml",  # avoid breaking change to pynvml version API
+            "pynvml",
             pre=True,
             extra_index_url="https://pypi.nvidia.com",
         )
@@ -86,82 +88,73 @@ class TensorRTLLMBase:
     A Modal class that runs an OpenAI-compatible TensorRT-LLM server.
     """
 
-    def construct_engine_kwargs(self) -> dict:
-        import tensorrt_llm
-        from tensorrt_llm import BuildConfig
-        from tensorrt_llm.llmapi import (
-            QuantConfig,
-            KvCacheConfig,
-            CalibConfig,
-            LookaheadDecodingConfig,
-        )
-        from tensorrt_llm.plugin.plugin import PluginConfig
-
-        config_name_to_constructor = {
-            "quant_config": lambda x: QuantConfig(**x),
-            "kv_cache_config": lambda x: KvCacheConfig(**x),
-            "calib_config": lambda x: CalibConfig(**x),
-            "build_config": lambda x: BuildConfig(**x),
-            "plugin_config": PluginConfig.from_dict,
-            # TODO: SchedulerConfig
-            # TODO: Add support for other decoding configs
-            "speculative_config": lambda x: LookaheadDecodingConfig(**x),
-        }
-
-        llm_kwargs = json.loads(self.server_config).get("engine_kwargs", {})
-
-        self.config_fingerprint = self.get_config_fingerprint(
-            tensorrt_llm.__version__, llm_kwargs
-        )
-
-        def construct_configs(x):
-            for key, value in x.items():
-                if isinstance(value, dict):
-                    x[key] = construct_configs(value)
-                if key in config_name_to_constructor:
-                    x[key] = config_name_to_constructor[key](value)
-            return x
-
-        llm_kwargs = construct_configs(llm_kwargs)
-        self.lookahead_config = llm_kwargs.get("speculative_config")
-
-        return llm_kwargs
-
-    def build_engine(self, engine_path, engine_kwargs) -> None:
-        from tensorrt_llm import LLM
-
-        print(f"building new engine at {engine_path}")
-        llm = LLM(model=self.model_path, **engine_kwargs)
-        llm.save(engine_path)
-        del llm
-
-        with open(os.path.join(engine_path, "engine_kwargs.yaml"), "w") as f:
-            yaml.dump(json.loads(self.server_config).get("engine_kwargs", {}), f)
-
     @modal.enter()
     def enter(self):
         from huggingface_hub import snapshot_download
+        from tensorrt_llm import LLM
+        from tensorrt_llm.llmapi.llm_args import update_llm_args_with_extra_dict
+        from tensorrt_llm.plugin import PluginConfig
+        import tensorrt_llm
 
-        print("Received server config:")
-        print(self.server_config)
+        server_config = json.loads(self.server_config)
+        llm_kwargs = server_config.get("llm_kwargs", {})
+
+        print("Received server config")
+        print(server_config)
 
         print("Downloading base model if necessary")
-        self.model_path = snapshot_download(self.model)
+        model_path = snapshot_download(self.model)
 
-        self.engine_kwargs = self.construct_engine_kwargs()
-
-        # FIXME just make this trttlm version-engine
+        engine_fingerprint = hashlib.md5(
+            json.dumps(llm_kwargs, sort_keys=True).encode()
+        ).hexdigest()
         self.engine_path = os.path.join(
-            self.model_path, "tensorrt_llm_engine", self.config_fingerprint
+            model_path,
+            "tensorrt-llm-engines",
+            f"{tensorrt_llm.__version__}-{self.model}-{engine_fingerprint}",
         )
-        if not os.path.exists(self.engine_path):
-            self.build_engine(self.engine_path, self.engine_kwargs)
 
-    @modal.web_server(port=8000, startup_timeout=STARTUP_TIMEOUT)
+        if not os.path.exists(self.engine_path):
+            # Build the engine
+            llm_kwargs_simple = llm_kwargs.copy()
+
+            # Build with plugins, but don't save them to the engine kwargs yaml
+            # file, because trtllm-serve doesn't support loading them. This is
+            # fine, since the plugins are incorporated at build time.
+            if (
+                "build_config" in llm_kwargs
+                and "plugin_config" in llm_kwargs["build_config"]
+            ):
+                llm_kwargs["build_config"]["plugin_config"] = PluginConfig.from_dict(
+                    llm_kwargs["build_config"]["plugin_config"]
+                )
+                llm_kwargs_simple["build_config"].pop("plugin_config")
+
+            # Prepare kwargs for LLM constructor
+            llm_kwargs = update_llm_args_with_extra_dict(
+                {
+                    "model": model_path,
+                    "tokenizer": server_config.get("tokenizer", self.model),
+                },
+                llm_kwargs,
+            )
+
+            print(f"Building new engine at {self.engine_path}")
+            llm = LLM(**llm_kwargs)
+            llm.save(self.engine_path)
+            del llm
+
+            with open(os.path.join(self.engine_path, LLM_KWARGS_PATH), "w") as f:
+                yaml.dump(llm_kwargs_simple, f)
+
+    @modal.web_server(port=TRTLLM_PORT, startup_timeout=STARTUP_TIMEOUT)
     def start(self):
+        """Start a TensorRT-LLM server."""
+
+        assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
         server_config = json.loads(self.server_config)
 
-        print("Starting with trtllm-serve")
+        # Start TensorRT-LLM server
         subprocess.Popen(
             [
                 "trtllm-serve",
@@ -169,26 +162,18 @@ class TensorRTLLMBase:
                 "--host",
                 "0.0.0.0",
                 "--extra_llm_api_options",
-                os.path.join(self.engine_path, "engine_kwargs.yaml"),
+                os.path.join(self.engine_path, LLM_KWARGS_PATH),
                 *(
                     ["--tokenizer", server_config["tokenizer"]]
                     if "tokenizer" in server_config
                     else []
                 ),
                 *server_config.get("extra_args", []),
-            ]
-        )
-
-    def get_config_fingerprint(self, tensorrt_llm_version, config_kwargs):
-        """Hash config kwargs so we can cache the built engine."""
-        return (
-            tensorrt_llm_version
-            + "-"
-            + self.model
-            + "-"
-            + hashlib.md5(
-                json.dumps(config_kwargs, sort_keys=True).encode()
-            ).hexdigest()
+            ],
+            env={
+                **os.environ,
+                **server_config.get("env_vars", {}),
+            },
         )
 
 
