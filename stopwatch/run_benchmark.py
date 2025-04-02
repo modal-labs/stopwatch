@@ -114,11 +114,7 @@ class BenchmarkRunner:
             backend_inst = Backend.create(
                 backend_type="openai_server",
                 target=f"{llm_server_url}/v1",
-                model=(
-                    "tensorrt_llm_bls"
-                    if llm_server_type == "tensorrt-llm-with-triton"
-                    else model
-                ),
+                model=model,
                 extra_query=extra_query,
             )
 
@@ -126,14 +122,11 @@ class BenchmarkRunner:
 
             # Create tokenizer and request generator
             try:
-                if "tokenizer" in llm_server_config:
-                    tokenizer_inst = AutoTokenizer.from_pretrained(
-                        llm_server_config["tokenizer"]
-                    )
-                elif llm_server_type == "tensorrt-llm-with-triton":
-                    tokenizer_inst = AutoTokenizer.from_pretrained(model)
-                else:
-                    tokenizer_inst = backend_inst.model_tokenizer()
+                tokenizer_inst = (
+                    AutoTokenizer.from_pretrained(llm_server_config["tokenizer"])
+                    if "tokenizer" in llm_server_config
+                    else backend_inst.model_tokenizer()
+                )
             except Exception as err:
                 raise ValueError("Could not load model's tokenizer") from err
 
