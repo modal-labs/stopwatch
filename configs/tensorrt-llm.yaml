@@ -11,5 +11,16 @@ configs:
   - model: zed-industries/zeta
     gpu: H100
     llm_server_config:
-      llm_kwargs:
-        tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+      tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+      engine_kwargs:
+        kv_cache_config:
+          free_gpu_memory_fraction: 0.1
+        build_config:
+          plugin_config:
+            multiple_profiles: true
+            paged_kv_cache: true
+            use_paged_context_fmha: true
+            gemm_plugin: auto
+          max_input_len: 4096
+          max_num_tokens: 65536
+          max_batch_size: 32

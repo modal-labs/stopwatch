@@ -3,6 +3,7 @@ import contextlib
 import hashlib
 import json
 import os
+import subprocess
 import time
 import warnings
 
@@ -22,11 +23,15 @@ def tensorrt_llm_image_factory(
 ):
     return (
         modal.Image.from_registry(
-            f"nvidia/cuda:{cuda_version}-devel-ubuntu22.04",
-            add_python="3.12",  # TRT-LLM requires Python 3.12
+            "nvcr.io/nvidia/tritonserver:25.02-trtllm-python-py3", add_python="3.12"
         )
-        .entrypoint([])  # remove verbose logging by base image on entry
-        .apt_install("openmpi-bin", "libopenmpi-dev", "git", "git-lfs", "wget")
+        .run_commands(
+            "mv /usr/local/bin/python /usr/local/bin/python.modal",
+            "mv /usr/local/bin/python3 /usr/local/bin/python3.modal",
+            "mkdir /triton_model_repo",
+            "git clone https://github.com/triton-inference-server/tensorrtllm_backend /opt/tensorrtllm_backend",
+            "cp -r /opt/tensorrtllm_backend/all_models/inflight_batcher_llm/* /triton_model_repo/",
+        )
         .pip_install(
             f"tensorrt-llm=={tensorrt_llm_version}",
             "pynvml<12",  # avoid breaking change to pynvml version API
@@ -34,9 +39,9 @@ def tensorrt_llm_image_factory(
             extra_index_url="https://pypi.nvidia.com",
         )
         .pip_install(
-            "hf-transfer==0.1.9",
-            "huggingface_hub==0.28.1",
-            "fastapi",
+            "hf-transfer",
+            "huggingface-hub",
+            "grpclib",
             "numpy",
             "requests",
             "SQLAlchemy",
@@ -79,7 +84,7 @@ def tensorrt_llm_cls(
     return decorator
 
 
-class TensorRTLLMBase:
+class TensorRTLLMWithTritonBase:
     """
     A Modal class that runs an OpenAI-compatible TensorRT-LLM server.
     """
@@ -100,7 +105,7 @@ class TensorRTLLMBase:
             "kv_cache_config": lambda x: KvCacheConfig(**x),
             "calib_config": lambda x: CalibConfig(**x),
             "build_config": lambda x: BuildConfig(**x),
-            "plugin_config": PluginConfig.from_dict,
+            "plugin_config": lambda x: PluginConfig.from_dict(x),
             # TODO: SchedulerConfig
             # TODO: Add support for other decoding configs
             "speculative_config": lambda x: LookaheadDecodingConfig(**x),
@@ -136,10 +141,6 @@ class TensorRTLLMBase:
     @modal.enter()
     def enter(self):
         from huggingface_hub import snapshot_download
-        from tensorrt_llm import LLM
-
-        print("Received server config:")
-        print(self.server_config)
 
         print("Downloading base model if necessary")
         self.model_path = snapshot_download(self.model)
@@ -148,30 +149,38 @@ class TensorRTLLMBase:
 
         # FIXME just make this trttlm version-engine
         engine_path = os.path.join(
-            self.model_path, "tensorrt_llm_engine", self.config_fingerprint
+            self.model_path, "tensorrt_llm_with_triton_engine", self.config_fingerprint
         )
         if not os.path.exists(engine_path):
             self.build_engine(engine_path, engine_kwargs)
 
-        print(f"loading engine from {engine_path}")
-        self.llm = LLM(model=engine_path, **engine_kwargs)
+        ENGINE_DIR = engine_path
+        TOKENIZER_DIR = self.model_path
+        MODEL_FOLDER = "/triton_model_repo"
+        TRITON_MAX_BATCH_SIZE = 4
+        INSTANCE_COUNT = 1
+        MAX_QUEUE_DELAY_MS = 0
+        MAX_QUEUE_SIZE = 0
+        FILL_TEMPLATE_SCRIPT = "/opt/tensorrtllm_backend/tools/fill_template.py"
+        DECOUPLED_MODE = "true"
+        LOGITS_DATATYPE = "TYPE_FP32"
+        ENCODER_INPUT_FEATURES_DATA_TYPE = "TYPE_BF16"
 
-    @modal.asgi_app()
-    def start(self):
-        from transformers import AutoTokenizer
-        from tensorrt_llm.serve import OpenAIServer
-
-        """Start a TensorRT-LLM server."""
-
-        assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
-
-        server_config = json.loads(self.server_config)
-        tokenizer = AutoTokenizer.from_pretrained(
-            server_config.get("tokenizer", self.model)
+        os.system(
+            f"/usr/bin/python {FILL_TEMPLATE_SCRIPT} -i {MODEL_FOLDER}/ensemble/config.pbtxt triton_max_batch_size:{TRITON_MAX_BATCH_SIZE},logits_datatype:{LOGITS_DATATYPE}"
         )
-        server = OpenAIServer(llm=self.llm, model=self.model, hf_tokenizer=tokenizer)
-
-        return server.app
+        os.system(
+            f"/usr/bin/python {FILL_TEMPLATE_SCRIPT} -i {MODEL_FOLDER}/preprocessing/config.pbtxt tokenizer_dir:{TOKENIZER_DIR},triton_max_batch_size:{TRITON_MAX_BATCH_SIZE},preprocessing_instance_count:{INSTANCE_COUNT}"
+        )
+        os.system(
+            f"/usr/bin/python {FILL_TEMPLATE_SCRIPT} -i {MODEL_FOLDER}/tensorrt_llm/config.pbtxt triton_backend:tensorrtllm,triton_max_batch_size:{TRITON_MAX_BATCH_SIZE},decoupled_mode:{DECOUPLED_MODE},engine_dir:{ENGINE_DIR},max_queue_delay_microseconds:{MAX_QUEUE_DELAY_MS},batching_strategy:inflight_fused_batching,max_queue_size:{MAX_QUEUE_SIZE},encoder_input_features_data_type:{ENCODER_INPUT_FEATURES_DATA_TYPE},logits_datatype:{LOGITS_DATATYPE}"
+        )
+        os.system(
+            f"/usr/bin/python {FILL_TEMPLATE_SCRIPT} -i {MODEL_FOLDER}/postprocessing/config.pbtxt tokenizer_dir:{TOKENIZER_DIR},triton_max_batch_size:{TRITON_MAX_BATCH_SIZE},postprocessing_instance_count:{INSTANCE_COUNT}"
+        )
+        os.system(
+            f"/usr/bin/python {FILL_TEMPLATE_SCRIPT} -i {MODEL_FOLDER}/tensorrt_llm_bls/config.pbtxt triton_max_batch_size:{TRITON_MAX_BATCH_SIZE},decoupled_mode:{DECOUPLED_MODE},bls_instance_count:{INSTANCE_COUNT},logits_datatype:{LOGITS_DATATYPE}"
+        )
 
     @modal.exit()
     def shutdown(self):
@@ -189,30 +198,43 @@ class TensorRTLLMBase:
             ).hexdigest()
         )
 
+    @modal.web_server(port=9000, startup_timeout=STARTUP_TIMEOUT)
+    def start(self):
+        subprocess.Popen(
+            [
+                "/usr/bin/python",
+                "/opt/tritonserver/python/openai/openai_frontend/main.py",
+                "--model-repository",
+                "/triton_model_repo",
+                "--tokenizer",
+                "meta-llama/Llama-3.1-8B-Instruct",
+            ]
+        )
+
 
 @tensorrt_llm_cls()
-class TensorRTLLM(TensorRTLLMBase):
+class TensorRTLLMWithTriton(TensorRTLLMWithTritonBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
 @tensorrt_llm_cls(gpu="H100!:2")
-class TensorRTLLM_2xH100(TensorRTLLMBase):
+class TensorRTLLMWithTriton_2xH100(TensorRTLLMWithTritonBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
 @tensorrt_llm_cls(gpu="H100!:4")
-class TensorRTLLM_4xH100(TensorRTLLMBase):
+class TensorRTLLMWithTriton_4xH100(TensorRTLLMWithTritonBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
 @tensorrt_llm_cls(gpu="H100!:8", cpu=8)
-class TensorRTLLM_8xH100(TensorRTLLMBase):
+class TensorRTLLMWithTriton_8xH100(TensorRTLLMWithTritonBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
@@ -229,10 +251,10 @@ def tensorrt_llm(
     import requests
 
     all_tensorrt_llm_classes = {
-        "H100": TensorRTLLM,
-        "H100:2": TensorRTLLM_2xH100,
-        "H100:4": TensorRTLLM_4xH100,
-        "H100:8": TensorRTLLM_8xH100,
+        "H100": TensorRTLLMWithTriton,
+        "H100:2": TensorRTLLMWithTriton_2xH100,
+        "H100:4": TensorRTLLMWithTriton_4xH100,
+        "H100:8": TensorRTLLMWithTriton_8xH100,
     }
 
     if profile:
@@ -262,7 +284,7 @@ def tensorrt_llm(
     print(f"Requesting health at {url}/health with params {extra_query}")
 
     while response_code != 200:
-        response = requests.get(f"{url}/health", params=extra_query)
+        response = requests.get(f"{url}/v1/models", params=extra_query)
         response_code = response.status_code
         time.sleep(5)
 

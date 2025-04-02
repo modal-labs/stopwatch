@@ -4,6 +4,7 @@ import urllib.parse
 
 from .sglang_runner import sglang
 from .tensorrt_llm_runner import tensorrt_llm
+from .tensorrt_llm_with_triton_runner import tensorrt_llm as tensorrt_llm_with_triton
 from .vllm_runner import vllm
 
 
@@ -42,6 +43,9 @@ def llm_server(
             yield (sglang_url, extra_query)
     elif llm_server_type == "tensorrt-llm":
         with tensorrt_llm(**llm_server_kwargs) as connection_info:
+            yield connection_info
+    elif llm_server_type == "tensorrt-llm-with-triton":
+        with tensorrt_llm_with_triton(**llm_server_kwargs) as connection_info:
             yield connection_info
     else:
         raise ValueError(f"Invalid LLM server type: {llm_server_type}")

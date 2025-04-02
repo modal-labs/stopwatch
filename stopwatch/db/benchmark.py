@@ -36,6 +36,7 @@ DEFAULT_LLM_SERVER_CONFIGS = {
     },
     "sglang": {},
     "tensorrt-llm": {},
+    "tensorrt-llm-with-triton": {},
 }
 
 

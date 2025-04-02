@@ -93,6 +93,8 @@ class BenchmarkRunner:
                 number of requests that should be made per second.
         """
 
+        from transformers import AutoTokenizer
+
         if llm_server_type not in DEFAULT_LLM_SERVER_CONFIGS:
             raise ValueError(
                 f"Invalid value for llm_server: {llm_server_type}. Must be one of {DEFAULT_LLM_SERVER_CONFIGS.keys()}"
@@ -112,7 +114,11 @@ class BenchmarkRunner:
             backend_inst = Backend.create(
                 backend_type="openai_server",
                 target=f"{llm_server_url}/v1",
-                model=model,
+                model=(
+                    "tensorrt_llm_bls"
+                    if llm_server_type == "tensorrt-llm-with-triton"
+                    else model
+                ),
                 extra_query=extra_query,
             )
 
@@ -120,7 +126,14 @@ class BenchmarkRunner:
 
             # Create tokenizer and request generator
             try:
-                tokenizer_inst = backend_inst.model_tokenizer()
+                if "tokenizer" in llm_server_config:
+                    tokenizer_inst = AutoTokenizer.from_pretrained(
+                        llm_server_config["tokenizer"]
+                    )
+                elif llm_server_type == "tensorrt-llm-with-triton":
+                    tokenizer_inst = AutoTokenizer.from_pretrained(model)
+                else:
+                    tokenizer_inst = backend_inst.model_tokenizer()
             except Exception as err:
                 raise ValueError("Could not load model's tokenizer") from err
 
