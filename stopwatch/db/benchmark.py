@@ -99,12 +99,17 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
                 "client_region": self.client_region,
             }
 
-        def save_results(self, results, vllm_metrics=None):
-            if not results:
-                raise ValueError("No results to save")
+        def save_results(self, result):
+            results = result["results"]
+            concurrencies = result["concurrencies"]
 
-            self.start_time = results[0]["start_time"]
-            self.end_time = results[-1]["end_time"]
+            if len(results) > 0:
+                self.start_time = results[0]["start_time"]
+                self.end_time = results[-1]["end_time"]
+            else:
+                self.start_time = concurrencies[0]["time"]
+                self.end_time = concurrencies[-1]["time"]
+
             self.duration = self.end_time - self.start_time
             self.completed_request_count = len(results)
             self.completed_request_rate = self.completed_request_count / self.duration
@@ -118,38 +123,39 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
             self.prompt_tokens = data_config.get("prompt_tokens", 0)
             self.generated_tokens = data_config.get("generated_tokens", 0)
 
-            ttft_distribution = [
-                result["first_token_time"]
-                for result in results
-                if result["first_token_time"] is not None
-            ]
-            ttlt_distribution = [
-                result["end_time"] - result["start_time"] for result in results
-            ]
-            itl_distribution = [
-                decode_time
-                for result in results
-                for decode_time in result["decode_times"]["data"]
-            ]
+            if len(results) > 0:
+                ttft_distribution = [
+                    result["first_token_time"]
+                    for result in results
+                    if result["first_token_time"] is not None
+                ]
+                ttlt_distribution = [
+                    result["end_time"] - result["start_time"] for result in results
+                ]
+                itl_distribution = [
+                    decode_time
+                    for result in results
+                    for decode_time in result["decode_times"]["data"]
+                ]
 
-            for (key, distribution), statistic in itertools.product(
-                zip(
-                    ["itl", "ttft", "ttlt"],
-                    [itl_distribution, ttft_distribution, ttlt_distribution],
-                ),
-                ["mean", 50, 90, 95, 99],
-            ):
-                if statistic == "mean":
-                    setattr(self, f"{key}_mean", np.mean(distribution))
-                else:
-                    setattr(
-                        self,
-                        f"{key}_p{statistic}",
-                        np.percentile(distribution, statistic),
-                    )
+                for (key, distribution), statistic in itertools.product(
+                    zip(
+                        ["itl", "ttft", "ttlt"],
+                        [itl_distribution, ttft_distribution, ttlt_distribution],
+                    ),
+                    ["mean", 50, 90, 95, 99],
+                ):
+                    if statistic == "mean":
+                        setattr(self, f"{key}_mean", np.mean(distribution))
+                    else:
+                        setattr(
+                            self,
+                            f"{key}_p{statistic}",
+                            np.percentile(distribution, statistic),
+                        )
 
             # Save vLLM metrics
-            if vllm_metrics is not None:
+            if vllm_metrics := result.get("vllm_metrics", None):
                 self.kv_cache_usage_mean = 100 * np.mean(
                     [metrics["kv_cache_usage"] for metrics in vllm_metrics]
                 )

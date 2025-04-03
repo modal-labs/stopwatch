@@ -24,6 +24,7 @@ with benchmark_suite_image.imports():
     import json
     import os
     import uuid
+    import warnings
 
     import grpclib
     import numpy as np
@@ -112,7 +113,7 @@ def get_benchmarks_to_run(
                             # only re-run it if ignore_previous_errors is set
                             # to true.
                             if ignore_previous_errors:
-                                print(
+                                warnings.warn(
                                     "WARNING: Unexpected error when checking previous function call",
                                     e,
                                 )
@@ -156,13 +157,13 @@ async def run_benchmark(
             result = await fc.get.aio()
         except modal.exception.RemoteError as e:
             # Happens when the function call is interrupted manually
-            print("WARNING: Function call result could not be retrieved:", e)
+            warnings.warn("WARNING: Function call result could not be retrieved:", e)
             return
         except modal.exception.FunctionTimeoutError:
-            print("Benchmark timed out")
+            warnings.warn("WARNING: Benchmark timed out")
             return
 
-        if len(result["results"]) == 0:
+        if len(result["errors"]) > 0:
             # This happens when the benchmark is run with invald parameters
             # e.g. asking the model to generate more tokens than its
             # maximum context size. When this happens, requests made to the
@@ -171,7 +172,7 @@ async def run_benchmark(
             # TODO: Return an error when 400 errors are encountered without
             # crashing the run_benchmark_suite function.
 
-            print("No results for", fc.object_id)
+            warnings.warn("WARNING: No results for", fc.object_id)
             benchmark.function_call_id = None
             session.commit()
             db_volume.commit()
@@ -184,7 +185,7 @@ async def run_benchmark(
             # fit into the database (~20MB per benchmark)
             json.dump(result, f)
 
-        benchmark.save_results(result["results"], result.get("vllm_metrics", None))
+        benchmark.save_results(result)
         session.commit()
         db_volume.commit()
 
@@ -313,7 +314,14 @@ async def run_benchmark_suite(
         )
         max_rate = np.mean([x.completed_request_rate for x in throughput_benchmarks])
 
-        assert min_rate < max_rate
+        if min_rate >= max_rate:
+            # This generally happens when the model is extremely large and the
+            # server can't handle the load well during a throughput test,
+            # resulting in 0 or 1 successful requests.
+            warnings.warn(
+                f"WARNING: Synchronous rate ({min_rate}) is greater than throughput rate ({max_rate}) with config {benchmark}"
+            )
+            continue
 
         # By default, run 10 constant-rate runs per benchmark. However, if the
         # QPS step size between constant rates is less than 0.5, run fewer than

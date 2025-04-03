@@ -2,6 +2,7 @@ from typing import Any, Mapping, Optional
 import contextlib
 import json
 import subprocess
+import time
 import warnings
 
 import modal
@@ -161,12 +162,19 @@ def sglang(
     # Wait for SGLang server to start
     print(f"Requesting health check at {url}/health_generate with params {extra_query}")
 
-    res = requests.get(f"{url}/health_generate", params=extra_query)
+    num_retries = 3
+    for retry in range(num_retries):
+        res = requests.get(f"{url}/health_generate", params=extra_query)
 
-    if res.status_code != 200:
-        raise ValueError(
-            f"Failed to connect to SGLang instance: {res.status_code} {res.text}"
-        )
+        if res.status_code == 200:
+            break
+        else:
+            time.sleep(5)
+
+        if retry == num_retries - 1:
+            raise ValueError(
+                f"Failed to connect to SGLang instance: {res.status_code} {res.text}"
+            )
 
     print("Connected to SGLang instance")
     yield (url, extra_query)
