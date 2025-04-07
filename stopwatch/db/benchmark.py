@@ -145,6 +145,9 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
                     ),
                     ["mean", 50, 90, 95, 99],
                 ):
+                    if len(distribution) == 0:
+                        continue
+
                     if statistic == "mean":
                         setattr(self, f"{key}_mean", np.mean(distribution))
                     else:

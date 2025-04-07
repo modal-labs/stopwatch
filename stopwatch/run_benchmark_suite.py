@@ -157,7 +157,7 @@ async def run_benchmark(
             result = await fc.get.aio()
         except modal.exception.RemoteError as e:
             # Happens when the function call is interrupted manually
-            warnings.warn("WARNING: Function call result could not be retrieved:", e)
+            warnings.warn(f"WARNING: Function call result could not be retrieved: {e}")
             return
         except modal.exception.FunctionTimeoutError:
             warnings.warn("WARNING: Benchmark timed out")
@@ -172,7 +172,7 @@ async def run_benchmark(
             # TODO: Return an error when 400 errors are encountered without
             # crashing the run_benchmark_suite function.
 
-            warnings.warn("WARNING: No results for", fc.object_id)
+            warnings.warn(f"WARNING: No results for {fc.object_id}")
             benchmark.function_call_id = None
             session.commit()
             db_volume.commit()
