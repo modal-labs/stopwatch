@@ -26,7 +26,7 @@ Or, to run a fixed-rate multi-GPU benchmark with SGLang:
 
 ```bash
 MODEL=meta-llama/Llama-3.3-70B-Instruct
-modal run -w $OUTPUT_PATH cli.py::run_benchmark --model $MODEL --llm-server-type sglang --rate-type constant --rate 5 --llm-server-config '{"extra_args": ["--tp-size", "2"]}'
+modal run -w $OUTPUT_PATH cli.py::run_benchmark --gpu H100:2 --model $MODEL --llm-server-type sglang --rate-type constant --rate 5 --llm-server-config '{"extra_args": ["--tp-size", "2"]}'
 ```
 
 Or, to run a throughput test with TensorRT-LLM:
