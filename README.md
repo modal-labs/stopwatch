@@ -25,8 +25,11 @@ modal run -w $OUTPUT_PATH cli.py::run_benchmark --model $MODEL --llm-server-type
 Or, to run a fixed-rate multi-GPU benchmark with SGLang:
 
 ```bash
+GPU_COUNT=4
 MODEL=meta-llama/Llama-3.3-70B-Instruct
-modal run -w $OUTPUT_PATH cli.py::run_benchmark --gpu H100:2 --model $MODEL --llm-server-type sglang --rate-type constant --rate 5 --llm-server-config '{"extra_args": ["--tp-size", "2"]}'
+REQUESTS_PER_SECOND=5
+
+modal run -w $OUTPUT_PATH cli.py::run_benchmark --gpu "H100:$GPU_COUNT" --model $MODEL --llm-server-type sglang --rate-type constant --rate $REQUESTS_PER_SECOND --llm-server-config "{\"extra_args\": [\"--tp-size\", \"$GPU_COUNT\"]}"
 ```
 
 Or, to run a throughput test with TensorRT-LLM:
