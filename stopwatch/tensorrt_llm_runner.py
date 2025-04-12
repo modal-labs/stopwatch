@@ -104,6 +104,9 @@ class TensorRTLLMBase:
         engine_fingerprint = hashlib.md5(
             json.dumps(llm_kwargs, sort_keys=True).encode()
         ).hexdigest()
+        print(f"Engine fingerprint: {engine_fingerprint}")
+        print(llm_kwargs)
+
         self.engine_path = os.path.join(
             model_path,
             "tensorrt-llm-engines",

@@ -178,6 +178,11 @@ class BenchmarkRunner_AWS_USEAST1(BenchmarkRunner):
     pass
 
 
+@benchmark_runner_cls(region="us-east-2")
+class BenchmarkRunner_AWS_USEAST2(BenchmarkRunner):
+    pass
+
+
 @benchmark_runner_cls(region="us-east4")
 class BenchmarkRunner_GCP_USEAST4(BenchmarkRunner):
     pass
@@ -186,6 +191,7 @@ class BenchmarkRunner_GCP_USEAST4(BenchmarkRunner):
 all_benchmark_runner_classes = {
     "us-ashburn-1": BenchmarkRunner_OCI_USASHBURN1,
     "us-east-1": BenchmarkRunner_AWS_USEAST1,
+    "us-east-2": BenchmarkRunner_AWS_USEAST2,
     "us-east4": BenchmarkRunner_GCP_USEAST4,
     "us-chicago-1": BenchmarkRunner_OCI_USCHICAGO1,
 }

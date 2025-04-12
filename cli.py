@@ -157,7 +157,7 @@ def run_benchmark_suite(
 
     if answer != "n":
         url = modal.Cls.from_name("stopwatch", "DatasetteRunner")().start.web_url
-        url += f"/stopwatch/-/query?sql=select+*+from+{id.replace('-', '_')}"
+        url += f"/stopwatch/-/query?sql=select+*+from+{id.replace('-', '_')}_averaged"
         subprocess.run(["open", url])
 
 

@@ -14,7 +14,7 @@ from .resources import app, hf_cache_volume, hf_secret, traces_volume
 DEFAULT_DOCKER_TAG = "v0.8.2"
 HF_CACHE_PATH = "/cache"
 SCALEDOWN_WINDOW = 30  # 30 seconds
-STARTUP_TIMEOUT = 30 * 60  # 30 minutes
+STARTUP_TIMEOUT = 60 * 60  # 1 hour
 TIMEOUT = 60 * 60  # 1 hour
 TRACES_PATH = "/traces"
 VLLM_PORT = 8000
@@ -172,6 +172,20 @@ class vLLM_8xH100(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
+@vllm_cls(gpu="H200:4", cpu=8, region="us-east-2", scaledown_window=5 * 60)
+class vLLM_4xH200(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
+@vllm_cls(gpu="H200:8", cpu=32, region="us-east-2", scaledown_window=5 * 60)
+class vLLM_8xH200(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
 @contextlib.contextmanager
 def vllm(
     model: str,
@@ -204,6 +218,12 @@ def vllm(
             },
             "H100:8": {
                 "us-chicago-1": vLLM_8xH100,
+            },
+            "H200:4": {
+                "us-east-2": vLLM_4xH200,
+            },
+            "H200:8": {
+                "us-east-2": vLLM_8xH200,
             },
         },
     }

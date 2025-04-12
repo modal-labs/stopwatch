@@ -163,7 +163,7 @@ async def run_benchmark(
             warnings.warn("WARNING: Benchmark timed out")
             return
 
-        if len(result["errors"]) > 0:
+        if len(result["results"]) == 0 and len(result["errors"]) > 0:
             # This happens when the benchmark is run with invald parameters
             # e.g. asking the model to generate more tokens than its
             # maximum context size. When this happens, requests made to the
@@ -173,6 +173,7 @@ async def run_benchmark(
             # crashing the run_benchmark_suite function.
 
             warnings.warn(f"WARNING: No results for {fc.object_id}")
+            print(result["errors"][0])
             benchmark.function_call_id = None
             session.commit()
             db_volume.commit()
@@ -196,25 +197,23 @@ async def run_benchmarks_in_parallel(
     ignore_previous_errors: bool = False,
 ):
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_BENCHMARKS)
+    tasks = []
 
-    while True:
-        tasks = []
+    for benchmark_id, fc in get_benchmarks_to_run(
+        benchmarks, ignore_previous_errors=ignore_previous_errors
+    ):
+        if dry_run:
+            benchmark = session.query(Benchmark).filter_by(id=benchmark_id).first()
+            print("Would run benchmark with config", benchmark.get_config())
+            continue
 
-        for benchmark_id, fc in get_benchmarks_to_run(
-            benchmarks, ignore_previous_errors=ignore_previous_errors
-        ):
-            if dry_run:
-                benchmark = session.query(Benchmark).filter_by(id=benchmark_id).first()
-                print("Would run benchmark with config", benchmark.get_config())
-                continue
+        task = asyncio.create_task(run_benchmark(benchmark_id, fc, semaphore))
+        tasks.append(task)
 
-            task = asyncio.create_task(run_benchmark(benchmark_id, fc, semaphore))
-            tasks.append(task)
+    if dry_run or len(tasks) == 0:
+        return
 
-        if dry_run or len(tasks) == 0:
-            break
-
-        await asyncio.gather(*tasks)
+    await asyncio.gather(*tasks)
 
 
 @app.function(
@@ -237,7 +236,10 @@ async def run_benchmark_suite(
     recompute: bool = False,
 ):
     db_volume.reload()
-    AveragedBenchmark = benchmark_cls_factory(table_name=id.replace("-", "_"))
+    SuiteBenchmark = benchmark_cls_factory(table_name=id.replace("-", "_"))
+    SuiteAveragedBenchmark = benchmark_cls_factory(
+        table_name=id.replace("-", "_") + "_averaged"
+    )
     create_all()
 
     # STEP 0: Validate benchmarks
@@ -291,8 +293,9 @@ async def run_benchmark_suite(
 
     # STEP 2: Run benchmarks at constant rates
     benchmarks_to_run = []
+    skipped_benchmark_indices = set()
 
-    for benchmark in benchmarks:
+    for i, benchmark in enumerate(benchmarks):
         # TODO: Use constants for synchronous and throughput
         synchronous_benchmarks = (
             session.query(Benchmark)
@@ -300,18 +303,30 @@ async def run_benchmark_suite(
                 **{k: v for k, v in benchmark.items() if k != "group_id"},
                 rate_type="synchronous",
             )
+            .filter(Benchmark.completed_request_rate.is_not(None))
             .all()
         )
-        min_rate = np.mean([x.completed_request_rate for x in synchronous_benchmarks])
-
         throughput_benchmarks = (
             session.query(Benchmark)
             .filter_by(
                 **{k: v for k, v in benchmark.items() if k != "group_id"},
                 rate_type="throughput",
             )
+            .filter(Benchmark.completed_request_rate.is_not(None))
             .all()
         )
+
+        if (
+            len(synchronous_benchmarks) < repeats
+            or len(throughput_benchmarks) < repeats
+        ):
+            warnings.warn(
+                f"WARNING: Expected {repeats} synchronous and throughput benchmarks, but got {len(synchronous_benchmarks)} and {len(throughput_benchmarks)} for config {benchmark}. Skipping constant rate benchmarks for this config."
+            )
+            skipped_benchmark_indices.add(i)
+            continue
+
+        min_rate = np.mean([x.completed_request_rate for x in synchronous_benchmarks])
         max_rate = np.mean([x.completed_request_rate for x in throughput_benchmarks])
 
         if min_rate >= max_rate:
@@ -327,6 +342,10 @@ async def run_benchmark_suite(
         # QPS step size between constant rates is less than 0.5, run fewer than
         # 10 constant-rate runs.
         for num_constant_rates in range(MAX_CONSTANT_RATES, -1, -1):
+            if num_constant_rates == 0:
+                constant_rates = []
+                break
+
             constant_rates = np.linspace(min_rate, max_rate, num_constant_rates + 1)[1:]
             qps_step_size = (max_rate - min_rate) / num_constant_rates
 
@@ -345,9 +364,10 @@ async def run_benchmark_suite(
 
     await run_benchmarks_in_parallel(benchmarks_to_run)
 
-    # STEP 2.5: Delete existing averaged benchmarks
-    AveragedBenchmark.__table__.drop(engine, checkfirst=True)
-    AveragedBenchmark.__table__.create(engine)
+    # STEP 2.5: Delete existing benchmark results
+    for cls in [SuiteBenchmark, SuiteAveragedBenchmark]:
+        cls.__table__.drop(engine, checkfirst=True)
+        cls.__table__.create(engine)
 
     # STEP 3: Average the results together. Start by finding the parameters
     # that vary between benchmarks in order to get descriptive group IDs for
@@ -387,7 +407,10 @@ async def run_benchmark_suite(
         group_ids.add(group_id)
         benchmarks[i]["group_id"] = group_id
 
-    for benchmark in benchmarks:
+    for i, benchmark in enumerate(benchmarks):
+        if i in skipped_benchmark_indices:
+            continue
+
         benchmark_models = (
             session.query(Benchmark)
             .filter_by(**{k: v for k, v in benchmark.items() if k != "group_id"})
@@ -397,8 +420,23 @@ async def run_benchmark_suite(
             (benchmark.rate_type, benchmark.rate) for benchmark in benchmark_models
         )
 
+        # Clone the benchmark models into the SuiteBenchmark table
+        non_pk_columns = [
+            k
+            for k in Benchmark.__table__.columns.keys()
+            if k not in Benchmark.__table__.primary_key.columns.keys()
+        ]
+
+        for benchmark_model in benchmark_models:
+            session.add(
+                SuiteBenchmark(
+                    **{c: getattr(benchmark_model, c) for c in non_pk_columns}
+                )
+            )
+
+        # Average benchmarks with the same parameters
         for rate_type, rate in benchmark_rates:
-            averaged_benchmark = AveragedBenchmark(
+            averaged_benchmark = SuiteAveragedBenchmark(
                 **benchmark,
                 rate_type=rate_type,
                 rate=rate,
