@@ -12,11 +12,25 @@ configs:
     gpu: H100
     llm_server_config:
       tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+  - model: zed-industries/zeta
+    gpu: H100
+    llm_server_config:
+      tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+      llm_kwargs:
+        quant_config:
+          quant_algo: FP8
   - model: meta-llama/Llama-3.3-70B-Instruct
     gpu: H100:4
     llm_server_config:
       llm_kwargs:
         tensor_parallel_size: 4
+  - model: meta-llama/Llama-3.3-70B-Instruct
+    gpu: H100:4
+    llm_server_config:
+      llm_kwargs:
+        tensor_parallel_size: 4
+        quant_config:
+          quant_algo: FP8
 
   # Could not get DeepSeek-V3 to load, always OOMs
   # - model: cognitivecomputations/DeepSeek-V3-0324-AWQ
