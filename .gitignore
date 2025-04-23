@@ -1,4 +1,6 @@
 env/
+.venv/
+venv/
 __pycache__/
 *.json
 *.ipynb
