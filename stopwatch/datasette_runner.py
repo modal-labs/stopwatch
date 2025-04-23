@@ -33,6 +33,7 @@ class DatasetteRunner:
         ds = Datasette(
             files=[os.path.join(DB_PATH, "stopwatch.db")],
             settings={"sql_time_limit_ms": 10000},
+            cors=True,
         )
         asyncio.run(ds.invoke_startup())
         return ds.app()
