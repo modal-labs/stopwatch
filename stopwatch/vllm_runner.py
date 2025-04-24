@@ -67,7 +67,7 @@ def vllm_cls(
             scaledown_window=scaledown_window,
             timeout=timeout,
             region=region,
-        )(modal.concurrent(max_inputs=1)(cls))
+        )(modal.concurrent(max_inputs=1000)(cls))
 
     return decorator
 
