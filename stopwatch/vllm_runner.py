@@ -40,6 +40,7 @@ def vllm_image_factory(docker_tag: str = DEFAULT_DOCKER_TAG):
         .pip_install("hf-transfer", "grpclib", "requests")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands("ENTRYPOINT []")
+        .add_local_python_source("cli")
     )
 
 
@@ -63,11 +64,10 @@ def vllm_cls(
             cpu=cpu,
             memory=memory,
             max_containers=1,
-            allow_concurrent_inputs=1000,  # Set to a high number to prevent auto-scaling
             scaledown_window=scaledown_window,
             timeout=timeout,
             region=region,
-        )(cls)
+        )(modal.concurrent(max_inputs=1)(cls))
 
     return decorator
 

@@ -46,6 +46,7 @@ def tensorrt_llm_image_factory(
                 "HF_HUB_ENABLE_HF_TRANSFER": "1",
             }
         )
+        .add_local_python_source("cli")
     )
 
 
@@ -69,11 +70,10 @@ def tensorrt_llm_cls(
             cpu=cpu,
             memory=memory,
             max_containers=1,
-            allow_concurrent_inputs=1000,  # Set to a high number to prevent auto-scaling
             scaledown_window=scaledown_window,
             timeout=timeout,
             region=region,
-        )(cls)
+        )(modal.concurrent(max_inputs=1000)(cls))
 
     return decorator
 

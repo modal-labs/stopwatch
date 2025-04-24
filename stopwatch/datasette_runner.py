@@ -13,6 +13,7 @@ datasette_image = (
     .run_commands(
         "datasette install git+https://github.com/jackcook/stopwatch-plot.git@ff5b060"
     )
+    .add_local_python_source("cli")
 )
 
 with datasette_image.imports():
@@ -25,8 +26,8 @@ with datasette_image.imports():
 @app.cls(
     image=datasette_image,
     volumes={DB_PATH: db_volume},
-    allow_concurrent_inputs=100,
 )
+@modal.concurrent(max_inputs=100)
 class DatasetteRunner:
     @modal.asgi_app(label="datasette")
     def start(self):

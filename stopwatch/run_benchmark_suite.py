@@ -13,8 +13,10 @@ RESULTS_PATH = "/results"
 TIMEOUT = 12 * 60 * 60  # 12 hours
 
 
-benchmark_suite_image = modal.Image.debian_slim(python_version="3.13").pip_install(
-    "numpy", "SQLAlchemy"
+benchmark_suite_image = (
+    modal.Image.debian_slim(python_version="3.13")
+    .pip_install("numpy", "SQLAlchemy")
+    .add_local_python_source("cli")
 )
 
 with benchmark_suite_image.imports():
@@ -224,9 +226,9 @@ async def run_benchmarks_in_parallel(
     },
     max_containers=1,
     scaledown_window=2,
-    allow_concurrent_inputs=1,
     timeout=TIMEOUT,
 )
+@modal.concurrent(max_inputs=100)
 async def run_benchmark_suite(
     benchmarks: List[Dict[str, Any]],
     id: str,

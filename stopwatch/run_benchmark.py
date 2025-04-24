@@ -18,6 +18,7 @@ benchmarking_image = (
         "prometheus-client",
         "tiktoken",
     )
+    .add_local_python_source("cli")
 )
 
 with benchmarking_image.imports():
