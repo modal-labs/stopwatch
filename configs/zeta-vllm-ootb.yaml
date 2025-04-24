@@ -1,0 +1,27 @@
+id: zeta-vllm-ootb
+repeats: 10
+base_config:
+  model: zed-industries/zeta
+  gpu: H100
+  region: us-chicago-1
+  data:
+    - prompt_tokens=32512,generated_tokens=256
+    - prompt_tokens=16384,generated_tokens=256
+    - prompt_tokens=8192,generated_tokens=256
+    - prompt_tokens=4096,generated_tokens=256
+    - prompt_tokens=16384,generated_tokens=16384
+    - prompt_tokens=8192,generated_tokens=8192
+    - prompt_tokens=4096,generated_tokens=4096
+    - prompt_tokens=2048,generated_tokens=2048
+    - prompt_tokens=1024,generated_tokens=1024
+    - prompt_tokens=512,generated_tokens=512
+    - prompt_tokens=256,generated_tokens=256
+    - prompt_tokens=128,generated_tokens=128
+    - prompt_tokens=256,generated_tokens=4096
+    - prompt_tokens=256,generated_tokens=8192
+    - prompt_tokens=256,generated_tokens=16384
+    - prompt_tokens=256,generated_tokens=32512
+  llm_server_config:
+    tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+configs:
+  - llm_server_type: vllm
