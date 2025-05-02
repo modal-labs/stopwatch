@@ -10,6 +10,7 @@ import modal
 from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
+DEFAULT_DOCKER_TAG = "v0.4.6.post2-cu124"
 HF_CACHE_PATH = "/cache"
 SCALEDOWN_WINDOW = 30  # 30 seconds
 SGLANG_PORT = 30000
@@ -18,10 +19,10 @@ TIMEOUT = 60 * 60  # 1 hour
 TRACES_PATH = "/traces"
 
 
-def sglang_image_factory():
+def sglang_image_factory(docker_tag: str = DEFAULT_DOCKER_TAG):
     return (
         modal.Image.from_registry(
-            "lmsysorg/sglang",
+            f"lmsysorg/sglang:{docker_tag}",
             setup_dockerfile_commands=[
                 "RUN ln -s /usr/bin/python3 /usr/bin/python",
             ],

@@ -1,5 +1,5 @@
 click==8.1.8
-guidellm @ git+https://github.com/neuralmagic/guidellm.git@55c65c4
+guidellm @ git+https://github.com/jackcook/guidellm.git@25dcc2e
 modal==0.73.116
 numpy==2.2.4
 packaging==24.2

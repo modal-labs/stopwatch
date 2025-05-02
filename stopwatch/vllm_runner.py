@@ -11,7 +11,7 @@ import modal
 from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
-DEFAULT_DOCKER_TAG = "v0.8.2"
+DEFAULT_DOCKER_TAG = "v0.8.5"
 HF_CACHE_PATH = "/cache"
 SCALEDOWN_WINDOW = 30  # 30 seconds
 STARTUP_TIMEOUT = 60 * 60  # 1 hour
@@ -21,8 +21,6 @@ VLLM_PORT = 8000
 
 
 def vllm_image_factory(docker_tag: str = DEFAULT_DOCKER_TAG):
-    # This change was introduced in v0.8.0, and then reverted in v0.8.2...
-    # kinda crazy if you ask me
     python_binary = (
         "/opt/venv/bin/python3"
         if docker_tag in ["v0.8.0", "v0.8.1"]
@@ -197,7 +195,7 @@ def vllm(
     import requests
 
     all_vllm_classes = {
-        "v0.8.2": {
+        "v0.8.5": {
             "H100": {
                 "us-ashburn-1": vLLM_OCI_USASHBURN1,
                 "us-east-1": vLLM_AWS_USEAST1,

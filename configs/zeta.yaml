@@ -5,9 +5,9 @@ base_config:
   gpu: H100
   region: us-chicago-1
   data:
-    - prompt_tokens=256,generated_tokens=4096
-    - prompt_tokens=4096,generated_tokens=256
-    - prompt_tokens=2048,generated_tokens=2048
+    - prompt_tokens=256,output_tokens=4096
+    - prompt_tokens=4096,output_tokens=256
+    - prompt_tokens=2048,output_tokens=2048
   llm_server_config:
     tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
 configs:

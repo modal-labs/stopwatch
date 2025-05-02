@@ -1,13 +1,18 @@
-from typing import AsyncGenerator, ClassVar, List, Optional
+from typing import AsyncGenerator
 import threading
 import time
 
-from guidellm.core.report import GuidanceReport
-from guidellm.core.result import TextGenerationBenchmark, TextGenerationBenchmarkReport
-from guidellm.core.serializable import Serializable
-from guidellm.scheduler import Scheduler, SchedulerResult
+from guidellm.benchmark import (
+    AggregatorT,
+    BenchmarkT,
+    BenchmarkerResult,
+    GenerativeBenchmarker,
+)
+from guidellm.objects import StandardBaseModel
+from guidellm.scheduler import RequestT, ResponseT
 from prometheus_client.parser import text_string_to_metric_families
 from pydantic import Field
+import requests
 
 from .histogram import Histogram
 
@@ -15,89 +20,7 @@ from .histogram import Histogram
 REFRESH_INTERVAL = 10  # 10 seconds
 
 
-class SchedulerWithvLLMMetrics(Scheduler):
-
-    _vllm_metrics_url: ClassVar[Optional[str]] = None
-
-    async def run(self) -> AsyncGenerator[SchedulerResult, None]:
-        """
-        Runs the executor and periodically fetches metrics from the vLLM server
-        while benchmarks are running.
-        """
-
-        def reset():
-            vllm_metrics = []
-            stop_signal = threading.Event()
-            stats_thread = threading.Thread(
-                target=self.refresh_vllm_stats,
-                args=(
-                    self._vllm_metrics_url,
-                    vllm_metrics,
-                    stop_signal,
-                ),
-            )
-            stats_thread.start()
-            return vllm_metrics, stop_signal, stats_thread
-
-        # Start fetching metrics before the first benchmark starts
-        vllm_metric_families, stop_signal, stats_thread = reset()
-
-        async for result in super().run():
-            if result.completed:
-                # If the last benchmark has completed, stop fetching metrics
-                stop_signal.set()
-                stats_thread.join()
-
-                # Use the first metric family that has every metric
-                metrics_per_metric_family = [
-                    len(metric_family) for metric_family in vllm_metric_families
-                ]
-                i = 0
-                while i < len(metrics_per_metric_family):
-                    if metrics_per_metric_family[i] == metrics_per_metric_family[-1]:
-                        break
-                    i += 1
-
-                result.benchmark.vllm_metrics.extend(
-                    [
-                        vLLMMetrics(
-                            metrics, first_metric_families=vllm_metric_families[i]
-                        )
-                        for metrics in vllm_metric_families
-                    ]
-                )
-
-            yield result
-
-            if result.completed:
-                # If a new benchmark is about to start, start fetching
-                # metrics again
-                vllm_metric_families, stop_signal, stats_thread = reset()
-
-        stop_signal.set()
-        stats_thread.join()
-
-    def refresh_vllm_stats(
-        self, metrics_url: str, metrics: list, stop_signal: threading.Event
-    ):
-        """
-        Periodically fetches metrics from the vLLM server while benchmarks are
-        running.
-
-        Args:
-            metrics_url (str): The URL of the vLLM server metrics endpoint.
-            metrics (list): A list to store the fetched metrics.
-            stop_signal (threading.Event): A signal to stop the metrics refresh.
-        """
-        import requests
-
-        while not stop_signal.is_set():
-            res = requests.get(metrics_url)
-            metrics.append(list(text_string_to_metric_families(res.text)))
-            time.sleep(REFRESH_INTERVAL)
-
-
-class vLLMMetrics(Serializable):
+class vLLMMetrics(StandardBaseModel):
 
     end_to_end_request_latency: Histogram = Field(
         default_factory=Histogram,
@@ -219,38 +142,91 @@ class vLLMMetrics(Serializable):
                 raise ValueError(f"Unsupported metric type: {family.type}")
 
 
-class TextGenerationBenchmarkWithvLLMMetrics(TextGenerationBenchmark):
+class GenerativeBenchmarkerWithvLLMMetrics(GenerativeBenchmarker):
 
-    vllm_metrics: List[vLLMMetrics] = Field(
-        default_factory=list,
-        description="The vLLM metric families sampled while taking the benchmark.",
-    )
+    def __init__(self, vllm_metrics_url: str, **kwargs):
+        super().__init__(**kwargs)
+        self.vllm_metrics_url = vllm_metrics_url
 
+    async def run(
+        self, **kwargs
+    ) -> AsyncGenerator[
+        BenchmarkerResult[AggregatorT, BenchmarkT, RequestT, ResponseT], None
+    ]:
+        """
+        Runs the executor and periodically fetches metrics from the vLLM server
+        while benchmarks are running.
+        """
 
-class TextGenerationBenchmarkReportWithvLLMMetrics(TextGenerationBenchmarkReport):
+        def reset():
+            vllm_metrics = []
+            stop_signal = threading.Event()
+            stats_thread = threading.Thread(
+                target=self.refresh_vllm_stats,
+                args=(
+                    self.vllm_metrics_url,
+                    vllm_metrics,
+                    stop_signal,
+                ),
+            )
+            stats_thread.start()
+            return vllm_metrics, stop_signal, stats_thread
 
-    benchmarks: List[TextGenerationBenchmarkWithvLLMMetrics] = Field(
-        default_factory=list,
-        description="The benchmarks of text generation requests.",
-    )
+        # Start fetching metrics before the first benchmark starts
+        vllm_metric_families, stop_signal, stats_thread = reset()
 
+        async for result in super().run(**kwargs):
+            if result.type_ == "benchmark_compiled":
+                # If the last benchmark has completed, stop fetching metrics
+                stop_signal.set()
+                stats_thread.join()
 
-class GuidanceReportWithvLLMMetrics(GuidanceReport):
+                # Use the first metric family that has every metric
+                metrics_per_metric_family = [
+                    len(metric_family) for metric_family in vllm_metric_families
+                ]
+                i = 0
+                while i < len(metrics_per_metric_family):
+                    if metrics_per_metric_family[i] == metrics_per_metric_family[-1]:
+                        break
+                    i += 1
 
-    benchmarks: List[TextGenerationBenchmarkReportWithvLLMMetrics] = Field(
-        default_factory=list,
-        description="The list of benchmark reports.",
-    )
+                if "vllm_metrics" not in result.current_benchmark.extras:
+                    result.current_benchmark.extras["vllm_metrics"] = []
 
+                result.current_benchmark.extras["vllm_metrics"].extend(
+                    [
+                        vLLMMetrics(
+                            metrics, first_metric_families=vllm_metric_families[i]
+                        )
+                        for metrics in vllm_metric_families
+                    ]
+                )
 
-def vllm_monkey_patch(metrics_url: str):
-    import guidellm.executor.base
-    import guidellm.scheduler.base
+            yield result
 
-    guidellm.executor.base.Scheduler = SchedulerWithvLLMMetrics
-    guidellm.main.GuidanceReport = GuidanceReportWithvLLMMetrics
-    guidellm.scheduler.base.TextGenerationBenchmark = (
-        TextGenerationBenchmarkWithvLLMMetrics
-    )
+            if result.type_ == "benchmark_compiled":
+                # If a new benchmark is about to start, start fetching
+                # metrics again
+                vllm_metric_families, stop_signal, stats_thread = reset()
 
-    SchedulerWithvLLMMetrics._vllm_metrics_url = metrics_url
+        stop_signal.set()
+        stats_thread.join()
+
+    def refresh_vllm_stats(
+        self, metrics_url: str, metrics: list, stop_signal: threading.Event
+    ):
+        """
+        Periodically fetches metrics from the vLLM server while benchmarks are
+        running.
+
+        Args:
+            metrics_url (str): The URL of the vLLM server metrics endpoint.
+            metrics (list): A list to store the fetched metrics.
+            stop_signal (threading.Event): A signal to stop the metrics refresh.
+        """
+
+        while not stop_signal.is_set():
+            res = requests.get(metrics_url)
+            metrics.append(list(text_string_to_metric_families(res.text)))
+            time.sleep(REFRESH_INTERVAL)

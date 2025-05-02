@@ -378,7 +378,7 @@ async def run_benchmark_suite(
 
     for benchmark in benchmarks:
         for k in benchmark:
-            if type(benchmark[k]) == dict or k == "group_id":
+            if isinstance(benchmark[k], dict) or k == "group_id":
                 continue
 
             if k not in parameters:

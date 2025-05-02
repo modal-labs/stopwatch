@@ -1,6 +1,5 @@
 from typing import Any, Mapping, Optional
 import contextlib
-import urllib.parse
 
 from .sglang_runner import sglang
 from .tensorrt_llm_runner import tensorrt_llm
@@ -29,13 +28,7 @@ def llm_server(
     }
 
     if llm_server_type == "vllm":
-        from .custom_metrics import vllm_monkey_patch
-
         with vllm(**llm_server_kwargs) as (vllm_url, extra_query):
-            extra_query_args = urllib.parse.urlencode(extra_query)
-            metrics_url = f"{vllm_url}/metrics?{extra_query_args}"
-            vllm_monkey_patch(metrics_url)
-
             yield (vllm_url, extra_query)
     elif llm_server_type == "sglang":
         with sglang(**llm_server_kwargs) as (sglang_url, extra_query):

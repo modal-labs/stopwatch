@@ -4,9 +4,9 @@ base_config:
   region: us-chicago-1
   llm_server_type: vllm
   data:
-    - prompt_tokens=256,generated_tokens=4096
-    - prompt_tokens=4096,generated_tokens=256
-    - prompt_tokens=2048,generated_tokens=2048
+    - prompt_tokens=256,output_tokens=4096
+    - prompt_tokens=4096,output_tokens=256
+    - prompt_tokens=2048,output_tokens=2048
 configs:
   # Zeta benchmarks
   - model: zed-industries/zeta

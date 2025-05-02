@@ -121,7 +121,14 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
             }
 
             self.prompt_tokens = data_config.get("prompt_tokens", 0)
-            self.generated_tokens = data_config.get("generated_tokens", 0)
+            self.prompt_tokens_variance = data_config.get("prompt_tokens_variance", 0)
+            self.generated_tokens = data_config.get(
+                "output_tokens", data_config.get("generated_tokens", 0)
+            )
+            self.generated_tokens_variance = data_config.get(
+                "output_tokens_variance",
+                data_config.get("generated_tokens_variance", 0),
+            )
 
             if len(results) > 0:
                 ttft_distribution = [
@@ -158,7 +165,7 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
                         )
 
             # Save vLLM metrics
-            if vllm_metrics := result.get("vllm_metrics", None):
+            if vllm_metrics := result["extras"].get("vllm_metrics", None):
                 self.kv_cache_usage_mean = 100 * np.mean(
                     [metrics["kv_cache_usage"] for metrics in vllm_metrics]
                 )

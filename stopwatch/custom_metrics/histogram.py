@@ -1,10 +1,10 @@
 from typing import Sequence
 
-from guidellm.core.serializable import Serializable
+from guidellm.objects import StandardBaseModel
 from pydantic import Field
 
 
-class Histogram(Serializable):
+class Histogram(StandardBaseModel):
 
     data: Sequence[float] = Field(
         default_factory=list,

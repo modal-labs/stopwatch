@@ -21,11 +21,11 @@ TRTLLM_PORT = 8000
 
 
 def tensorrt_llm_image_factory(
-    tensorrt_llm_version: str = "0.19.0.dev2025040100", cuda_version: str = "12.8.0"
+    tensorrt_llm_version: str = "0.20.0rc1", cuda_version: str = "12.8.1"
 ):
     return (
         modal.Image.from_registry(
-            f"nvidia/cuda:{cuda_version}-devel-ubuntu22.04",
+            f"nvidia/cuda:{cuda_version}-devel-ubuntu24.04",
             add_python="3.12",
         )
         .entrypoint([])  # Remove verbose logging by base image on entry

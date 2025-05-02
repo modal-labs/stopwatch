@@ -20,7 +20,7 @@ def cli():
 @app.local_entrypoint()
 def run_benchmark(
     model: str,
-    data: str = "prompt_tokens=512,generated_tokens=128",
+    data: str = "prompt_tokens=512,output_tokens=128",
     gpu: str = "H100",
     server_region: str = "us-chicago-1",
     client_region: str = "us-chicago-1",
