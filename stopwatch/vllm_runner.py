@@ -11,7 +11,7 @@ import modal
 from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
-DEFAULT_DOCKER_TAG = "v0.8.5"
+DEFAULT_DOCKER_TAG = "v0.8.5.post1"
 HF_CACHE_PATH = "/cache"
 SCALEDOWN_WINDOW = 30  # 30 seconds
 STARTUP_TIMEOUT = 60 * 60  # 1 hour
@@ -195,7 +195,7 @@ def vllm(
     import requests
 
     all_vllm_classes = {
-        "v0.8.5": {
+        "v0.8.5.post1": {
             "H100": {
                 "us-ashburn-1": vLLM_OCI_USASHBURN1,
                 "us-east-1": vLLM_AWS_USEAST1,
