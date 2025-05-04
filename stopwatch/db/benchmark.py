@@ -46,6 +46,7 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
         # Parameters
         llm_server_type = Column(String, nullable=False)
         llm_server_config = Column(JSON, nullable=False)
+        client_config = Column(JSON, nullable=False)
         model = Column(String, nullable=False)
         rate_type = Column(String, nullable=False)
         rate = Column(Float)
@@ -91,6 +92,7 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
             return {
                 "llm_server_type": self.llm_server_type,
                 "llm_server_config": self.llm_server_config,
+                "client_config": self.client_config,
                 "model": self.model,
                 "rate_type": self.rate_type,
                 "rate": self.rate,

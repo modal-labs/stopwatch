@@ -262,6 +262,9 @@ async def run_benchmark_suite(
         if "llm_server_config" not in benchmark:
             benchmark["llm_server_config"] = {}
 
+        if "client_config" not in benchmark:
+            benchmark["client_config"] = {}
+
         benchmark["group_id"] = str(uuid.uuid4())[:8]
 
     # STEP 0.5: Delete existing benchmarks if recompute is set to true

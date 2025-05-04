@@ -5,7 +5,6 @@ from .llm_server import llm_server
 
 
 LLM_SERVER_TYPES = ["vllm", "sglang", "tensorrt-llm"]
-MAX_SECONDS_PER_BENCHMARK = 120  # 2 minutes
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5  # 5 seconds
 TIMEOUT = 30 * 60  # 30 minutes
@@ -59,7 +58,9 @@ class BenchmarkRunner:
         data: str,
         gpu: str,
         server_region: str,
+        duration: Optional[float] = 120,  # 2 minutes
         llm_server_config: Optional[Mapping[str, Any]] = None,
+        client_config: Optional[Mapping[str, Any]] = None,
         rate: Optional[float] = None,
         **kwargs,
     ):
@@ -75,16 +76,51 @@ class BenchmarkRunner:
                 'prompt_tokens=128,output_tokens=128').
             gpu (str): The GPU to use for benchmarking.
             server_region (str): Region to run the LLM server on.
+            duration (float): The duration of the benchmark in seconds.
             llm_server_config (dict): Configuration for the LLM server.
+            client_config (dict): Configuration for the GuideLLM client.
             rate (float): If rate_type is 'constant', optionally specify the
                 number of requests that should be made per second.
         """
+
+        class CustomGenerativeRequestLoader(GenerativeRequestLoader):
+            """
+            A wrapper around GenerativeRequestLoader that allows for modifications to
+            be made to GuideLLM requests.
+
+            These are both useful when testing structured outputs, e.g.
+            https://docs.vllm.ai/en/latest/features/structured_outputs.html
+            """
+
+            def __init__(
+                self,
+                extra_body: Optional[dict[str, Any]] = None,
+                use_chat_completions: bool = False,
+                **kwargs,
+            ):
+                super().__init__(**kwargs)
+                self.extra_body = extra_body or {}
+                self.use_chat_completions = use_chat_completions
+
+            def __iter__(self):
+                for item in super().__iter__():
+                    for k, v in self.extra_body.items():
+                        item.params[k] = v
+
+                    if self.use_chat_completions:
+                        item.request_type = "chat_completions"
+
+                    yield item
+
+            def __len__(self):
+                return super().__len__()
 
         if llm_server_type not in LLM_SERVER_TYPES:
             raise ValueError(
                 f"Invalid value for llm_server: {llm_server_type}. Must be one of {LLM_SERVER_TYPES}"
             )
-        elif llm_server_config is None:
+
+        if llm_server_config is None:
             llm_server_config = {}
 
         # Start LLM server in background
@@ -110,7 +146,7 @@ class BenchmarkRunner:
             print(f"Connected to backend for model {backend.model}.")
             processor = llm_server_config.get("tokenizer", model)
 
-            request_loader = GenerativeRequestLoader(
+            request_loader = CustomGenerativeRequestLoader(
                 data=data,
                 data_args=None,
                 processor=processor,
@@ -118,6 +154,8 @@ class BenchmarkRunner:
                 shuffle=False,
                 iter_type="infinite",
                 random_seed=42,
+                extra_body=client_config.get("extra_body", {}),
+                use_chat_completions=client_config.get("use_chat_completions", False),
             )
             unique_requests = request_loader.num_unique_items(raise_err=False)
             print(
@@ -147,7 +185,7 @@ class BenchmarkRunner:
             async for result in benchmarker.run(
                 profile=profile,
                 max_number_per_strategy=None,
-                max_duration_per_strategy=MAX_SECONDS_PER_BENCHMARK,
+                max_duration_per_strategy=duration,
                 warmup_percent_per_strategy=None,
                 cooldown_percent_per_strategy=None,
             ):
