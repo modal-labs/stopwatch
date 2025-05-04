@@ -8,7 +8,8 @@ import yaml
 import click
 import modal
 
-from stopwatch.resources import app, traces_volume
+from stopwatch.db import RateType
+from stopwatch.resources import app, results_volume, traces_volume
 from stopwatch.run_benchmark import all_benchmark_runner_classes
 
 
@@ -26,7 +27,7 @@ def run_benchmark(
     client_region: str = "us-chicago-1",
     llm_server_type: str = "vllm",
     llm_server_config: Optional[str] = None,
-    rate_type: str = "synchronous",
+    rate_type: str = RateType.SYNCHRONOUS.value,
     rate: Optional[float] = None,
 ):
     cls = all_benchmark_runner_classes[client_region]
@@ -37,8 +38,10 @@ def run_benchmark(
         except json.JSONDecodeError:
             raise ValueError("Invalid JSON for --llm-server-config")
 
-    if rate_type == "constant" and rate is None:
-        raise ValueError("--rate is required when --rate-type is 'constant'")
+    if rate_type == RateType.CONSTANT.value and rate is None:
+        raise ValueError(
+            f"--rate is required when --rate-type is {RateType.CONSTANT.value}"
+        )
 
     results = cls().run_benchmark.remote(
         llm_server_type=llm_server_type,
@@ -159,6 +162,19 @@ def run_benchmark_suite(
         url = modal.Cls.from_name("stopwatch", "DatasetteRunner")().start.web_url
         url += f"/stopwatch/-/query?sql=select+*+from+{id.replace('-', '_')}_averaged"
         subprocess.run(["open", url])
+
+    # Optionally save JSONL file
+    answer = input("Download results JSONL file and show in Finder? [Y/n] ")
+
+    if answer != "n":
+        os.makedirs("results", exist_ok=True)
+        local_results_path = os.path.join("results", f"{id}.jsonl")
+
+        with open(local_results_path, "wb") as f:
+            for chunk in results_volume.read_file(f"{id}.jsonl"):
+                f.write(chunk)
+
+        subprocess.run(["open", "-R", local_results_path])
 
 
 if __name__ == "__main__":

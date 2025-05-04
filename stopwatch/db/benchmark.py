@@ -1,3 +1,4 @@
+from enum import Enum
 import itertools
 
 from sqlalchemy import Column, DateTime, Float, Integer, JSON, String
@@ -54,8 +55,8 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
         client_region = Column(String, nullable=False)
 
         # Data
-        generated_tokens = Column(Integer)
-        generated_tokens_variance = Column(Integer)
+        output_tokens = Column(Integer)
+        output_tokens_variance = Column(Integer)
         prompt_tokens = Column(Integer)
         prompt_tokens_variance = Column(Integer)
 
@@ -122,13 +123,8 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
 
             self.prompt_tokens = data_config.get("prompt_tokens", 0)
             self.prompt_tokens_variance = data_config.get("prompt_tokens_variance", 0)
-            self.generated_tokens = data_config.get(
-                "output_tokens", data_config.get("generated_tokens", 0)
-            )
-            self.generated_tokens_variance = data_config.get(
-                "output_tokens_variance",
-                data_config.get("generated_tokens_variance", 0),
-            )
+            self.output_tokens = data_config.get("output_tokens", 0)
+            self.output_tokens_variance = data_config.get("output_tokens_variance", 0)
 
             if len(results) > 0:
                 ttft_distribution = [
@@ -178,3 +174,9 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
 
 
 Benchmark = benchmark_cls_factory()
+
+
+class RateType(Enum):
+    CONSTANT = "constant"
+    SYNCHRONOUS = "synchronous"
+    THROUGHPUT = "throughput"

@@ -15,7 +15,7 @@ TIMEOUT = 12 * 60 * 60  # 12 hours
 
 benchmark_suite_image = (
     modal.Image.debian_slim(python_version="3.13")
-    .pip_install("numpy", "SQLAlchemy")
+    .pip_install("numpy", "pandas", "SQLAlchemy")
     .add_local_python_source("cli")
 )
 
@@ -30,9 +30,11 @@ with benchmark_suite_image.imports():
 
     import grpclib
     import numpy as np
+    import pandas as pd
 
     from .db import (
         Benchmark,
+        RateType,
         benchmark_cls_factory,
         create_all,
         engine,
@@ -279,11 +281,13 @@ async def run_benchmark_suite(
         [
             {
                 **benchmark,
-                "rate_type": rate_type,
+                "rate_type": rate_type.value,
                 "repeat_index": repeat_index,
             }
             for benchmark, rate_type, repeat_index in itertools.product(
-                benchmarks, ["synchronous", "throughput"], range(repeats)
+                benchmarks,
+                [RateType.SYNCHRONOUS, RateType.THROUGHPUT],
+                range(repeats),
             )
         ],
         dry_run=dry_run,
@@ -298,12 +302,11 @@ async def run_benchmark_suite(
     skipped_benchmark_indices = set()
 
     for i, benchmark in enumerate(benchmarks):
-        # TODO: Use constants for synchronous and throughput
         synchronous_benchmarks = (
             session.query(Benchmark)
             .filter_by(
                 **{k: v for k, v in benchmark.items() if k != "group_id"},
-                rate_type="synchronous",
+                rate_type=RateType.SYNCHRONOUS.value,
             )
             .filter(Benchmark.completed_request_rate.is_not(None))
             .all()
@@ -312,7 +315,7 @@ async def run_benchmark_suite(
             session.query(Benchmark)
             .filter_by(
                 **{k: v for k, v in benchmark.items() if k != "group_id"},
-                rate_type="throughput",
+                rate_type=RateType.THROUGHPUT.value,
             )
             .filter(Benchmark.completed_request_rate.is_not(None))
             .all()
@@ -358,7 +361,7 @@ async def run_benchmark_suite(
             benchmarks_to_run.append(
                 {
                     **benchmark,
-                    "rate_type": "constant",
+                    "rate_type": RateType.CONSTANT.value,
                     "rate": rate,
                     "repeat_index": repeat_index,
                 }
@@ -413,6 +416,12 @@ async def run_benchmark_suite(
         if i in skipped_benchmark_indices:
             continue
 
+        data_config = {
+            k: int(v)
+            for param in benchmark["data"].split(",")
+            for k, v in [param.split("=")]
+        }
+
         benchmark_models = (
             session.query(Benchmark)
             .filter_by(**{k: v for k, v in benchmark.items() if k != "group_id"})
@@ -440,6 +449,7 @@ async def run_benchmark_suite(
         for rate_type, rate in benchmark_rates:
             averaged_benchmark = SuiteAveragedBenchmark(
                 **benchmark,
+                **data_config,
                 rate_type=rate_type,
                 rate=rate,
             )
@@ -476,6 +486,91 @@ async def run_benchmark_suite(
             print(f"Added averaged benchmark {group_id} for {rate_type} {rate}")
 
     session.commit()
+    db_volume.commit()
+
+    # STEP 4: Export results in frontend format
+    results = session.query(SuiteAveragedBenchmark).all()
+
+    df = pd.DataFrame(
+        [{c.name: getattr(r, c.name) for c in r.__table__.columns} for r in results]
+    ).rename(
+        columns={
+            "llm_server_type": "framework",
+            "completed_request_rate": "queries_per_second",
+        }
+    )
+
+    # Process data into human-readable strings
+    df["task"] = df["data"].map(
+        lambda x: {
+            "prompt_tokens=256,output_tokens=4096": "reasoning",
+            "prompt_tokens=2048,output_tokens=2048": "balanced",
+            "prompt_tokens=4096,output_tokens=256": "retrieval",
+        }.get(x, x)
+    )
+    df["total_tokens"] = df["prompt_tokens"] + df["output_tokens"]
+    df["gpu_type"] = df["gpu"].map(lambda x: x.split(":")[0].strip("!"))
+    df["gpu_count"] = df["gpu"].map(lambda x: int(x.split(":")[1]) if ":" in x else 1)
+    df["model_family"] = df["model"].map(
+        lambda x: {
+            "meta-llama/Llama-3.3-70B-Instruct": "Llama 3.3",
+            "zed-industries/zeta": "Qwen 2.5",
+            "cognitivecomputations/DeepSeek-V3-0324-AWQ": "DeepSeek-V3",
+        }.get(x, x),
+    )
+    df["model_size"] = df["model"].map(
+        lambda x: {
+            "meta-llama/Llama-3.3-70B-Instruct": "70B",
+            "zed-industries/zeta": "7B",
+            "cognitivecomputations/DeepSeek-V3-0324-AWQ": "671B:9E:37B",
+        }.get(x, None),
+    )
+
+    # Split LLM server configuration into separate columns
+    df["cli_args"] = df["llm_server_config"].map(
+        lambda x: " ".join(x["extra_args"]) if "extra_args" in x else None
+    )
+    df["env_vars"] = df["llm_server_config"].map(
+        lambda x: (
+            "\n".join(f"{k}={v}" for k, v in x["env_vars"].items())
+            if "env_vars" in x
+            else None
+        )
+    )
+    df["kwargs"] = df["llm_server_config"].map(
+        lambda x: json.dumps(x["llm_kwargs"]) if "llm_kwargs" in x else None
+    )
+
+    # Save selected columns to JSONL file
+    df[
+        [
+            *[
+                f"{m}_{a}"
+                for m, a in itertools.product(
+                    ["itl", "ttft", "ttlt"], ["mean", "p50", "p90", "p95", "p99"]
+                )
+            ],
+            "framework",
+            "queries_per_second",
+            "task",
+            "prompt_tokens",
+            "output_tokens",
+            "total_tokens",
+            "gpu_type",
+            "gpu_count",
+            "model_family",
+            "model_size",
+            "cli_args",
+            "env_vars",
+            "kwargs",
+        ]
+    ].to_json(
+        os.path.join(RESULTS_PATH, f"{id}.jsonl"),
+        orient="records",
+        lines=True,
+        force_ascii=False,
+    )
+
     db_volume.commit()
 
 
