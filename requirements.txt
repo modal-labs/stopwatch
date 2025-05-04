@@ -1,7 +1,7 @@
 click==8.1.8
-guidellm @ git+https://github.com/jackcook/guidellm.git@25dcc2e
-modal==0.73.116
-numpy==2.2.4
-packaging==24.2
+guidellm @ git+https://github.com/jackcook/guidellm.git#1eb26a9
+modal==0.74.41
+numpy==2.2.5
+packaging==25.0
 PyYAML==6.0.2
-SQLAlchemy==2.0.39
+SQLAlchemy==2.0.40
