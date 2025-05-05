@@ -7,13 +7,13 @@ from .llm_server import llm_server
 LLM_SERVER_TYPES = ["vllm", "sglang", "tensorrt-llm"]
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5  # 5 seconds
-TIMEOUT = 30 * 60  # 30 minutes
+TIMEOUT = 60 * 60  # 1 hour
 
 benchmarking_image = (
     modal.Image.debian_slim()
     .apt_install("git")
     .pip_install(
-        "git+https://github.com/jackcook/guidellm.git#1eb26a9",
+        "git+https://github.com/jackcook/guidellm.git@jack/fix-redirects#ddf8871",
         "prometheus-client",
         "tiktoken",
     )
@@ -123,6 +123,30 @@ class BenchmarkRunner:
         if llm_server_config is None:
             llm_server_config = {}
 
+        if client_config is None:
+            client_config = {}
+
+        # Create the request loader before starting the LLM server, since this can take
+        # a long time for data configs with many prompt tokens.
+        processor = llm_server_config.get("tokenizer", model)
+        request_loader = CustomGenerativeRequestLoader(
+            data=data,
+            data_args=None,
+            processor=processor,
+            processor_args=None,
+            shuffle=False,
+            iter_type="infinite",
+            random_seed=42,
+            extra_body=client_config.get("extra_body", {}),
+            use_chat_completions=client_config.get("use_chat_completions", False),
+        )
+        unique_requests = request_loader.num_unique_items(raise_err=False)
+        print(
+            f"Created loader with {unique_requests} unique requests from {data}.\n\n"
+            if unique_requests > 0
+            else f"Created loader with unknown number unique requests from {data}.\n\n"
+        )
+
         # Start LLM server in background
         with llm_server(
             llm_server_type,
@@ -142,27 +166,7 @@ class BenchmarkRunner:
                 extra_query=extra_query,
             )
             await backend.validate()
-
             print(f"Connected to backend for model {backend.model}.")
-            processor = llm_server_config.get("tokenizer", model)
-
-            request_loader = CustomGenerativeRequestLoader(
-                data=data,
-                data_args=None,
-                processor=processor,
-                processor_args=None,
-                shuffle=False,
-                iter_type="infinite",
-                random_seed=42,
-                extra_body=client_config.get("extra_body", {}),
-                use_chat_completions=client_config.get("use_chat_completions", False),
-            )
-            unique_requests = request_loader.num_unique_items(raise_err=False)
-            print(
-                f"Created loader with {unique_requests} unique requests from {data}.\n\n"
-                if unique_requests > 0
-                else f"Created loader with unknown number unique requests from {data}.\n\n"
-            )
 
             profile = create_profile(rate_type=rate_type, rate=rate)
             benchmarker_kwargs = {
@@ -174,7 +178,9 @@ class BenchmarkRunner:
                 "processor_args": None,
             }
 
-            if llm_server_type == "vllm":
+            if llm_server_type == "vllm" and client_config.get(
+                "collect_metrics", False
+            ):
                 benchmarker = GenerativeBenchmarkerWithvLLMMetrics(
                     vllm_metrics_url=metrics_url,
                     **benchmarker_kwargs,

@@ -167,7 +167,10 @@ async def run_benchmark(
             warnings.warn("WARNING: Benchmark timed out")
             return
 
-        if len(result["results"]) == 0 and len(result["errors"]) > 0:
+        if (
+            len(result["requests"]["successful"]) == 0
+            and len(result["requests"]["errored"]) > 0
+        ):
             # This happens when the benchmark is run with invald parameters
             # e.g. asking the model to generate more tokens than its
             # maximum context size. When this happens, requests made to the
@@ -177,7 +180,7 @@ async def run_benchmark(
             # crashing the run_benchmark_suite function.
 
             warnings.warn(f"WARNING: No results for {fc.object_id}")
-            print(result["errors"][0])
+            print(result["requests"]["errored"][0])
             benchmark.function_call_id = None
             session.commit()
             db_volume.commit()
@@ -602,9 +605,7 @@ def reload_results():
         with open(results_path, "r") as f:
             results = json.load(f)
 
-        benchmark_model.save_results(
-            results["results"], results.get("vllm_metrics", None)
-        )
+        benchmark_model.save_results(results)
         session.commit()
 
     db_volume.commit()

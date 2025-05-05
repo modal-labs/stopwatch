@@ -13,7 +13,10 @@ TRACES_PATH = "/traces"
 profiling_image = (
     modal.Image.debian_slim()
     .apt_install("git")
-    .pip_install("git+https://github.com/jackcook/guidellm.git#1eb26a9", "openai")
+    .pip_install(
+        "git+https://github.com/jackcook/guidellm.git@jack/fix-redirects#ddf8871",
+        "openai",
+    )
     .add_local_python_source("cli")
 )
 

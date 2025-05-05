@@ -228,5 +228,10 @@ class GenerativeBenchmarkerWithvLLMMetrics(GenerativeBenchmarker):
 
         while not stop_signal.is_set():
             res = requests.get(metrics_url)
-            metrics.append(list(text_string_to_metric_families(res.text)))
+
+            try:
+                metrics.append(list(text_string_to_metric_families(res.text)))
+            except Exception as e:
+                print(f"Error parsing metrics: {e}")
+
             time.sleep(REFRESH_INTERVAL)

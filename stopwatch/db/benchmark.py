@@ -102,16 +102,10 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
                 "client_region": self.client_region,
             }
 
-        def save_results(self, result):
-            results = result["results"]
-            concurrencies = result["concurrencies"]
-
-            if len(results) > 0:
-                self.start_time = results[0]["start_time"]
-                self.end_time = results[-1]["end_time"]
-            else:
-                self.start_time = concurrencies[0]["time"]
-                self.end_time = concurrencies[-1]["time"]
+        def save_results(self, results):
+            requests = results["requests"]["successful"]
+            self.start_time = requests[0]["start_time"]
+            self.end_time = requests[-1]["end_time"]
 
             self.duration = self.end_time - self.start_time
             self.completed_request_count = len(results)
@@ -128,42 +122,37 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
             self.output_tokens = data_config.get("output_tokens", 0)
             self.output_tokens_variance = data_config.get("output_tokens_variance", 0)
 
-            if len(results) > 0:
-                ttft_distribution = [
-                    result["first_token_time"]
-                    for result in results
-                    if result["first_token_time"] is not None
-                ]
-                ttlt_distribution = [
-                    result["end_time"] - result["start_time"] for result in results
-                ]
-                itl_distribution = [
-                    decode_time
-                    for result in results
-                    for decode_time in result["decode_times"]["data"]
-                ]
+            for (db_key, result_key), (
+                db_statistic_key,
+                statistic_key,
+            ) in itertools.product(
+                zip(
+                    ["itl", "ttft", "ttlt"],
+                    [
+                        "inter_token_latency_ms",
+                        "time_to_first_token_ms",
+                        "request_latency",
+                    ],
+                ),
+                zip(
+                    ["mean", "p50", "p90", "p95", "p99"],
+                    ["mean", "median", "p90", "p95", "p99"],
+                ),
+            ):
+                if statistic_key.startswith("p"):
+                    value = results["metrics"][result_key]["successful"]["percentiles"][
+                        statistic_key
+                    ]
+                else:
+                    value = results["metrics"][result_key]["successful"]["mean"]
 
-                for (key, distribution), statistic in itertools.product(
-                    zip(
-                        ["itl", "ttft", "ttlt"],
-                        [itl_distribution, ttft_distribution, ttlt_distribution],
-                    ),
-                    ["mean", 50, 90, 95, 99],
-                ):
-                    if len(distribution) == 0:
-                        continue
+                if result_key.endswith("_ms"):
+                    value /= 1000
 
-                    if statistic == "mean":
-                        setattr(self, f"{key}_mean", np.mean(distribution))
-                    else:
-                        setattr(
-                            self,
-                            f"{key}_p{statistic}",
-                            np.percentile(distribution, statistic),
-                        )
+                setattr(self, f"{db_key}_{db_statistic_key}", value)
 
             # Save vLLM metrics
-            if vllm_metrics := result["extras"].get("vllm_metrics", None):
+            if vllm_metrics := results["extras"].get("vllm_metrics", None):
                 self.kv_cache_usage_mean = 100 * np.mean(
                     [metrics["kv_cache_usage"] for metrics in vllm_metrics]
                 )

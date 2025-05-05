@@ -12,7 +12,7 @@ from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 DEFAULT_DOCKER_TAG = "v0.4.6.post2-cu124"
 HF_CACHE_PATH = "/cache"
-SCALEDOWN_WINDOW = 30  # 30 seconds
+SCALEDOWN_WINDOW = 2 * 60  # 2 minutes
 SGLANG_PORT = 30000
 STARTUP_TIMEOUT = 30 * 60  # 30 minutes
 TIMEOUT = 60 * 60  # 1 hour

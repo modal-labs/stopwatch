@@ -1,5 +1,5 @@
 click==8.1.8
-guidellm @ git+https://github.com/jackcook/guidellm.git#1eb26a9
+guidellm @ git+https://github.com/jackcook/guidellm.git@jack/fix-redirects#ddf8871
 modal==0.74.41
 numpy==2.2.5
 packaging==25.0
