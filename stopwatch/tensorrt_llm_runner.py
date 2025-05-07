@@ -5,13 +5,13 @@ import json
 import os
 import subprocess
 import time
-import warnings
 
 import modal
 
 from .resources import app, hf_cache_volume, hf_secret
 
 
+DEFAULT_VERSION = "0.20.0rc1"
 HF_CACHE_PATH = "/cache"
 LLM_KWARGS_PATH = "llm_kwargs.yaml"
 SCALEDOWN_WINDOW = 30  # 30 seconds
@@ -21,7 +21,7 @@ TRTLLM_PORT = 8000
 
 
 def tensorrt_llm_image_factory(
-    tensorrt_llm_version: str = "0.20.0rc1", cuda_version: str = "12.8.1"
+    tensorrt_llm_version: str = DEFAULT_VERSION, cuda_version: str = "12.8.1"
 ):
     return (
         modal.Image.from_registry(
@@ -218,16 +218,23 @@ def tensorrt_llm(
         raise ValueError("Profiling is not supported for TensorRT-LLM")
 
     all_tensorrt_llm_classes = {
-        "H100": TensorRTLLM,
-        "H100:2": TensorRTLLM_2xH100,
-        "H100:4": TensorRTLLM_4xH100,
-        "H100:8": TensorRTLLM_8xH100,
+        DEFAULT_VERSION: {
+            "H100": {
+                "us-chicago-1": TensorRTLLM,
+            },
+            "H100:2": {
+                "us-chicago-1": TensorRTLLM_2xH100,
+            },
+            "H100:4": {
+                "us-chicago-1": TensorRTLLM_4xH100,
+            },
+            "H100:8": {
+                "us-chicago-1": TensorRTLLM_8xH100,
+            },
+        }
     }
 
-    warnings.warn(
-        "Region selection is not yet supported for TensorRT-LLM. Spinning up an instance in us-chicago-1..."
-    )
-
+    tensorrt_llm_version = server_config.get("tensorrt_llm_version", DEFAULT_VERSION)
     extra_query = {
         "model": model,
         # Sort keys to ensure that this parameter doesn't change between runs
@@ -236,16 +243,21 @@ def tensorrt_llm(
         "caller_id": modal.current_function_call_id(),
     }
 
+    # Pick TensorRT-LLM server class
     try:
-        cls = all_tensorrt_llm_classes[gpu]
+        cls = all_tensorrt_llm_classes[tensorrt_llm_version][gpu.replace("!", "")][
+            region
+        ]
     except KeyError:
-        raise ValueError(f"Invalid GPU: {gpu}")
+        raise ValueError(
+            f"Unsupported TensorRT-LLM configuration: {tensorrt_llm_version} {gpu} {region}"
+        )
 
     url = cls(model="").start.web_url
 
     # Wait for TensorRT-LLM server to start
     response_code = -1
-    print(f"Requesting health at {url}/health with params {extra_query}")
+    print(f"Requesting health check at {url}/health with params {extra_query}")
 
     while response_code != 200:
         response = requests.get(f"{url}/health", params=extra_query)
@@ -253,4 +265,4 @@ def tensorrt_llm(
         time.sleep(5)
 
     print("Connected to TensorRT-LLM instance")
-    yield (url, extra_query)
+    yield (url, extra_query, tensorrt_llm_version)

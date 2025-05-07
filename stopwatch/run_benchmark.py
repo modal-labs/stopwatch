@@ -13,7 +13,7 @@ benchmarking_image = (
     modal.Image.debian_slim()
     .apt_install("git")
     .pip_install(
-        "git+https://github.com/jackcook/guidellm.git@jack/fix-redirects#ddf8871",
+        "git+https://github.com/neuralmagic/guidellm.git#e6f3dfc",
         "prometheus-client",
         "tiktoken",
     )
@@ -26,6 +26,7 @@ benchmarking_image = (
 )
 
 with benchmarking_image.imports():
+    from importlib.metadata import version
     from typing import Any, Mapping, Optional
     import urllib.parse
 
@@ -159,7 +160,7 @@ class BenchmarkRunner:
             gpu=gpu,
             region=server_region,
             server_config=llm_server_config,
-        ) as (llm_server_url, extra_query):
+        ) as (llm_server_url, extra_query, llm_server_version):
             extra_query_args = urllib.parse.urlencode(extra_query)
             metrics_url = f"{llm_server_url}/metrics?{extra_query_args}"
 
@@ -203,7 +204,14 @@ class BenchmarkRunner:
                 if result.type_ == "benchmark_compiled":
                     if result.current_benchmark is None:
                         raise ValueError("Current benchmark is None")
-                    return result.current_benchmark.model_dump()
+
+                    return {
+                        **result.current_benchmark.model_dump(),
+                        "version_metadata": {
+                            "guidellm": version("guidellm"),
+                            llm_server_type: llm_server_version,
+                        },
+                    }
 
 
 @benchmark_runner_cls(region="us-ashburn-1")

@@ -1,6 +1,6 @@
 click==8.1.8
-guidellm @ git+https://github.com/jackcook/guidellm.git@jack/fix-redirects#ddf8871
-modal==0.74.41
+guidellm @ git+https://github.com/neuralmagic/guidellm.git#e6f3dfc
+modal==0.74.61
 numpy==2.2.5
 packaging==25.0
 PyYAML==6.0.2

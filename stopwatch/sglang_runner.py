@@ -3,7 +3,6 @@ import contextlib
 import json
 import subprocess
 import time
-import warnings
 
 import modal
 
@@ -134,16 +133,23 @@ def sglang(
         raise ValueError("Profiling is not supported for SGLang")
 
     all_sglang_classes = {
-        "H100": SGLang,
-        "H100:2": SGLang_2xH100,
-        "H100:4": SGLang_4xH100,
-        "H100:8": SGLang_8xH100,
+        DEFAULT_DOCKER_TAG: {
+            "H100": {
+                "us-chicago-1": SGLang,
+            },
+            "H100:2": {
+                "us-chicago-1": SGLang_2xH100,
+            },
+            "H100:4": {
+                "us-chicago-1": SGLang_4xH100,
+            },
+            "H100:8": {
+                "us-chicago-1": SGLang_8xH100,
+            },
+        },
     }
 
-    warnings.warn(
-        "Region selection is not yet supported for SGLang. Spinning up an instance in us-chicago-1..."
-    )
-
+    docker_tag = server_config.get("docker_tag", DEFAULT_DOCKER_TAG)
     extra_query = {
         "model": model,
         # Sort keys to ensure that this parameter doesn't change between runs
@@ -154,9 +160,11 @@ def sglang(
 
     # Pick SGLang server class
     try:
-        cls = all_sglang_classes[gpu]
+        cls = all_sglang_classes[docker_tag][gpu.replace("!", "")][region]
     except KeyError:
-        raise ValueError(f"Unsupported SGLang configuration: {gpu}")
+        raise ValueError(
+            f"Unsupported SGLang configuration: {docker_tag} {gpu} {region}"
+        )
 
     url = cls(model="").start.web_url
 
@@ -178,4 +186,4 @@ def sglang(
             )
 
     print("Connected to SGLang instance")
-    yield (url, extra_query)
+    yield (url, extra_query, docker_tag)

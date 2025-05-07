@@ -195,7 +195,7 @@ def vllm(
     import requests
 
     all_vllm_classes = {
-        "v0.8.5.post1": {
+        DEFAULT_DOCKER_TAG: {
             "H100": {
                 "us-ashburn-1": vLLM_OCI_USASHBURN1,
                 "us-east-1": vLLM_AWS_USEAST1,
@@ -227,7 +227,6 @@ def vllm(
     }
 
     docker_tag = server_config.get("docker_tag", DEFAULT_DOCKER_TAG)
-
     extra_query = {
         "model": model,
         # Sort keys to ensure that this parameter doesn't change between runs
@@ -269,7 +268,7 @@ def vllm(
         requests.post(f"{url}/start_profile", params=extra_query)
 
     try:
-        yield (url, extra_query)
+        yield (url, extra_query, docker_tag)
     finally:
         if profile:
             requests.post(f"{url}/stop_profile", params=extra_query)

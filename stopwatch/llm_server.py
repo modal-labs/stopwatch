@@ -27,14 +27,14 @@ def llm_server(
         "profile": profile,
     }
 
-    if llm_server_type == "vllm":
-        with vllm(**llm_server_kwargs) as (vllm_url, extra_query):
-            yield (vllm_url, extra_query)
-    elif llm_server_type == "sglang":
-        with sglang(**llm_server_kwargs) as (sglang_url, extra_query):
-            yield (sglang_url, extra_query)
-    elif llm_server_type == "tensorrt-llm":
-        with tensorrt_llm(**llm_server_kwargs) as connection_info:
-            yield connection_info
-    else:
+    llm_server_fn = {
+        "vllm": vllm,
+        "sglang": sglang,
+        "tensorrt-llm": tensorrt_llm,
+    }
+
+    if llm_server_type not in llm_server_fn:
         raise ValueError(f"Invalid LLM server type: {llm_server_type}")
+
+    with llm_server_fn[llm_server_type](**llm_server_kwargs) as connection_info:
+        yield connection_info
