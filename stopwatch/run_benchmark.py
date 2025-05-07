@@ -17,6 +17,11 @@ benchmarking_image = (
         "prometheus-client",
         "tiktoken",
     )
+    .env(
+        {
+            "GUIDELLM__MAX_WORKER_PROCESSES": "3",  # Should be set to n_cores - 1
+        }
+    )
     .add_local_python_source("cli")
 )
 
@@ -39,7 +44,7 @@ def benchmark_runner_cls(region: str):
             secrets=[hf_secret],
             volumes={RESULTS_PATH: results_volume},
             cpu=4,
-            memory=2048,
+            memory=4096,
             scaledown_window=SCALEDOWN_WINDOW,
             timeout=TIMEOUT,
             region=region,
