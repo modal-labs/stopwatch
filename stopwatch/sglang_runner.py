@@ -6,19 +6,15 @@ import time
 
 import modal
 
+from .constants import HOURS, MINUTES, VersionDefaults
 from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
-DEFAULT_DOCKER_TAG = "v0.4.6.post2-cu124"
 HF_CACHE_PATH = "/cache"
-SCALEDOWN_WINDOW = 2 * 60  # 2 minutes
-SGLANG_PORT = 30000
-STARTUP_TIMEOUT = 30 * 60  # 30 minutes
-TIMEOUT = 60 * 60  # 1 hour
 TRACES_PATH = "/traces"
 
 
-def sglang_image_factory(docker_tag: str = DEFAULT_DOCKER_TAG):
+def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG):
     return (
         modal.Image.from_registry(
             f"lmsysorg/sglang:{docker_tag}",
@@ -40,8 +36,8 @@ def sglang_cls(
     volumes={HF_CACHE_PATH: hf_cache_volume, TRACES_PATH: traces_volume},
     cpu=4,
     memory=65536,
-    scaledown_window=SCALEDOWN_WINDOW,
-    timeout=TIMEOUT,
+    scaledown_window=2 * MINUTES,
+    timeout=1 * HOURS,
     region="us-chicago-1",
 ):
     def decorator(cls):
@@ -64,7 +60,7 @@ def sglang_cls(
 class SGLangBase:
     """A Modal class that runs an SGLang server."""
 
-    @modal.web_server(port=SGLANG_PORT, startup_timeout=STARTUP_TIMEOUT)
+    @modal.web_server(port=30000, startup_timeout=30 * MINUTES)
     def start(self):
         """Start an SGLang server."""
 
@@ -133,7 +129,7 @@ def sglang(
         raise ValueError("Profiling is not supported for SGLang")
 
     all_sglang_classes = {
-        DEFAULT_DOCKER_TAG: {
+        VersionDefaults.SGLANG: {
             "H100": {
                 "us-chicago-1": SGLang,
             },
@@ -149,7 +145,7 @@ def sglang(
         },
     }
 
-    docker_tag = server_config.get("docker_tag", DEFAULT_DOCKER_TAG)
+    docker_tag = server_config.get("version", VersionDefaults.SGLANG)
     extra_query = {
         "model": model,
         # Sort keys to ensure that this parameter doesn't change between runs
@@ -186,4 +182,4 @@ def sglang(
             )
 
     print("Connected to SGLang instance")
-    yield (url, extra_query, docker_tag)
+    yield (url, extra_query)

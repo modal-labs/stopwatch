@@ -2,6 +2,7 @@ import time
 
 import modal
 
+from .constants import VersionDefaults
 from .resources import app, hf_secret, traces_volume
 from .vllm_runner import vllm
 
@@ -14,7 +15,7 @@ profiling_image = (
     modal.Image.debian_slim()
     .apt_install("git")
     .pip_install(
-        "git+https://github.com/neuralmagic/guidellm.git#e6f3dfc",
+        f"git+https://github.com/neuralmagic/guidellm.git#{VersionDefaults.GUIDELLM}",
         "openai",
     )
     .add_local_python_source("cli")

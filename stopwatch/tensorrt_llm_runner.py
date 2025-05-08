@@ -8,20 +8,17 @@ import time
 
 import modal
 
+from .constants import HOURS, MINUTES, SECONDS, VersionDefaults
 from .resources import app, hf_cache_volume, hf_secret
 
 
-DEFAULT_VERSION = "0.20.0rc1"
 HF_CACHE_PATH = "/cache"
 LLM_KWARGS_PATH = "llm_kwargs.yaml"
-SCALEDOWN_WINDOW = 30  # 30 seconds
-STARTUP_TIMEOUT = 30 * 60  # 30 minutes
-TIMEOUT = 60 * 60  # 1 hour
-TRTLLM_PORT = 8000
 
 
 def tensorrt_llm_image_factory(
-    tensorrt_llm_version: str = DEFAULT_VERSION, cuda_version: str = "12.8.1"
+    tensorrt_llm_version: str = VersionDefaults.TENSORRT_LLM,
+    cuda_version: str = "12.8.1",
 ):
     return (
         modal.Image.from_registry(
@@ -57,8 +54,8 @@ def tensorrt_llm_cls(
     volumes={HF_CACHE_PATH: hf_cache_volume},
     cpu=4,
     memory=65536,
-    scaledown_window=SCALEDOWN_WINDOW,
-    timeout=TIMEOUT,
+    scaledown_window=30 * SECONDS,
+    timeout=1 * HOURS,
     region="us-chicago-1",
 ):
     def decorator(cls):
@@ -146,7 +143,7 @@ class TensorRTLLMBase:
             with open(os.path.join(self.engine_path, LLM_KWARGS_PATH), "w") as f:
                 yaml.dump(llm_kwargs_simple, f)
 
-    @modal.web_server(port=TRTLLM_PORT, startup_timeout=STARTUP_TIMEOUT)
+    @modal.web_server(port=8000, startup_timeout=30 * MINUTES)
     def start(self):
         """Start a TensorRT-LLM server."""
 
@@ -218,7 +215,7 @@ def tensorrt_llm(
         raise ValueError("Profiling is not supported for TensorRT-LLM")
 
     all_tensorrt_llm_classes = {
-        DEFAULT_VERSION: {
+        VersionDefaults.TENSORRT_LLM: {
             "H100": {
                 "us-chicago-1": TensorRTLLM,
             },
@@ -234,7 +231,7 @@ def tensorrt_llm(
         }
     }
 
-    tensorrt_llm_version = server_config.get("tensorrt_llm_version", DEFAULT_VERSION)
+    tensorrt_llm_version = server_config.get("version", VersionDefaults.TENSORRT_LLM)
     extra_query = {
         "model": model,
         # Sort keys to ensure that this parameter doesn't change between runs
@@ -265,4 +262,4 @@ def tensorrt_llm(
         time.sleep(5)
 
     print("Connected to TensorRT-LLM instance")
-    yield (url, extra_query, tensorrt_llm_version)
+    yield (url, extra_query)

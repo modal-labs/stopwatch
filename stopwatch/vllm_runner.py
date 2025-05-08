@@ -8,19 +8,15 @@ import uuid
 
 import modal
 
+from .constants import HOURS, SECONDS, VersionDefaults
 from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
-DEFAULT_DOCKER_TAG = "v0.8.5.post1"
 HF_CACHE_PATH = "/cache"
-SCALEDOWN_WINDOW = 30  # 30 seconds
-STARTUP_TIMEOUT = 60 * 60  # 1 hour
-TIMEOUT = 60 * 60  # 1 hour
 TRACES_PATH = "/traces"
-VLLM_PORT = 8000
 
 
-def vllm_image_factory(docker_tag: str = DEFAULT_DOCKER_TAG):
+def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM):
     python_binary = (
         "/opt/venv/bin/python3"
         if docker_tag in ["v0.8.0", "v0.8.1"]
@@ -49,8 +45,8 @@ def vllm_cls(
     volumes={HF_CACHE_PATH: hf_cache_volume, TRACES_PATH: traces_volume},
     cpu=4,
     memory=65536,
-    scaledown_window=SCALEDOWN_WINDOW,
-    timeout=TIMEOUT,
+    scaledown_window=30 * SECONDS,
+    timeout=1 * HOURS,
     region="us-chicago-1",
 ):
     def decorator(cls):
@@ -76,7 +72,7 @@ class vLLMBase:
     tunnel, the URL for which is stored in a shared dict.
     """
 
-    @modal.web_server(port=VLLM_PORT, startup_timeout=STARTUP_TIMEOUT)
+    @modal.web_server(port=8000, startup_timeout=1 * HOURS)
     def start(self):
         """Start a vLLM server."""
 
@@ -195,7 +191,7 @@ def vllm(
     import requests
 
     all_vllm_classes = {
-        DEFAULT_DOCKER_TAG: {
+        VersionDefaults.VLLM: {
             "H100": {
                 "us-ashburn-1": vLLM_OCI_USASHBURN1,
                 "us-east-1": vLLM_AWS_USEAST1,
@@ -226,7 +222,7 @@ def vllm(
         },
     }
 
-    docker_tag = server_config.get("docker_tag", DEFAULT_DOCKER_TAG)
+    docker_tag = server_config.get("version", VersionDefaults.VLLM)
     extra_query = {
         "model": model,
         # Sort keys to ensure that this parameter doesn't change between runs
@@ -268,7 +264,7 @@ def vllm(
         requests.post(f"{url}/start_profile", params=extra_query)
 
     try:
-        yield (url, extra_query, docker_tag)
+        yield (url, extra_query)
     finally:
         if profile:
             requests.post(f"{url}/stop_profile", params=extra_query)

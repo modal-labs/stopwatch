@@ -1,5 +1,6 @@
 import modal
 
+from .constants import VersionDefaults
 from .resources import app, db_volume, results_volume
 from .run_benchmark import all_benchmark_runner_classes
 
@@ -269,6 +270,12 @@ async def run_benchmark_suite(
             benchmark["client_config"] = {}
 
         benchmark["group_id"] = str(uuid.uuid4())[:8]
+        benchmark["version_metadata"] = {
+            "guidellm": VersionDefaults.GUIDELLM,
+            benchmark["llm_server_type"]: benchmark["llm_server_config"].get(
+                "version", VersionDefaults.LLM_SERVERS[benchmark["llm_server_type"]]
+            ),
+        }
 
     # STEP 0.5: Delete existing benchmarks if recompute is set to true
     if recompute:

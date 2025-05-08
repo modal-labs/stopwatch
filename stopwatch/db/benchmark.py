@@ -42,7 +42,6 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
         function_call_id = Column(String)
         repeat_index = Column(Integer, nullable=False, default=0)
         group_id = Column(String, nullable=False)
-        version_metadata = Column(JSON)
 
         # Parameters
         llm_server_type = Column(String, nullable=False)
@@ -55,6 +54,7 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
         gpu = Column(String, nullable=False)
         server_region = Column(String, nullable=False)
         client_region = Column(String, nullable=False)
+        version_metadata = Column(JSON)
 
         # Data
         output_tokens = Column(Integer)
@@ -101,17 +101,16 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
                 "gpu": self.gpu,
                 "server_region": self.server_region,
                 "client_region": self.client_region,
+                "version_metadata": self.version_metadata,
             }
 
         def save_results(self, results):
-            self.version_metadata = results.get("version_metadata", None)
-
             requests = results["requests"]["successful"]
             self.start_time = requests[0]["start_time"]
             self.end_time = requests[-1]["end_time"]
 
             self.duration = self.end_time - self.start_time
-            self.completed_request_count = len(results)
+            self.completed_request_count = len(requests)
             self.completed_request_rate = self.completed_request_count / self.duration
 
             data_config = {
