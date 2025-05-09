@@ -1,0 +1,29 @@
+id: vllm-deepseek
+repeats: 3
+base_config:
+  region: us-chicago-1
+  llm_server_type: vllm
+  data:
+    - prompt_tokens=128,output_tokens=1024
+    - prompt_tokens=1024,output_tokens=128
+    - prompt_tokens=512,output_tokens=512
+configs:
+  - model: cognitivecomputations/DeepSeek-V3-0324-AWQ
+    gpu: H100:8
+    llm_server_config:
+      extra_args:
+        [
+          "--tensor-parallel-size",
+          "8",
+          "--max-model-len",
+          "8192",
+          "--gpu-memory-utilization",
+          "0.95",
+          "--dtype",
+          "half",
+          "--trust-remote-code",
+        ]
+      env_vars:
+        VLLM_USE_V1: "0"
+        VLLM_WORKER_MULTIPROC_METHOD: spawn
+        VLLM_MARLIN_USE_ATOMIC_ADD: "1"

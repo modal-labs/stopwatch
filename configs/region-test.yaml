@@ -1,0 +1,18 @@
+id: region-test
+repeats: 3
+base_config:
+  gpu: H100
+  model: zed-industries/zeta
+  llm_server_config:
+    tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+  llm_server_type: vllm
+  data: prompt_tokens=512,output_tokens=512
+configs:
+  - client_region:
+      - us-east-1
+      - us-east4
+      - us-chicago-1
+    server_region:
+      - us-east-1
+      - us-east4
+      - us-chicago-1

@@ -1,0 +1,23 @@
+id: vllm-qwen
+repeats: 3
+base_config:
+  region: us-chicago-1
+  llm_server_type: vllm
+  data:
+    - prompt_tokens=128,output_tokens=1024
+    - prompt_tokens=1024,output_tokens=128
+    - prompt_tokens=512,output_tokens=512
+configs:
+  - model:
+      - Qwen/Qwen3-235B-A22B
+      # - Qwen/Qwen3-235B-A22B-FP8
+    gpu: H100:8
+    llm_server_config:
+      extra_args:
+        [
+          "--tensor-parallel-size",
+          "8",
+          "--enable-reasoning",
+          "--reasoning-parser",
+          "deepseek_r1",
+        ]

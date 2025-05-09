@@ -1,0 +1,14 @@
+id: sglang-zeta
+repeats: 3
+base_config:
+  region: us-chicago-1
+  llm_server_type: sglang
+  llm_server_config:
+    tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+  data:
+    - prompt_tokens=128,output_tokens=1024
+    - prompt_tokens=1024,output_tokens=128
+    - prompt_tokens=512,output_tokens=512
+configs:
+  - model: zed-industries/zeta
+    gpu: H100
