@@ -48,26 +48,23 @@ def load_benchmarks_from_config(config_path: str):
 @click.command()
 @click.argument("config-path", type=str)
 @click.option(
-    "--dry-run",
+    "--disable-safe-mode",
     is_flag=True,
-    default=False,
-    help="Run the benchmark suite without actually running any benchmarks.",
+    help="Disable safe mode, which runs all of your benchmarks once without repeats before continuing. This slows down your benchmark runs, but ensures you don't waste money on invalid configurations.",
 )
 @click.option(
     "--ignore-previous-errors",
     is_flag=True,
-    default=False,
     help="Ignore errors when checking the results of previous function calls.",
 )
 @click.option(
     "--recompute",
     is_flag=True,
-    default=False,
     help="Recompute benchmarks that have already been run.",
 )
 def run_benchmark_suite(
     config_path: str,
-    dry_run: bool = False,
+    disable_safe_mode: bool = False,
     ignore_previous_errors: bool = False,
     recompute: bool = False,
 ):
@@ -78,7 +75,7 @@ def run_benchmark_suite(
         benchmarks=benchmarks,
         id=id,
         repeats=repeats,
-        dry_run=dry_run,
+        disable_safe_mode=disable_safe_mode,
         ignore_previous_errors=ignore_previous_errors,
         recompute=recompute,
     )

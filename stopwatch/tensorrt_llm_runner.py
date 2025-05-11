@@ -14,6 +14,7 @@ from .resources import app, hf_cache_volume, hf_secret
 
 HF_CACHE_PATH = "/cache"
 LLM_KWARGS_PATH = "llm_kwargs.yaml"
+PORT = 8000
 
 
 def tensorrt_llm_image_factory(
@@ -143,7 +144,7 @@ class TensorRTLLMBase:
             with open(os.path.join(self.engine_path, LLM_KWARGS_PATH), "w") as f:
                 yaml.dump(llm_kwargs_simple, f)
 
-    @modal.web_server(port=8000, startup_timeout=30 * MINUTES)
+    @modal.web_server(port=PORT, startup_timeout=30 * MINUTES)
     def start(self):
         """Start a TensorRT-LLM server."""
 
@@ -152,24 +153,28 @@ class TensorRTLLMBase:
 
         # Start TensorRT-LLM server
         subprocess.Popen(
-            [
-                "trtllm-serve",
-                self.engine_path,
-                "--host",
-                "0.0.0.0",
-                "--extra_llm_api_options",
-                os.path.join(self.engine_path, LLM_KWARGS_PATH),
-                *(
-                    ["--tokenizer", server_config["tokenizer"]]
-                    if "tokenizer" in server_config
-                    else []
-                ),
-                *server_config.get("extra_args", []),
-            ],
+            " ".join(
+                [
+                    "trtllm-serve",
+                    self.engine_path,
+                    "--host",
+                    "0.0.0.0",
+                    "--extra_llm_api_options",
+                    os.path.join(self.engine_path, LLM_KWARGS_PATH),
+                    *(
+                        ["--tokenizer", server_config["tokenizer"]]
+                        if "tokenizer" in server_config
+                        else []
+                    ),
+                    *server_config.get("extra_args", []),
+                ]
+            )
+            + f" || python -m http.server {PORT}",
             env={
                 **os.environ,
                 **server_config.get("env_vars", {}),
             },
+            shell=True,
         )
 
 
@@ -235,7 +240,7 @@ def tensorrt_llm(
     extra_query = {
         "model": model,
         # Sort keys to ensure that this parameter doesn't change between runs
-        # with the same vLLM configuration
+        # with the same TensorRT-LLM configuration
         "server_config": json.dumps(server_config, sort_keys=True),
         "caller_id": modal.current_function_call_id(),
     }
@@ -258,6 +263,17 @@ def tensorrt_llm(
     num_retries = 3
     for retry in range(num_retries):
         res = requests.get(f"{url}/health", params=extra_query)
+
+        if res.status_code == 404:
+            # If this endpoint returns a 404, it is because the TensorRT-LLM startup
+            # command returned a nonzero exit code, resulting in this request being
+            # routed to the fallback Python http.server module. This means that
+            # TensorRT-LLM crashed on startup.
+
+            raise Exception(
+                "The TensorRT-LLM server has crashed, likely due to a misconfiguration. "
+                "Please investigate this crash before proceeding."
+            )
 
         if res.status_code == 200:
             break

@@ -168,24 +168,24 @@ async def run_benchmark(
             warnings.warn("WARNING: Benchmark timed out")
             return
 
-        if (
-            len(result["requests"]["successful"]) == 0
-            and len(result["requests"]["errored"]) > 0
-        ):
-            # This happens when the benchmark is run with invald parameters
-            # e.g. asking the model to generate more tokens than its
-            # maximum context size. When this happens, requests made to the
-            # vLLM runner return a 400 error, and no results are saved.
+        # if (
+        #     len(result["requests"]["successful"]) == 0
+        #     and len(result["requests"]["errored"]) > 0
+        # ):
+        #     # This happens when the benchmark is run with invald parameters
+        #     # e.g. asking the model to generate more tokens than its
+        #     # maximum context size. When this happens, requests made to the
+        #     # vLLM runner return a 400 error, and no results are saved.
 
-            # TODO: Return an error when 400 errors are encountered without
-            # crashing the run_benchmark_suite function.
+        #     # TODO: Return an error when 400 errors are encountered without
+        #     # crashing the run_benchmark_suite function.
 
-            warnings.warn(f"WARNING: No results for {fc.object_id}")
-            print(result["requests"]["errored"][0])
-            benchmark.function_call_id = None
-            session.commit()
-            db_volume.commit()
-            return
+        #     warnings.warn(f"WARNING: No results for {fc.object_id}")
+        #     print(result["requests"]["errored"][0])
+        #     benchmark.function_call_id = None
+        #     session.commit()
+        #     db_volume.commit()
+        #     return
 
         print("Saving results for", fc.object_id)
 
@@ -201,7 +201,6 @@ async def run_benchmark(
 
 async def run_benchmarks_in_parallel(
     benchmarks: List[Dict[str, Any]],
-    dry_run: bool = False,
     ignore_previous_errors: bool = False,
 ):
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_BENCHMARKS)
@@ -210,15 +209,10 @@ async def run_benchmarks_in_parallel(
     for benchmark_id, fc in get_benchmarks_to_run(
         benchmarks, ignore_previous_errors=ignore_previous_errors
     ):
-        if dry_run:
-            benchmark = session.query(Benchmark).filter_by(id=benchmark_id).first()
-            print("Would run benchmark with config", benchmark.get_config())
-            continue
-
         task = asyncio.create_task(run_benchmark(benchmark_id, fc, semaphore))
         tasks.append(task)
 
-    if dry_run or len(tasks) == 0:
+    if len(tasks) == 0:
         return
 
     await asyncio.gather(*tasks)
@@ -239,7 +233,7 @@ async def run_benchmark_suite(
     benchmarks: List[Dict[str, Any]],
     id: str,
     repeats: int = 1,
-    dry_run: bool = False,
+    disable_safe_mode: bool = False,
     ignore_previous_errors: bool = False,
     recompute: bool = False,
 ):
@@ -287,6 +281,21 @@ async def run_benchmark_suite(
 
         session.commit()
 
+    # STEP 0.75: Run synchronous benchmarks without repeats to ensure that all
+    # benchmark configurations are working.
+    if not disable_safe_mode:
+        await run_benchmarks_in_parallel(
+            [
+                {
+                    **benchmark,
+                    "rate_type": RateType.SYNCHRONOUS.value,
+                    "repeat_index": 0,
+                }
+                for benchmark in benchmarks
+            ],
+            ignore_previous_errors=ignore_previous_errors,
+        )
+
     # STEP 1: Run synchronous and throughput benchmarks
     # TODO: If repeat_index is increased, all of the constant rate benchmarks
     # need to be re-run with the new synchronous and throughput rates in mind
@@ -302,13 +311,18 @@ async def run_benchmark_suite(
                 [RateType.SYNCHRONOUS, RateType.THROUGHPUT],
                 range(repeats),
             )
+            if disable_safe_mode
+            or session.query(Benchmark)
+            .filter_by(
+                **{k: v for k, v in benchmark.items() if k != "group_id"},
+                rate_type=RateType.SYNCHRONOUS.value,
+            )
+            .filter(Benchmark.completed_request_rate.is_not(None))
+            .count()
+            == 1
         ],
-        dry_run=dry_run,
         ignore_previous_errors=ignore_previous_errors,
     )
-
-    if dry_run:
-        return
 
     # STEP 2: Run benchmarks at constant rates
     benchmarks_to_run = []
@@ -514,12 +528,15 @@ async def run_benchmark_suite(
     )
 
     # Process data into human-readable strings
+    df["data"] = df["data"].map(
+        lambda x: {k: int(v) for param in x.split(",") for k, v in [param.split("=")]}
+    )
     df["task"] = df["data"].map(
-        lambda x: {
-            "prompt_tokens=256,output_tokens=4096": "reasoning",
-            "prompt_tokens=2048,output_tokens=2048": "balanced",
-            "prompt_tokens=4096,output_tokens=256": "retrieval",
-        }.get(x, x)
+        lambda x: (
+            "reasoning"
+            if x["prompt_tokens"] < x["output_tokens"]
+            else "balanced" if x["prompt_tokens"] == x["output_tokens"] else "retrieval"
+        )
     )
     df["total_tokens"] = df["prompt_tokens"] + df["output_tokens"]
     df["gpu_type"] = df["gpu"].map(lambda x: x.split(":")[0].strip("!"))

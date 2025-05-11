@@ -1,6 +1,7 @@
 from typing import Any, Mapping, Optional
 import contextlib
 import json
+import os
 import subprocess
 import time
 
@@ -11,6 +12,7 @@ from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
 HF_CACHE_PATH = "/cache"
+PORT = 30000
 TRACES_PATH = "/traces"
 
 
@@ -22,7 +24,7 @@ def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG):
                 "RUN ln -s /usr/bin/python3 /usr/bin/python",
             ],
         )
-        .pip_install("hf-transfer", "grpclib", "requests")
+        .pip_install("hf-transfer", "grpclib", "requests", "vllm")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands("ENTRYPOINT []")
         .add_local_python_source("cli")
@@ -60,7 +62,7 @@ def sglang_cls(
 class SGLangBase:
     """A Modal class that runs an SGLang server."""
 
-    @modal.web_server(port=30000, startup_timeout=30 * MINUTES)
+    @modal.web_server(port=PORT, startup_timeout=30 * MINUTES)
     def start(self):
         """Start an SGLang server."""
 
@@ -69,21 +71,29 @@ class SGLangBase:
 
         # Start SGLang server
         subprocess.Popen(
-            [
-                "python",
-                "-m",
-                "sglang.launch_server",
-                "--model-path",
-                self.model,
-                "--host",
-                "0.0.0.0",
-                *(
-                    ["--tokenizer-path", server_config["tokenizer"]]
-                    if "tokenizer" in server_config
-                    else []
-                ),
-                *server_config.get("extra_args", []),
-            ]
+            " ".join(
+                [
+                    "python",
+                    "-m",
+                    "sglang.launch_server",
+                    "--model-path",
+                    self.model,
+                    "--host",
+                    "0.0.0.0",
+                    *(
+                        ["--tokenizer-path", server_config["tokenizer"]]
+                        if "tokenizer" in server_config
+                        else []
+                    ),
+                    *server_config.get("extra_args", []),
+                ]
+            )
+            + f" || python -m http.server {PORT}",
+            env={
+                **os.environ,
+                **server_config.get("env_vars", {}),
+            },
+            shell=True,
         )
 
 
@@ -170,6 +180,17 @@ def sglang(
     num_retries = 3
     for retry in range(num_retries):
         res = requests.get(f"{url}/health_generate", params=extra_query)
+
+        if res.status_code == 404:
+            # If this endpoint returns a 404, it is because the SGLang startup command
+            # returned a nonzero exit code, resulting in this request being routed to
+            # the fallback Python http.server module. This means that SGLang crashed on
+            # startup.
+
+            raise Exception(
+                "The SGLang server has crashed, likely due to a misconfiguration. "
+                "Please investigate this crash before proceeding."
+            )
 
         if res.status_code == 200:
             break

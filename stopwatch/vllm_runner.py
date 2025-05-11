@@ -13,6 +13,7 @@ from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
 HF_CACHE_PATH = "/cache"
+PORT = 8000
 TRACES_PATH = "/traces"
 
 
@@ -72,34 +73,42 @@ class vLLMBase:
     tunnel, the URL for which is stored in a shared dict.
     """
 
-    @modal.web_server(port=8000, startup_timeout=1 * HOURS)
+    @modal.web_server(port=PORT, startup_timeout=1 * HOURS)
     def start(self):
         """Start a vLLM server."""
 
         assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
         server_config = json.loads(self.server_config)
 
+        # Read the location of the correct Python binary from the file created while
+        # building the image.
+        python_binary = open("/vllm-workspace/vllm-python").read()
+
         # Start vLLM server
         subprocess.Popen(
-            [
-                # Read the location of the correct Python binary from the file
-                # created while building the image.
-                open("/vllm-workspace/vllm-python").read(),
-                "-m",
-                "vllm.entrypoints.openai.api_server",
-                "--model",
-                self.model,
-                *(
-                    ["--tokenizer", server_config["tokenizer"]]
-                    if "tokenizer" in server_config
-                    else []
-                ),
-                *server_config.get("extra_args", []),
-            ],
+            " ".join(
+                [
+                    # Read the location of the correct Python binary from the file
+                    # created while building the image.
+                    python_binary,
+                    "-m",
+                    "vllm.entrypoints.openai.api_server",
+                    "--model",
+                    self.model,
+                    *(
+                        ["--tokenizer", server_config["tokenizer"]]
+                        if "tokenizer" in server_config
+                        else []
+                    ),
+                    *server_config.get("extra_args", []),
+                ]
+            )
+            + f" || {python_binary} -m http.server {PORT}",
             env={
                 **os.environ,
                 **server_config.get("env_vars", {}),
             },
+            shell=True,
         )
 
 
@@ -250,6 +259,17 @@ def vllm(
             print(f"Error requesting metrics: {e}")
             extra_query["caller_id"] = str(uuid.uuid4())
             break
+
+        if res.status_code == 404:
+            # If this endpoint returns a 404, it is because the vLLM startup command
+            # returned a nonzero exit code, resulting in this request being routed to
+            # the fallback Python http.server module. This means that vLLM crashed on
+            # startup.
+
+            raise Exception(
+                "The vLLM server has crashed, likely due to a misconfiguration. "
+                "Please investigate this crash before proceeding."
+            )
 
         if "vllm:gpu_cache_usage_perc" in res.text:
             break
