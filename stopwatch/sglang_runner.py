@@ -1,9 +1,6 @@
-from typing import Any, Mapping, Optional
-import contextlib
 import json
 import os
 import subprocess
-import time
 
 import modal
 
@@ -125,82 +122,19 @@ class SGLang_8xH100(SGLangBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@contextlib.contextmanager
-def sglang(
-    model: str,
-    gpu: str,
-    region: str,
-    server_config: Optional[Mapping[str, Any]] = None,
-    profile: bool = False,
-):
-    import requests
-
-    if profile:
-        raise ValueError("Profiling is not supported for SGLang")
-
-    all_sglang_classes = {
-        VersionDefaults.SGLANG: {
-            "H100": {
-                "us-chicago-1": SGLang,
-            },
-            "H100:2": {
-                "us-chicago-1": SGLang_2xH100,
-            },
-            "H100:4": {
-                "us-chicago-1": SGLang_4xH100,
-            },
-            "H100:8": {
-                "us-chicago-1": SGLang_8xH100,
-            },
+sglang_classes = {
+    VersionDefaults.SGLANG: {
+        "H100": {
+            "us-chicago-1": SGLang,
+        },
+        "H100:2": {
+            "us-chicago-1": SGLang_2xH100,
+        },
+        "H100:4": {
+            "us-chicago-1": SGLang_4xH100,
+        },
+        "H100:8": {
+            "us-chicago-1": SGLang_8xH100,
         },
     }
-
-    docker_tag = server_config.get("version", VersionDefaults.SGLANG)
-    extra_query = {
-        "model": model,
-        # Sort keys to ensure that this parameter doesn't change between runs
-        # with the same SGLang configuration
-        "server_config": json.dumps(server_config, sort_keys=True),
-        "caller_id": modal.current_function_call_id(),
-    }
-
-    # Pick SGLang server class
-    try:
-        cls = all_sglang_classes[docker_tag][gpu.replace("!", "")][region]
-    except KeyError:
-        raise ValueError(
-            f"Unsupported SGLang configuration: {docker_tag} {gpu} {region}"
-        )
-
-    url = cls(model="").start.web_url
-
-    # Wait for SGLang server to start
-    print(f"Requesting health check at {url}/health_generate with params {extra_query}")
-
-    num_retries = 3
-    for retry in range(num_retries):
-        res = requests.get(f"{url}/health_generate", params=extra_query)
-
-        if res.status_code == 404:
-            # If this endpoint returns a 404, it is because the SGLang startup command
-            # returned a nonzero exit code, resulting in this request being routed to
-            # the fallback Python http.server module. This means that SGLang crashed on
-            # startup.
-
-            raise Exception(
-                "The SGLang server has crashed, likely due to a misconfiguration. "
-                "Please investigate this crash before proceeding."
-            )
-
-        if res.status_code == 200:
-            break
-        else:
-            time.sleep(5)
-
-        if retry == num_retries - 1:
-            raise ValueError(
-                f"Failed to connect to SGLang instance: {res.status_code} {res.text}"
-            )
-
-    print("Connected to SGLang instance")
-    yield (url, extra_query)
+}

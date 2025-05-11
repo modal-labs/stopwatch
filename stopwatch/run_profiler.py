@@ -3,8 +3,8 @@ import time
 import modal
 
 from .constants import VersionDefaults
+from .llm_server import llm_server
 from .resources import app, hf_secret, traces_volume
-from .vllm_runner import vllm
 
 
 TIMEOUT = 60 * 60  # 1 hour
@@ -69,7 +69,8 @@ def run_profiler(
     )
 
     # Start vLLM server in background
-    with vllm(
+    with llm_server(
+        "vllm",
         model=model,
         gpu=gpu,
         region=server_region,

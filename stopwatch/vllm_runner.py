@@ -1,10 +1,6 @@
-from typing import Any, Mapping, Optional
-import contextlib
 import json
 import os
 import subprocess
-import time
-import uuid
 
 import modal
 
@@ -189,105 +185,34 @@ class vLLM_8xH200(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@contextlib.contextmanager
-def vllm(
-    model: str,
-    gpu: str,
-    region: str,
-    server_config: Optional[Mapping[str, Any]] = None,
-    profile: bool = False,
-):
-    import requests
-
-    all_vllm_classes = {
-        VersionDefaults.VLLM: {
-            "H100": {
-                "us-ashburn-1": vLLM_OCI_USASHBURN1,
-                "us-east-1": vLLM_AWS_USEAST1,
-                "us-east4": vLLM_GCP_USEAST4,
-                "us-chicago-1": vLLM_OCI_USCHICAGO1,
-            },
-            "A100-40GB": {
-                "us-chicago-1": vLLM_A100_40GB,
-            },
-            "A100-80GB": {
-                "us-east4": vLLM_A100_80GB,
-            },
-            "H100:2": {
-                "us-chicago-1": vLLM_2xH100,
-            },
-            "H100:4": {
-                "us-chicago-1": vLLM_4xH100,
-            },
-            "H100:8": {
-                "us-chicago-1": vLLM_8xH100,
-            },
-            "H200:4": {
-                "us-east-2": vLLM_4xH200,
-            },
-            "H200:8": {
-                "us-east-2": vLLM_8xH200,
-            },
+vllm_classes = {
+    VersionDefaults.VLLM: {
+        "H100": {
+            "us-ashburn-1": vLLM_OCI_USASHBURN1,
+            "us-east-1": vLLM_AWS_USEAST1,
+            "us-east4": vLLM_GCP_USEAST4,
+            "us-chicago-1": vLLM_OCI_USCHICAGO1,
+        },
+        "A100-40GB": {
+            "us-chicago-1": vLLM_A100_40GB,
+        },
+        "A100-80GB": {
+            "us-east4": vLLM_A100_80GB,
+        },
+        "H100:2": {
+            "us-chicago-1": vLLM_2xH100,
+        },
+        "H100:4": {
+            "us-chicago-1": vLLM_4xH100,
+        },
+        "H100:8": {
+            "us-chicago-1": vLLM_8xH100,
+        },
+        "H200:4": {
+            "us-east-2": vLLM_4xH200,
+        },
+        "H200:8": {
+            "us-east-2": vLLM_8xH200,
         },
     }
-
-    docker_tag = server_config.get("version", VersionDefaults.VLLM)
-    extra_query = {
-        "model": model,
-        # Sort keys to ensure that this parameter doesn't change between runs
-        # with the same vLLM configuration
-        "server_config": json.dumps(server_config, sort_keys=True),
-        "caller_id": modal.current_function_call_id(),
-    }
-
-    # Pick vLLM server class
-    try:
-        cls = all_vllm_classes[docker_tag][gpu.replace("!", "")][region]
-    except KeyError:
-        raise ValueError(f"Unsupported vLLM configuration: {docker_tag} {gpu} {region}")
-
-    url = cls(model="").start.web_url
-
-    # Wait for vLLM server to start
-    print(f"Requesting metrics at {url}/metrics with params {extra_query}")
-
-    num_retries = 3
-    for retry in range(num_retries):
-        try:
-            res = requests.get(f"{url}/metrics", params=extra_query)
-        except requests.HTTPError as e:
-            print(f"Error requesting metrics: {e}")
-            extra_query["caller_id"] = str(uuid.uuid4())
-            break
-
-        if res.status_code == 404:
-            # If this endpoint returns a 404, it is because the vLLM startup command
-            # returned a nonzero exit code, resulting in this request being routed to
-            # the fallback Python http.server module. This means that vLLM crashed on
-            # startup.
-
-            raise Exception(
-                "The vLLM server has crashed, likely due to a misconfiguration. "
-                "Please investigate this crash before proceeding."
-            )
-
-        if "vllm:gpu_cache_usage_perc" in res.text:
-            break
-        else:
-            time.sleep(5)
-
-        if retry == num_retries - 1:
-            raise ValueError(
-                f"Failed to connect to vLLM instance: {res.status_code} {res.text}"
-            )
-
-    print("Connected to vLLM instance")
-
-    if profile:
-        requests.post(f"{url}/start_profile", params=extra_query)
-
-    try:
-        yield (url, extra_query)
-    finally:
-        if profile:
-            requests.post(f"{url}/stop_profile", params=extra_query)
+}

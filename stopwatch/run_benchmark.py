@@ -27,16 +27,65 @@ benchmarking_image = (
 )
 
 with benchmarking_image.imports():
-    from importlib.metadata import version
     from typing import Any, Mapping, Optional
     import urllib.parse
 
-    from guidellm.backend import Backend
+    from guidellm.backend import OpenAIHTTPBackend
     from guidellm.benchmark.benchmarker import GenerativeBenchmarker
     from guidellm.benchmark.profile import create_profile
     from guidellm.request import GenerativeRequestLoader
 
     from .custom_metrics.vllm import GenerativeBenchmarkerWithvLLMMetrics
+
+    class CustomGenerativeRequestLoader(GenerativeRequestLoader):
+        """
+        A wrapper around GenerativeRequestLoader that allows for modifications to
+        be made to GuideLLM requests.
+
+        These are both useful when testing structured outputs, e.g.
+        https://docs.vllm.ai/en/latest/features/structured_outputs.html
+        """
+
+        def __init__(
+            self,
+            extra_body: Optional[dict[str, Any]] = None,
+            use_chat_completions: bool = False,
+            **kwargs,
+        ):
+            super().__init__(**kwargs)
+            self.extra_body = extra_body or {}
+            self.use_chat_completions = use_chat_completions
+
+        def __iter__(self):
+            for item in super().__iter__():
+                for k, v in self.extra_body.items():
+                    item.params[k] = v
+
+                if self.use_chat_completions:
+                    item.request_type = "chat_completions"
+
+                yield item
+
+        def __len__(self):
+            return super().__len__()
+
+    class CustomOpenAIHTTPBackend(OpenAIHTTPBackend):
+        def _completions_payload(
+            self,
+            body: Optional[dict],
+            orig_kwargs: Optional[dict],
+            max_output_tokens: Optional[int],
+            **kwargs,
+        ) -> dict:
+            payload = super()._completions_payload(
+                body, orig_kwargs, max_output_tokens, **kwargs
+            )
+
+            if "max_completion_tokens" in payload:
+                # The TensorRT-LLM server returns a 400 error if this is set.
+                del payload["max_completion_tokens"]
+
+            return payload
 
 
 def benchmark_runner_cls(region: str):
@@ -90,38 +139,6 @@ class BenchmarkRunner:
                 number of requests that should be made per second.
         """
 
-        class CustomGenerativeRequestLoader(GenerativeRequestLoader):
-            """
-            A wrapper around GenerativeRequestLoader that allows for modifications to
-            be made to GuideLLM requests.
-
-            These are both useful when testing structured outputs, e.g.
-            https://docs.vllm.ai/en/latest/features/structured_outputs.html
-            """
-
-            def __init__(
-                self,
-                extra_body: Optional[dict[str, Any]] = None,
-                use_chat_completions: bool = False,
-                **kwargs,
-            ):
-                super().__init__(**kwargs)
-                self.extra_body = extra_body or {}
-                self.use_chat_completions = use_chat_completions
-
-            def __iter__(self):
-                for item in super().__iter__():
-                    for k, v in self.extra_body.items():
-                        item.params[k] = v
-
-                    if self.use_chat_completions:
-                        item.request_type = "chat_completions"
-
-                    yield item
-
-            def __len__(self):
-                return super().__len__()
-
         if llm_server_type not in LLM_SERVER_TYPES:
             raise ValueError(
                 f"Invalid value for llm_server: {llm_server_type}. Must be one of {LLM_SERVER_TYPES}"
@@ -166,10 +183,8 @@ class BenchmarkRunner:
             metrics_url = f"{llm_server_url}/metrics?{extra_query_args}"
 
             # Create backend
-            backend = Backend.create(
-                "openai_http",
+            backend = CustomOpenAIHTTPBackend(
                 target=f"{llm_server_url}/v1",
-                model=model,
                 extra_query=extra_query,
             )
             await backend.validate()

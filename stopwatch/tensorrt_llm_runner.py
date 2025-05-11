@@ -1,10 +1,8 @@
-from typing import Any, Mapping, Optional
-import contextlib
 import hashlib
 import json
 import os
 import subprocess
-import time
+import traceback
 
 import modal
 
@@ -42,6 +40,7 @@ def tensorrt_llm_image_factory(
             {
                 "HF_HUB_CACHE": HF_CACHE_PATH,
                 "HF_HUB_ENABLE_HF_TRANSFER": "1",
+                "PMIX_MCA_gds": "hash",
             }
         )
         .add_local_python_source("cli")
@@ -90,59 +89,71 @@ class TensorRTLLMBase:
         import tensorrt_llm
         import yaml
 
-        server_config = json.loads(self.server_config)
-        llm_kwargs = server_config.get("llm_kwargs", {})
+        # This entire function needs to be wrapped in a try/except block. If an error
+        # occurs here, a crash will result in the container getting automatically
+        # restarted indefinitely. By logging the error and returning, the container
+        # will fail on the trtllm-serve command and then start the http.server module,
+        # which will return a 404 error that will be returned to the client.
 
-        print("Received server config")
-        print(server_config)
+        try:
+            server_config = json.loads(self.server_config)
+            llm_kwargs = server_config.get("llm_kwargs", {})
 
-        print("Downloading base model if necessary")
-        model_path = snapshot_download(self.model)
+            print("Received server config")
+            print(server_config)
 
-        engine_fingerprint = hashlib.md5(
-            json.dumps(llm_kwargs, sort_keys=True).encode()
-        ).hexdigest()
-        print(f"Engine fingerprint: {engine_fingerprint}")
-        print(llm_kwargs)
+            print("Downloading base model if necessary")
+            model_path = snapshot_download(self.model)
 
-        self.engine_path = os.path.join(
-            model_path,
-            "tensorrt-llm-engines",
-            f"{tensorrt_llm.__version__}-{self.model}-{engine_fingerprint}",
-        )
+            engine_fingerprint = hashlib.md5(
+                json.dumps(llm_kwargs, sort_keys=True).encode()
+            ).hexdigest()
+            print(f"Engine fingerprint: {engine_fingerprint}")
+            print(llm_kwargs)
 
-        if not os.path.exists(self.engine_path):
-            # Build the engine
-            llm_kwargs_simple = llm_kwargs.copy()
-
-            # Build with plugins, but don't save them to the engine kwargs yaml
-            # file, because trtllm-serve doesn't support loading them. This is
-            # fine, since the plugins are incorporated at build time.
-            if (
-                "build_config" in llm_kwargs
-                and "plugin_config" in llm_kwargs["build_config"]
-            ):
-                llm_kwargs["build_config"]["plugin_config"] = PluginConfig.from_dict(
-                    llm_kwargs["build_config"]["plugin_config"]
-                )
-                llm_kwargs_simple["build_config"].pop("plugin_config")
-
-            # Prepare kwargs for LLM constructor
-            llm_kwargs = update_llm_args_with_extra_dict(
-                {
-                    "model": model_path,
-                    "tokenizer": server_config.get("tokenizer", self.model),
-                },
-                llm_kwargs,
+            self.engine_path = os.path.join(
+                model_path,
+                "tensorrt-llm-engines",
+                f"{tensorrt_llm.__version__}-{self.model}-{engine_fingerprint}",
             )
+            print(f"Engine path: {self.engine_path}")
 
-            print(f"Building new engine at {self.engine_path}")
-            llm = LLM(**llm_kwargs)
-            llm.save(self.engine_path)
-            del llm
+            if not os.path.exists(self.engine_path):
+                # Build the engine
+                llm_kwargs_simple = llm_kwargs.copy()
 
-            with open(os.path.join(self.engine_path, LLM_KWARGS_PATH), "w") as f:
-                yaml.dump(llm_kwargs_simple, f)
+                # Build with plugins, but don't save them to the engine kwargs yaml
+                # file, because trtllm-serve doesn't support loading them. This is
+                # fine, since the plugins are incorporated at build time.
+                if (
+                    "build_config" in llm_kwargs
+                    and "plugin_config" in llm_kwargs["build_config"]
+                ):
+                    llm_kwargs["build_config"]["plugin_config"] = (
+                        PluginConfig.from_dict(
+                            llm_kwargs["build_config"]["plugin_config"]
+                        )
+                    )
+                    llm_kwargs_simple["build_config"].pop("plugin_config")
+
+                # Prepare kwargs for LLM constructor
+                llm_kwargs = update_llm_args_with_extra_dict(
+                    {
+                        "model": model_path,
+                        "tokenizer": server_config.get("tokenizer", self.model),
+                    },
+                    llm_kwargs,
+                )
+
+                print(f"Building new engine at {self.engine_path}")
+                llm = LLM(**llm_kwargs)
+                llm.save(self.engine_path)
+                del llm
+
+                with open(os.path.join(self.engine_path, LLM_KWARGS_PATH), "w") as f:
+                    yaml.dump(llm_kwargs_simple, f)
+        except Exception:
+            traceback.print_exc()
 
     @modal.web_server(port=PORT, startup_timeout=30 * MINUTES)
     def start(self):
@@ -151,16 +162,21 @@ class TensorRTLLMBase:
         assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
         server_config = json.loads(self.server_config)
 
+        # self.engine_path is only not set if there was an error in enter(). By setting
+        # engine_path to "none", trtllm-serve will fail, as explained in the comment
+        # at the start of enter().
+        engine_path = self.engine_path if hasattr(self, "engine_path") else "none"
+
         # Start TensorRT-LLM server
         subprocess.Popen(
             " ".join(
                 [
                     "trtllm-serve",
-                    self.engine_path,
+                    engine_path,
                     "--host",
                     "0.0.0.0",
                     "--extra_llm_api_options",
-                    os.path.join(self.engine_path, LLM_KWARGS_PATH),
+                    os.path.join(engine_path, LLM_KWARGS_PATH),
                     *(
                         ["--tokenizer", server_config["tokenizer"]]
                         if "tokenizer" in server_config
@@ -206,84 +222,19 @@ class TensorRTLLM_8xH100(TensorRTLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@contextlib.contextmanager
-def tensorrt_llm(
-    model: str,
-    gpu: str,
-    region: str,
-    server_config: Optional[Mapping[str, Any]] = None,
-    profile: bool = False,
-):
-    import requests
-
-    if profile:
-        raise ValueError("Profiling is not supported for TensorRT-LLM")
-
-    all_tensorrt_llm_classes = {
-        VersionDefaults.TENSORRT_LLM: {
-            "H100": {
-                "us-chicago-1": TensorRTLLM,
-            },
-            "H100:2": {
-                "us-chicago-1": TensorRTLLM_2xH100,
-            },
-            "H100:4": {
-                "us-chicago-1": TensorRTLLM_4xH100,
-            },
-            "H100:8": {
-                "us-chicago-1": TensorRTLLM_8xH100,
-            },
-        }
+tensorrt_llm_classes = {
+    VersionDefaults.TENSORRT_LLM: {
+        "H100": {
+            "us-chicago-1": TensorRTLLM,
+        },
+        "H100:2": {
+            "us-chicago-1": TensorRTLLM_2xH100,
+        },
+        "H100:4": {
+            "us-chicago-1": TensorRTLLM_4xH100,
+        },
+        "H100:8": {
+            "us-chicago-1": TensorRTLLM_8xH100,
+        },
     }
-
-    tensorrt_llm_version = server_config.get("version", VersionDefaults.TENSORRT_LLM)
-    extra_query = {
-        "model": model,
-        # Sort keys to ensure that this parameter doesn't change between runs
-        # with the same TensorRT-LLM configuration
-        "server_config": json.dumps(server_config, sort_keys=True),
-        "caller_id": modal.current_function_call_id(),
-    }
-
-    # Pick TensorRT-LLM server class
-    try:
-        cls = all_tensorrt_llm_classes[tensorrt_llm_version][gpu.replace("!", "")][
-            region
-        ]
-    except KeyError:
-        raise ValueError(
-            f"Unsupported TensorRT-LLM configuration: {tensorrt_llm_version} {gpu} {region}"
-        )
-
-    url = cls(model="").start.web_url
-
-    # Wait for TensorRT-LLM server to start
-    print(f"Requesting health check at {url}/health with params {extra_query}")
-
-    num_retries = 3
-    for retry in range(num_retries):
-        res = requests.get(f"{url}/health", params=extra_query)
-
-        if res.status_code == 404:
-            # If this endpoint returns a 404, it is because the TensorRT-LLM startup
-            # command returned a nonzero exit code, resulting in this request being
-            # routed to the fallback Python http.server module. This means that
-            # TensorRT-LLM crashed on startup.
-
-            raise Exception(
-                "The TensorRT-LLM server has crashed, likely due to a misconfiguration. "
-                "Please investigate this crash before proceeding."
-            )
-
-        if res.status_code == 200:
-            break
-        else:
-            time.sleep(5)
-
-        if retry == num_retries - 1:
-            raise ValueError(
-                f"Failed to connect to TensorRT-LLM instance: {res.status_code} {res.text}"
-            )
-
-    print("Connected to TensorRT-LLM instance")
-    yield (url, extra_query)
+}

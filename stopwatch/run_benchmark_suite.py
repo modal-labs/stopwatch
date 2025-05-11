@@ -26,6 +26,7 @@ with benchmark_suite_image.imports():
     import itertools
     import json
     import os
+    import traceback
     import uuid
     import warnings
 
@@ -167,25 +168,10 @@ async def run_benchmark(
         except modal.exception.FunctionTimeoutError:
             warnings.warn("WARNING: Benchmark timed out")
             return
-
-        # if (
-        #     len(result["requests"]["successful"]) == 0
-        #     and len(result["requests"]["errored"]) > 0
-        # ):
-        #     # This happens when the benchmark is run with invald parameters
-        #     # e.g. asking the model to generate more tokens than its
-        #     # maximum context size. When this happens, requests made to the
-        #     # vLLM runner return a 400 error, and no results are saved.
-
-        #     # TODO: Return an error when 400 errors are encountered without
-        #     # crashing the run_benchmark_suite function.
-
-        #     warnings.warn(f"WARNING: No results for {fc.object_id}")
-        #     print(result["requests"]["errored"][0])
-        #     benchmark.function_call_id = None
-        #     session.commit()
-        #     db_volume.commit()
-        #     return
+        except Exception:
+            warnings.warn("WARNING: Unexpected error when running benchmark")
+            traceback.print_exc()
+            return
 
         print("Saving results for", fc.object_id)
 
