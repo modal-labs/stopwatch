@@ -253,13 +253,21 @@ def tensorrt_llm(
     url = cls(model="").start.web_url
 
     # Wait for TensorRT-LLM server to start
-    response_code = -1
     print(f"Requesting health check at {url}/health with params {extra_query}")
 
-    while response_code != 200:
-        response = requests.get(f"{url}/health", params=extra_query)
-        response_code = response.status_code
-        time.sleep(5)
+    num_retries = 3
+    for retry in range(num_retries):
+        res = requests.get(f"{url}/health", params=extra_query)
+
+        if res.status_code == 200:
+            break
+        else:
+            time.sleep(5)
+
+        if retry == num_retries - 1:
+            raise ValueError(
+                f"Failed to connect to TensorRT-LLM instance: {res.status_code} {res.text}"
+            )
 
     print("Connected to TensorRT-LLM instance")
     yield (url, extra_query)

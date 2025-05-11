@@ -240,23 +240,26 @@ def vllm(
     url = cls(model="").start.web_url
 
     # Wait for vLLM server to start
-    response_body = ""
     print(f"Requesting metrics at {url}/metrics with params {extra_query}")
 
-    while True:
+    num_retries = 3
+    for retry in range(num_retries):
         try:
-            response = requests.get(f"{url}/metrics", params=extra_query)
+            res = requests.get(f"{url}/metrics", params=extra_query)
         except requests.HTTPError as e:
             print(f"Error requesting metrics: {e}")
             extra_query["caller_id"] = str(uuid.uuid4())
             break
 
-        response_body = response.text
-
-        if "vllm:gpu_cache_usage_perc" in response_body:
+        if "vllm:gpu_cache_usage_perc" in res.text:
             break
         else:
             time.sleep(5)
+
+        if retry == num_retries - 1:
+            raise ValueError(
+                f"Failed to connect to vLLM instance: {res.status_code} {res.text}"
+            )
 
     print("Connected to vLLM instance")
 
