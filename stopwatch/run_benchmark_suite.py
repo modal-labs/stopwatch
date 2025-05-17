@@ -321,7 +321,10 @@ async def run_benchmark_suite(
                 **{k: v for k, v in benchmark.items() if k != "group_id"},
                 rate_type=RateType.SYNCHRONOUS.value,
             )
-            .filter(Benchmark.completed_request_rate.is_not(None))
+            .filter(
+                Benchmark.completed_request_rate.is_not(None)
+                & (Benchmark.repeat_index <= repeats)
+            )
             .all()
         )
         throughput_benchmarks = (
@@ -330,7 +333,10 @@ async def run_benchmark_suite(
                 **{k: v for k, v in benchmark.items() if k != "group_id"},
                 rate_type=RateType.THROUGHPUT.value,
             )
-            .filter(Benchmark.completed_request_rate.is_not(None))
+            .filter(
+                Benchmark.completed_request_rate.is_not(None)
+                & (Benchmark.repeat_index <= repeats)
+            )
             .all()
         )
 
