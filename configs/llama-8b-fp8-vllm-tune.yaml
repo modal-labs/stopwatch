@@ -1,0 +1,13 @@
+id: llama-8b-fp8-vllm-tune
+repeats: 3
+base_config:
+  model: RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8
+  gpu: H100
+  region: us-chicago-1
+  data:
+    - prompt_tokens=256,generated_tokens=26
+    - prompt_tokens=512,generated_tokens=51
+    - prompt_tokens=1024,generated_tokens=102
+  llm_server_type: vllm
+configs:
+   - llm_server_config:

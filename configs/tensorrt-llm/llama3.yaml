@@ -1,5 +1,5 @@
 id: tensorrt-llm-llama3
-repeats: 3
+repeats: 1
 base_config:
   region: us-chicago-1
   llm_server_type: tensorrt-llm
@@ -10,7 +10,3 @@ base_config:
 configs:
   - model: meta-llama/Llama-3.1-8B-Instruct
     gpu: H100
-  # - model: hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4
-  #   gpu: H100
-  # - model: meta-llama/Llama-3.1-70B-Instruct
-  #   gpu: H100:8

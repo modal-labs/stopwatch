@@ -1,0 +1,26 @@
+id: zeta-vllm-tune
+repeats: 5
+base_config:
+  model: zed-industries/zeta
+  gpu: H100
+  region: us-chicago-1
+  data:
+    - prompt_tokens=4096,generated_tokens=256
+configs:
+   - llm_server_config:
+       tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+   - llm_server_config:
+       tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+       extra_args: ["--enforce-eager"]
+   - llm_server_config:
+       tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+       extra_args: ["--no-enable-prefix-caching"]
+   - llm_server_config:
+       tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+       extra_args: ["--quantization", "fp8"]
+   - llm_server_config:
+       tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+       extra_args: ["--max-model-len", "4500", "--quantization", "fp8"]
+   - llm_server_config:
+       tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+       extra_args: ["--max-model-len", "4500", "--quantization", "fp8", "--enable-chunked-prefill"]

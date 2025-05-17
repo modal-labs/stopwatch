@@ -1,0 +1,16 @@
+id: tensorrt-llm
+repeats: 1
+base_config:
+  region: us-chicago-1
+  llm_server_type: tensorrt-llm
+  model: meta-llama/Llama-3.1-8B-Instruct
+  data:
+    - prompt_tokens=256,generated_tokens=26
+    - prompt_tokens=512,generated_tokens=52
+    - prompt_tokens=1024,generated_tokens=102
+configs:
+    - gpu: H100
+      llm_server_config:
+        llm_kwargs:
+          quant_config:
+            quant_algo: FP8

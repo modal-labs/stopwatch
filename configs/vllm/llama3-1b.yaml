@@ -1,0 +1,10 @@
+id: vllm-llama3-1b
+repeats: 1
+base_config:
+  region: us-chicago-1
+  llm_server_type: vllm
+  data:
+    - prompt_tokens=50,output_tokens=128
+configs:
+  - model: meta-llama/Llama-3.2-1B-Instruct
+    gpu: H100

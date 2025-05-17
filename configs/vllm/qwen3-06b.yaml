@@ -1,0 +1,29 @@
+id: vllm-qwen3-06b-tuning-2025-05-15
+repeats: 1
+base_config:
+  region: us-chicago-1
+  llm_server_type: vllm
+  data:
+    - prompt_tokens=1024,output_tokens=128
+configs:
+  - model:
+      - Qwen/Qwen3-0.6B-FP8
+      - Qwen/Qwen3-0.6B
+    gpu: H100
+    llm_server_config:
+      extra_args:
+        [
+          "--max-model-len",
+          "1536",
+          "--gpu-memory-utilization",
+          "0.95",
+          "--max-seq-len-to-capture",
+          "1536",
+          "--max-logprobs",
+          "0",
+          "-O3",
+          "--num-scheduler-steps",
+          "8",
+        ]
+      env_vars:
+          VLLM_USE_V1: "0" 

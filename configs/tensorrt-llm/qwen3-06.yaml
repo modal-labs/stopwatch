@@ -1,26 +1,27 @@
-id: tensorrt-llm-zeta
+# model not supported as of 0.20.0rc1
+id: tensorrt-llm-qwen3-06
 repeats: 1
 base_config:
   region: us-chicago-1
   llm_server_type: tensorrt-llm
   gpu: H100
-  model: zed-industries/zeta
+  model: Qwen/Qwen3-0.6B
   data:
     - prompt_tokens=128,output_tokens=128
-    - prompt_tokens=512,output_tokens=128
-    - prompt_tokens=2048,output_tokens=128
-    - prompt_tokens=8000,output_tokens=128
-    - prompt_tokens=128,output_tokens=512
-    - prompt_tokens=512,output_tokens=512
-    - prompt_tokens=2048,output_tokens=512
-    - prompt_tokens=128,output_tokens=2048
-    - prompt_tokens=512,output_tokens=2048
-    - prompt_tokens=2048,output_tokens=2048
+    # - prompt_tokens=512,output_tokens=128
+    # - prompt_tokens=2048,output_tokens=128
+    # - prompt_tokens=7680,output_tokens=128
+    # - prompt_tokens=128,output_tokens=512
+    # - prompt_tokens=512,output_tokens=512
+    # - prompt_tokens=2048,output_tokens=512
+    # - prompt_tokens=128,output_tokens=2048
+    # - prompt_tokens=512,output_tokens=2048
+    # - prompt_tokens=2048,output_tokens=2048
+    # - prompt_tokens=128,output_tokens=7680
 configs:
   - llm_server_config:
-      tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+      {}
   - llm_server_config:
-      tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
       llm_kwargs:
         build_config:
           plugin_config:
@@ -30,7 +31,6 @@ configs:
           max_num_tokens: 16384
           max_batch_size: 1
   - llm_server_config:
-      tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
       llm_kwargs:
         quant_config:
           quant_algo: FP8
@@ -41,7 +41,6 @@ configs:
           calib_max_seq_length: 2048
           tokenizer_max_seq_length: 4096
   - llm_server_config:
-      tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
       llm_kwargs:
         quant_config:
           quant_algo: FP8
@@ -56,6 +55,29 @@ configs:
           plugin_config:
             multiple_profiles: true
             paged_kv_cache: true
+            low_latency_gemm_swiglu_plugin: fp8
+            low_latency_gemm_plugin: fp8
+          speculative_decoding_mode: LOOKAHEAD_DECODING
+          max_input_len: 8192
+          max_num_tokens: 16384
+          max_batch_size: 1
+  - llm_server_config:
+      llm_kwargs:
+        quant_config:
+          quant_algo: FP8
+
+        calib_config:
+          calib_batches: 512
+          calib_batch_size: 1
+          calib_max_seq_length: 2048
+          tokenizer_max_seq_length: 4096
+
+        build_config:
+          plugin_config:
+            multiple_profiles: true
+            paged_kv_cache: true
+            low_latency_gemm_swiglu_plugin: fp8
+            low_latency_gemm_plugin: fp8
           speculative_decoding_mode: LOOKAHEAD_DECODING
           max_input_len: 8192
           max_num_tokens: 16384

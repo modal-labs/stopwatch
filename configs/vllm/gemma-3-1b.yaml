@@ -1,0 +1,12 @@
+id: vllm-gemma3-1b
+repeats: 1
+base_config:
+  region: us-chicago-1
+  llm_server_type: vllm
+  data:
+    - prompt_tokens=50,output_tokens=128
+    - prompt_tokens=2048,output_tokens=128
+    - prompt_tokens=16384,output_tokens=128
+configs:
+  - model: google/gemma-3-1b-it
+    gpu: H100
