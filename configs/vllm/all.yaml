@@ -1,0 +1,8 @@
+id: vllm
+files:
+  - deepseek.yaml
+  - gemma3.yaml
+  - llama3.yaml
+  - mistral.yaml
+  - qwen.yaml
+  - zeta.yaml

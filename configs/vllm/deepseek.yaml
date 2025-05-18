@@ -1,5 +1,4 @@
 id: vllm-deepseek
-repeats: 3
 base_config:
   region: us-chicago-1
   llm_server_type: vllm
@@ -15,6 +14,8 @@ configs:
         [
           "--tensor-parallel-size",
           "8",
+          "--chat-template",
+          "/home/no-system-prompt.jinja",
           "--max-model-len",
           "8192",
           "--gpu-memory-utilization",

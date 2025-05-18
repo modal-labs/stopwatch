@@ -1,7 +1,0 @@
-id: vllm
-repeats: 3
-files:
-  #  - vllm/deepseek.yaml
-  - vllm/llama3.yaml
-  # - vllm/qwen.yaml
-  - vllm/zeta.yaml

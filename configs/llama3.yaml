@@ -1,0 +1,21 @@
+id: sglang-llama3
+base_config:
+  region: us-chicago-1
+  llm_server_type: sglang
+  data:
+    - prompt_tokens=128,output_tokens=1024
+    - prompt_tokens=1024,output_tokens=128
+    - prompt_tokens=512,output_tokens=512
+configs:
+  - model: meta-llama/Llama-3.1-8B-Instruct
+    gpu: H100
+    llm_server_config:
+      - version: v0.7.3
+      - version: v0.8.0
+    llm_server_type: vllm
+  - model: meta-llama/Llama-3.1-8B-Instruct
+    gpu: H100
+    llm_server_config:
+      - {}
+      - extra_args: ["--quantization", "fp8"]
+    llm_server_type: sglang

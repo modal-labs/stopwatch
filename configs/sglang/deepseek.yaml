@@ -1,5 +1,4 @@
 id: sglang-deepseek
-repeats: 3
 base_config:
   region: us-chicago-1
   llm_server_type: sglang
@@ -13,6 +12,8 @@ configs:
     llm_server_config:
       extra_args:
         [
+          "--chat-template",
+          "/home/no-system-prompt.jinja",
           "--tp",
           "8",
           "--context-length",

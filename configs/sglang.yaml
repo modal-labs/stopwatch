@@ -1,7 +1,0 @@
-id: sglang
-repeats: 3
-files:
-#  - sglang/deepseek.yaml
-  - sglang/llama3.yaml
-  - sglang/qwen.yaml
-  - sglang/zeta.yaml
