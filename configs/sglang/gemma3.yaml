@@ -3,7 +3,15 @@ base_config:
   region: us-chicago-1
   llm_server_type: sglang
   llm_server_config:
-    extra_args: ["--chat-template", "/home/no-system-prompt.jinja"]
+    extra_args:
+      [
+        "--chat-template",
+        "/home/no-system-prompt.jinja",
+        "--dtype",
+        "bfloat16",
+        "--context-length",
+        "8192",
+      ]
   data:
     - prompt_tokens=128,output_tokens=1024
     - prompt_tokens=1024,output_tokens=128

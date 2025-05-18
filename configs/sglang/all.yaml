@@ -1,6 +1,8 @@
 id: sglang
 files:
-  - deepseek.yaml
+  # Can't get DeepSeek to work on SGLang yet. Having the same issue as:
+  # https://github.com/sgl-project/sglang/issues/6054
+  # - deepseek.yaml
   - gemma3.yaml
   - llama3.yaml
   # SGLang started supporting Mistral 3 on 2025-05-17 (https://github.com/sgl-project/sglang/pull/5099)
