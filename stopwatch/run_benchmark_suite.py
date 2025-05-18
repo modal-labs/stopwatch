@@ -58,9 +58,7 @@ def find_function_call(
     return None
 
 
-def get_benchmarks_to_run(
-    benchmarks: List[Dict[str, Any]], ignore_previous_errors: bool = False
-):
+def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]]):
     for config in benchmarks:
         benchmark_models = (
             session.query(Benchmark)
@@ -116,19 +114,10 @@ def get_benchmarks_to_run(
                             yield (benchmark.id, fc)
                             continue
                         except Exception as e:
-                            # This function call likely crashed, so we should
-                            # only re-run it if ignore_previous_errors is set
-                            # to true.
-                            if ignore_previous_errors:
-                                warnings.warn(
-                                    "WARNING: Unexpected error when checking previous function call",
-                                    e,
-                                )
-                                pass
-                            else:
-                                raise Exception(
-                                    f"The previous function call {benchmark.function_call_id} for benchmark {benchmark.id} crashed. You may ignore this error with --ignore-previous-errors"
-                                ) from e
+                            # This function call likely crashed
+                            raise Exception(
+                                f"The previous function call {benchmark.function_call_id} for benchmark {benchmark.id} crashed. You may ignore this error with --ignore-previous-errors"
+                            ) from e
                         else:
                             # The previous function call has completed
                             # successfully, so we can save its results
@@ -186,16 +175,11 @@ async def run_benchmark(
         db_volume.commit()
 
 
-async def run_benchmarks_in_parallel(
-    benchmarks: List[Dict[str, Any]],
-    ignore_previous_errors: bool = False,
-):
+async def run_benchmarks_in_parallel(benchmarks: List[Dict[str, Any]]):
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_BENCHMARKS)
     tasks = []
 
-    for benchmark_id, fc in get_benchmarks_to_run(
-        benchmarks, ignore_previous_errors=ignore_previous_errors
-    ):
+    for benchmark_id, fc in get_benchmarks_to_run(benchmarks):
         task = asyncio.create_task(run_benchmark(benchmark_id, fc, semaphore))
         tasks.append(task)
 
@@ -215,15 +199,13 @@ async def run_benchmarks_in_parallel(
     scaledown_window=2,
     timeout=TIMEOUT,
 )
-@modal.concurrent(max_inputs=100)
+@modal.concurrent(max_inputs=1)
 async def run_benchmark_suite(
     benchmarks: List[Dict[str, Any]],
     id: str,
     version: int = 1,
     repeats: int = 1,
     disable_safe_mode: bool = False,
-    ignore_previous_errors: bool = False,
-    recompute: bool = False,
 ):
     db_volume.reload()
     SuiteBenchmark = benchmark_cls_factory(table_name=id.replace("-", "_"))
@@ -260,16 +242,6 @@ async def run_benchmark_suite(
             "suite": version,
         }
 
-    # STEP 0.5: Delete existing benchmarks if recompute is set to true
-    if recompute:
-        # Delete existing benchmarks if recompute is set to true
-        for benchmark in benchmarks:
-            session.query(Benchmark).filter_by(
-                **{k: v for k, v in benchmark.items() if k != "group_id"}
-            ).delete()
-
-        session.commit()
-
     # STEP 0.75: Run synchronous benchmarks without repeats to ensure that all
     # benchmark configurations are working.
     if not disable_safe_mode:
@@ -281,8 +253,7 @@ async def run_benchmark_suite(
                     "repeat_index": 0,
                 }
                 for benchmark in benchmarks
-            ],
-            ignore_previous_errors=ignore_previous_errors,
+            ]
         )
 
     # STEP 1: Run synchronous and throughput benchmarks
@@ -309,8 +280,7 @@ async def run_benchmark_suite(
             .filter(Benchmark.completed_request_rate.is_not(None))
             .count()
             == 1
-        ],
-        ignore_previous_errors=ignore_previous_errors,
+        ]
     )
 
     # STEP 2: Run benchmarks at constant rates

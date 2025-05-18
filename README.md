@@ -40,21 +40,19 @@ modal run -w $OUTPUT_PATH -m cli.run_benchmark --model $MODEL --llm-server-type 
 
 ## Run and plot multiple benchmarks
 
-To run multiple benchmarks at once, first deploy the project:
+To run multiple benchmarks at once, first deploy the Datasette UI, which will let you easily view the results later:
 
 ```bash
 modal deploy -m stopwatch
 ```
 
-Then, call the function remotely:
-
-To run multiple benchmarks at once, you can use the `run-benchmark-function` command, along with a configuration file.
+Then, start a benchmark suite from a configuration file:
 
 ```bash
-python -m cli.run_benchmark_suite configs/data-distributions.yaml
+modal run -m cli.run_benchmark_suite --config-path configs/llama3.yaml
 ```
 
-Once the suite has finished, you will be prompted to open a link to a [Datasette](https://datasette.io/) UI with your results and/or save the results locally.
+Once the suite has finished, you will be given a URL to a UI where you can view your results, and a command to download a JSONL file with your results.
 
 ## Run profiler
 

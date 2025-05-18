@@ -60,7 +60,7 @@ def llm_server(
             f"Unsupported configuration: {llm_server_type} {llm_server_version} {gpu} {region}"
         )
 
-    url = cls(model="").start.web_url
+    url = cls(model="").start.get_web_url()
 
     if llm_server_type == SGLANG:
         health_url = f"{url}/health_generate"

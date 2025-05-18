@@ -1,6 +1,7 @@
 import modal
 
-app = modal.App("stopwatch")
+app = modal.App()
+web_app = modal.App("stopwatch")
 
 db_volume = modal.Volume.from_name("stopwatch-db", create_if_missing=True)
 hf_cache_volume = modal.Volume.from_name("stopwatch-hf-cache", create_if_missing=True)

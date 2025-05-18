@@ -1,12 +1,11 @@
 import itertools
 import os
-import subprocess
 import yaml
 
-import click
 import modal
 
-from stopwatch.resources import results_volume
+from stopwatch.resources import app
+from stopwatch.run_benchmark_suite import run_benchmark_suite
 
 
 def load_benchmarks_from_config(config_path: str):
@@ -45,66 +44,35 @@ def load_benchmarks_from_config(config_path: str):
     return benchmarks, config["id"], config.get("version", 1), config.get("repeats", 1)
 
 
-@click.command()
-@click.argument("config-path", type=str)
-@click.option(
-    "--disable-safe-mode",
-    is_flag=True,
-    help="Disable safe mode, which runs all of your benchmarks once without repeats before continuing. This slows down your benchmark runs, but ensures you don't waste money on invalid configurations.",
-)
-@click.option(
-    "--ignore-previous-errors",
-    is_flag=True,
-    help="Ignore errors when checking the results of previous function calls.",
-)
-@click.option(
-    "--recompute",
-    is_flag=True,
-    help="Recompute benchmarks that have already been run.",
-)
-def run_benchmark_suite(
-    config_path: str,
-    disable_safe_mode: bool = False,
-    ignore_previous_errors: bool = False,
-    recompute: bool = False,
-):
+@app.local_entrypoint()
+def run_benchmark_suite_cli(config_path: str, disable_safe_mode: bool = False):
     benchmarks, id, version, repeats = load_benchmarks_from_config(config_path)
 
-    f = modal.Function.from_name("stopwatch", "run_benchmark_suite")
-    fc = f.spawn(
+    run_benchmark_suite.remote(
         benchmarks=benchmarks,
         id=id,
         version=version,
         repeats=repeats,
         disable_safe_mode=disable_safe_mode,
-        ignore_previous_errors=ignore_previous_errors,
-        recompute=recompute,
     )
 
-    print("Running benchmarks (you may safely CTRL+C)...")
-    fc.get()
+    print()
+    print("To view the results of this benchmark suite, you may:")
 
-    # Optionally open the datasette UI
-    answer = input("All benchmarks have finished. Open the datasette UI? [Y/n] ")
+    # Provide link to Datasette UI
+    try:
+        datasette_url = modal.Cls.from_name(
+            "stopwatch", "DatasetteRunner"
+        )().start.get_web_url()
 
-    if answer != "n":
-        url = modal.Cls.from_name("stopwatch", "DatasetteRunner")().start.web_url
-        url += f"/stopwatch/-/query?sql=select+*+from+{id.replace('-', '_')}_averaged"
-        subprocess.run(["open", url])
+        print("- Open the Datasette UI at:")
+        print(
+            f"   {datasette_url}/stopwatch/-/query?sql=select+*+from+{id.replace('-', '_')}_averaged"
+        )
+    except Exception:
+        print("- Deploy the Datasette UI with:")
+        print("   modal deploy -m stopwatch")
 
-    # Optionally save JSONL file
-    answer = input("Download results JSONL file and show in Finder? [Y/n] ")
-
-    if answer != "n":
-        os.makedirs("results", exist_ok=True)
-        local_results_path = os.path.join("results", f"{id}.jsonl")
-
-        with open(local_results_path, "wb") as f:
-            for chunk in results_volume.read_file(f"{id}.jsonl"):
-                f.write(chunk)
-
-        subprocess.run(["open", "-R", local_results_path])
-
-
-if __name__ == "__main__":
-    run_benchmark_suite()
+    # Provide path to JSONL file
+    print("- Download the results JSONL file with:")
+    print(f"   modal volume get stopwatch-results {id}.jsonl")

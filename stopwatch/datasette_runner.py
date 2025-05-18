@@ -1,6 +1,6 @@
 import modal
 
-from .resources import app, db_volume
+from .resources import db_volume, web_app
 
 
 DB_PATH = "/db"
@@ -23,7 +23,7 @@ with datasette_image.imports():
     from datasette.app import Datasette
 
 
-@app.cls(
+@web_app.cls(
     image=datasette_image,
     volumes={DB_PATH: db_volume},
 )

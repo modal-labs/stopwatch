@@ -77,9 +77,7 @@ def transform(df):
         lambda x: (
             "reasoning"
             if x["prompt_tokens"] < x["output_tokens"]
-            else "balanced"
-            if x["prompt_tokens"] == x["output_tokens"]
-            else "retrieval"
+            else "balanced" if x["prompt_tokens"] == x["output_tokens"] else "retrieval"
         )
     )
 
