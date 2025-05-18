@@ -3,6 +3,7 @@ import modal
 from .constants import VersionDefaults
 from .resources import app, db_volume, results_volume
 from .run_benchmark import all_benchmark_runner_classes
+from .transforms import transform
 
 
 DATASETTE_PATH = "/datasette"
@@ -506,81 +507,11 @@ async def run_benchmark_suite(
 
     df = pd.DataFrame(
         [{c.name: getattr(r, c.name) for c in r.__table__.columns} for r in results]
-    ).rename(
-        columns={
-            "llm_server_type": "framework",
-            "completed_request_rate": "queries_per_second",
-        }
     )
-
-    # Process data into human-readable strings
-    df["data"] = df["data"].map(
-        lambda x: {k: int(v) for param in x.split(",") for k, v in [param.split("=")]}
-    )
-    df["task"] = df["data"].map(
-        lambda x: (
-            "reasoning"
-            if x["prompt_tokens"] < x["output_tokens"]
-            else "balanced" if x["prompt_tokens"] == x["output_tokens"] else "retrieval"
-        )
-    )
-    df["total_tokens"] = df["prompt_tokens"] + df["output_tokens"]
-    df["gpu_type"] = df["gpu"].map(lambda x: x.split(":")[0].strip("!"))
-    df["gpu_count"] = df["gpu"].map(lambda x: int(x.split(":")[1]) if ":" in x else 1)
-    df["model_family"] = df["model"].map(
-        lambda x: {
-            "meta-llama/Llama-3.3-70B-Instruct": "Llama 3.3",
-            "zed-industries/zeta": "Qwen 2.5",
-            "cognitivecomputations/DeepSeek-V3-0324-AWQ": "DeepSeek-V3",
-        }.get(x, x),
-    )
-    df["model_size"] = df["model"].map(
-        lambda x: {
-            "meta-llama/Llama-3.3-70B-Instruct": "70B",
-            "zed-industries/zeta": "7B",
-            "cognitivecomputations/DeepSeek-V3-0324-AWQ": "671B:9E:37B",
-        }.get(x, None),
-    )
-
-    # Split LLM server configuration into separate columns
-    df["cli_args"] = df["llm_server_config"].map(
-        lambda x: " ".join(x["extra_args"]) if "extra_args" in x else None
-    )
-    df["env_vars"] = df["llm_server_config"].map(
-        lambda x: (
-            "\n".join(f"{k}={v}" for k, v in x["env_vars"].items())
-            if "env_vars" in x
-            else None
-        )
-    )
-    df["kwargs"] = df["llm_server_config"].map(
-        lambda x: json.dumps(x["llm_kwargs"]) if "llm_kwargs" in x else None
-    )
+    df = transform(df)  # Remap columns, clean up names, etc.
 
     # Save selected columns to JSONL file
-    df[
-        [
-            *[
-                f"{m}_{a}"
-                for m, a in itertools.product(
-                    ["itl", "ttft", "ttlt"], ["mean", "p50", "p90", "p95", "p99"]
-                )
-            ],
-            "framework",
-            "queries_per_second",
-            "task",
-            "prompt_tokens",
-            "output_tokens",
-            "total_tokens",
-            "gpu_type",
-            "gpu_count",
-            "model_family",
-            "model_size",
-            "cli_args",
-            "env_vars",
-            "kwargs",
-        ]
-    ].to_json(
+    df.to_json(
         os.path.join(RESULTS_PATH, f"{id}.jsonl"),
         orient="records",
         lines=True,
