@@ -116,14 +116,22 @@ def transform(df):
     # Create human-readable name for model
     df["model"] = df.apply(get_model_name, axis=1)
 
+    metrics_columns = [
+        f"{m}_{a}"
+        for m, a in product(
+            ["itl", "ttft", "ttlt"], ["mean", "p50", "p90", "p95", "p99"]
+        )
+    ]
+
+    # handle non-nullable, non-negative columns -- derived metrics and rates
+    strictly_positive_columns = metrics_columns + ["queries_per_second"]
+    for column in strictly_positive_columns:  # all
+        df[column] = df[column].apply(lambda x: None if x <= 0 else x)
+    df = df.dropna(subset=strictly_positive_columns)
+
     return df[
         [
-            *[
-                f"{m}_{a}"
-                for m, a in product(
-                    ["itl", "ttft", "ttlt"], ["mean", "p50", "p90", "p95", "p99"]
-                )
-            ],
+            *metrics_columns,
             "framework",
             "queries_per_second",
             "task",
