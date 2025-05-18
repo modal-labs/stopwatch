@@ -27,10 +27,15 @@ configs:
     gpu: H100:8
     llm_server_config:
       - extra_args:
-          ["--tp", "8", "--chat-template", "/home/no-system-prompt.jinja"]
+          [
+            "--tensor-parallel-size",
+            "8",
+            "--chat-template",
+            "/home/no-system-prompt.jinja",
+          ]
       - extra_args:
           [
-            "--tp",
+            "--tensor-parallel-size",
             "8",
             "--chat-template",
             "/home/no-system-prompt.jinja",
@@ -41,4 +46,9 @@ configs:
     gpu: H100:8
     llm_server_config:
       - extra_args:
-          ["--tp", "8", "--chat-template", "/home/no-system-prompt.jinja"]
+          [
+            "--tensor-parallel-size",
+            "8",
+            "--chat-template",
+            "/home/no-system-prompt.jinja",
+          ]
