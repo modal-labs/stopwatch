@@ -7,23 +7,44 @@ import shlex
 
 # Define the model "family", mostly branding so manual
 REPO_TO_FAMILY = {
-    "qwen/qwen3-0.6b-fp8": "Qwen 3",
-    "cognitivecomputations/deepseek-v3-0324-awq": "DeepSeek-V3",
+    "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16": "Llama 3.1",
+    "RedHatAI/Meta-Llama-3-70B-Instruct-quantized.w4a16": "Llama 3.3",
+    "Qwen/Qwen3-0.6B-FP8": "Qwen 3",
+    "Qwen/Qwen3-235B-A22B": "Qwen 3",
+    "cognitivecomputations/DeepSeek-V3-0324-AWQ": "DeepSeek-V3",
+    "google/gemma-3-4b-it": "Gemma 3",
+    "google/gemma-3-12b-it": "Gemma 3",
+    "google/gemma-3-27b-it": "Gemma 3",
     "hugging-quants/meta-llama-3.1-8B-Instruct-awq-int4": "Llama 3.1",
+    "mistralai/Ministral-8B-Instruct-2410": "Ministral",
+    "mistralai/Mistral-Small-3.1-24B-Instruct-2503": "Mistral Small 3.1",
+    "meta-llama/Llama-3.1-8B-Instruct": "Llama 3.1",
+    "meta-llama/Llama-3.3-70B-instruct": "Llama 3.3",
     "zed-industries/zeta": "Qwen 2.5",
-    "meta-llama/llama-3.1-8B-instruct": "Llama 3.1",
-    "meta-llama/llama-3.3-70B-instruct": "Llama 3.3",
 }
 
 # We attempt to infer the size from the model repo by looking for
-# <number><unit>[-<number><unit>[-<number><unit>]...]
+# <number><unit>[-A?<number><unit>]
 SIZE_PATTERN = re.compile(
-    r"^(?:\d+(?:\.\d+)?[MB])(?:-(?:\d+(?:\.\d+)?[MB]))*$", flags=re.IGNORECASE
+    r"-"  # leading dash
+    r"\d+(?:\.\d+)?"  # integer or decimal number
+    r"[MB]"  # unit: M or B
+    r"(?:"  # optional second “-A?number+unit”
+    r"-"  #   dash
+    r"(?:A)?"  #   optional “A”
+    r"\d+(?:\.\d+)?"  #   integer or decimal
+    r"[MB]"  #   unit
+    r")?",  # end optional group
+    flags=re.IGNORECASE,
 )
+
 
 # In cases where we can't infer the size from the model repo,
 # we hard-code a value.
-REPO_TO_SIZE = {"cognitivecomputations/DeepSeek-V3-0324-AWQ": "671B:9E:37B"}
+REPO_TO_SIZE = {
+    "cognitivecomputations/DeepSeek-V3-0324-AWQ": "671B-A37B",
+    "zed-industries/zeta": "7B",
+}
 
 
 # When inferring the quantization level, we sometimes need to rely
@@ -63,6 +84,7 @@ def transform(df):
     )
 
     df["total_tokens"] = df["prompt_tokens"] + df["output_tokens"]
+    df["generated_tokens"] = df["output_tokens"]
 
     # Parse GPU configuration
     df["gpu_type"] = df["gpu"].map(lambda x: x.split(":")[0].strip("!"))
@@ -107,6 +129,7 @@ def transform(df):
             "task",
             "prompt_tokens",
             "output_tokens",
+            "generated_tokens",
             "total_tokens",
             "gpu",
             "gpu_type",
@@ -125,15 +148,15 @@ def transform(df):
 
 
 def get_model_family(model_repo):
-    return REPO_TO_FAMILY.get(model_repo.lower(), model_repo)
+    return REPO_TO_FAMILY.get(model_repo, model_repo.lower())
 
 
 def get_model_size(model_repo):
-    model_slug = model_repo.lower().split("/")[-1]
-    # find components that look like a model size
-    size_parts = [p for p in model_slug.split("-") if SIZE_PATTERN.fullmatch(p)]
-    if size_parts:
-        return "-".join(p.upper() for p in size_parts)
+    model_slug = model_repo.upper().split("/")[-1]
+    # match on something that looks like a model size
+    size = SIZE_PATTERN.search(model_slug)
+    if size:
+        return size.group(0).strip("-").upper()
     else:
         return REPO_TO_SIZE.get(model_repo, None)
 
@@ -162,6 +185,11 @@ def get_model_quant(row):
         if quant in model_name:
             return quant
 
+    llm_compressor_to_quant = {"w4a16": "int4", "w8a8": "fp8"}
+    for llm_compressor_name, quant in llm_compressor_to_quant.items():
+        if llm_compressor_name in model_name:
+            return quant
+
     if "gguf" in model_name:
         # look for q4_0, q6_K_M, etc
         matches = re.findall(r"q(\d)_", model_name)
@@ -179,4 +207,6 @@ def get_model_quant(row):
 
 
 def get_model_name(row):
-    return " ".join([row["model_family"], row["model_size"] or "", row["quant"] or ""])
+    return " ".join(
+        [row["model_family"], row["model_size"] or "", row["quant"] or ""]
+    ).strip()
