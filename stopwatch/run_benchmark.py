@@ -8,7 +8,7 @@ from .llm_server import llm_server
 LLM_SERVER_TYPES = ["vllm", "sglang", "tensorrt-llm"]
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5  # 5 seconds
-TIMEOUT = 60 * 60  # 1 hour
+TIMEOUT = 4 * 60 * 60  # 4 hours
 
 benchmarking_image = (
     modal.Image.debian_slim()
@@ -20,7 +20,7 @@ benchmarking_image = (
     )
     .env(
         {
-            "GUIDELLM__MAX_WORKER_PROCESSES": "3",  # Should be set to n_cores - 1
+            "GUIDELLM__MAX_WORKER_PROCESSES": "1",  # Should be set to n_cores - 1
         }
     )
     .add_local_python_source("cli")
@@ -94,8 +94,8 @@ def benchmark_runner_cls(region: str):
             image=benchmarking_image,
             secrets=[hf_secret],
             volumes={RESULTS_PATH: results_volume},
-            cpu=4,
-            memory=4096,
+            cpu=2,
+            memory=1 * 1024,
             scaledown_window=SCALEDOWN_WINDOW,
             timeout=TIMEOUT,
             region=region,

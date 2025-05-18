@@ -21,9 +21,22 @@ def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG):
                 "RUN ln -s /usr/bin/python3 /usr/bin/python",
             ],
         )
-        .pip_install("hf-transfer", "grpclib", "requests", "vllm")
+        .pip_install(
+            "hf-transfer",
+            "grpclib",
+            "requests",
+            # vLLM is needed for its AWQ marlin kernel, but v0.8.5 has a breaking
+            # change that makes it incompatible with SGLang's model loader when running
+            # some models, e.g. Qwen/Qwen3-235B-A22B.
+            "vllm==0.8.4",
+        )
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
-        .dockerfile_commands("ENTRYPOINT []")
+        .dockerfile_commands(
+            [
+                "RUN echo '{%- for message in messages %}{{- message.content }}{%- endfor %}' > /home/no-system-prompt.jinja",
+                "ENTRYPOINT []",
+            ]
+        )
         .add_local_python_source("cli")
     )
 
@@ -34,7 +47,7 @@ def sglang_cls(
     gpu="H100!",
     volumes={HF_CACHE_PATH: hf_cache_volume, TRACES_PATH: traces_volume},
     cpu=4,
-    memory=65536,
+    memory=4 * 1024,
     scaledown_window=2 * MINUTES,
     timeout=1 * HOURS,
     region="us-chicago-1",
@@ -94,29 +107,43 @@ class SGLangBase:
         )
 
 
+@sglang_cls(gpu="A10")
+class SGLang_A10(SGLangBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
+@sglang_cls(gpu="A10:4")
+class SGLang_4xA10(SGLangBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
 @sglang_cls()
-class SGLang(SGLangBase):
+class SGLang_H100(SGLangBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@sglang_cls(gpu="H100!:2")
-class SGLang_2xH100(SGLangBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@sglang_cls(gpu="H100!:4")
-class SGLang_4xH100(SGLangBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@sglang_cls(gpu="H100!:8", cpu=8)
+@sglang_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
 class SGLang_8xH100(SGLangBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
+@sglang_cls(gpu="L40S", region="us-ashburn-1", cpu=8, memory=8 * 1024)
+class SGLang_L40S(SGLangBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
+@sglang_cls(gpu="L40S:4", region="us-ashburn-1", cpu=8, memory=8 * 1024)
+class SGLang_4xL40S(SGLangBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
@@ -124,17 +151,23 @@ class SGLang_8xH100(SGLangBase):
 
 sglang_classes = {
     VersionDefaults.SGLANG: {
+        "A10": {
+            "us-chicago-1": SGLang_A10,
+        },
+        "A10:4": {
+            "us-chicago-1": SGLang_4xA10,
+        },
         "H100": {
-            "us-chicago-1": SGLang,
-        },
-        "H100:2": {
-            "us-chicago-1": SGLang_2xH100,
-        },
-        "H100:4": {
-            "us-chicago-1": SGLang_4xH100,
+            "us-chicago-1": SGLang_H100,
         },
         "H100:8": {
             "us-chicago-1": SGLang_8xH100,
+        },
+        "L40S": {
+            "us-ashburn-1": SGLang_L40S,
+        },
+        "L40S:4": {
+            "us-ashburn-1": SGLang_4xL40S,
         },
     }
 }

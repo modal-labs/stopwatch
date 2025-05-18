@@ -218,6 +218,7 @@ async def run_benchmarks_in_parallel(
 async def run_benchmark_suite(
     benchmarks: List[Dict[str, Any]],
     id: str,
+    version: int = 1,
     repeats: int = 1,
     disable_safe_mode: bool = False,
     ignore_previous_errors: bool = False,
@@ -255,6 +256,7 @@ async def run_benchmark_suite(
             benchmark["llm_server_type"]: benchmark["llm_server_config"].get(
                 "version", VersionDefaults.LLM_SERVERS[benchmark["llm_server_type"]]
             ),
+            "suite": version,
         }
 
     # STEP 0.5: Delete existing benchmarks if recompute is set to true

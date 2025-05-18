@@ -1,6 +1,6 @@
 class VersionDefaults:
     GUIDELLM = "678adea"
-    SGLANG = "v0.4.6.post2-cu124"
+    SGLANG = "v0.4.6.post4-cu124"
     TENSORRT_LLM = "0.20.0rc1"
     VLLM = "v0.8.5.post1"
 

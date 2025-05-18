@@ -53,7 +53,7 @@ def tensorrt_llm_cls(
     gpu="H100!",
     volumes={HF_CACHE_PATH: hf_cache_volume},
     cpu=4,
-    memory=65536,
+    memory=4 * 1024,
     scaledown_window=30 * SECONDS,
     timeout=1 * HOURS,
     region="us-chicago-1",
@@ -201,21 +201,7 @@ class TensorRTLLM(TensorRTLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@tensorrt_llm_cls(gpu="H100!:2")
-class TensorRTLLM_2xH100(TensorRTLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@tensorrt_llm_cls(gpu="H100!:4")
-class TensorRTLLM_4xH100(TensorRTLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@tensorrt_llm_cls(gpu="H100!:8", cpu=8)
+@tensorrt_llm_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
 class TensorRTLLM_8xH100(TensorRTLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -226,12 +212,6 @@ tensorrt_llm_classes = {
     VersionDefaults.TENSORRT_LLM: {
         "H100": {
             "us-chicago-1": TensorRTLLM,
-        },
-        "H100:2": {
-            "us-chicago-1": TensorRTLLM_2xH100,
-        },
-        "H100:4": {
-            "us-chicago-1": TensorRTLLM_4xH100,
         },
         "H100:8": {
             "us-chicago-1": TensorRTLLM_8xH100,

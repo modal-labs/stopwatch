@@ -24,13 +24,18 @@ def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM):
         modal.Image.from_registry(
             f"vllm/vllm-openai:{docker_tag}",
             setup_dockerfile_commands=[
-                f"RUN echo -n {python_binary} > /vllm-workspace/vllm-python",
+                f"RUN echo -n {python_binary} > /home/vllm-python",
             ],
             add_python="3.13",
         )
         .pip_install("hf-transfer", "grpclib", "requests")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
-        .dockerfile_commands("ENTRYPOINT []")
+        .dockerfile_commands(
+            [
+                "RUN echo '{%- for message in messages %}{{- message.content }}{%- endfor %}' > /home/no-system-prompt.jinja",
+                "ENTRYPOINT []",
+            ]
+        )
         .add_local_python_source("cli")
     )
 
@@ -41,7 +46,7 @@ def vllm_cls(
     gpu="H100!",
     volumes={HF_CACHE_PATH: hf_cache_volume, TRACES_PATH: traces_volume},
     cpu=4,
-    memory=65536,
+    memory=4 * 1024,
     scaledown_window=30 * SECONDS,
     timeout=1 * HOURS,
     region="us-chicago-1",
@@ -78,7 +83,7 @@ class vLLMBase:
 
         # Read the location of the correct Python binary from the file created while
         # building the image.
-        python_binary = open("/vllm-workspace/vllm-python").read()
+        python_binary = open("/home/vllm-python").read()
 
         # Start vLLM server
         subprocess.Popen(
@@ -108,78 +113,57 @@ class vLLMBase:
         )
 
 
-@vllm_cls(region="us-ashburn-1")
-class vLLM_OCI_USASHBURN1(vLLMBase):
+@vllm_cls(gpu="A10", region="us-ashburn-1")
+class vLLM_A10(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(region="us-east-1")
-class vLLM_AWS_USEAST1(vLLMBase):
+@vllm_cls(gpu="A10:4", region="us-ashburn-1")
+class vLLM_4xA10(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(region="us-east4")
-class vLLM_GCP_USEAST4(vLLMBase):
+@vllm_cls()
+class vLLM_H100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(region="us-chicago-1")
-class vLLM_OCI_USCHICAGO1(vLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@vllm_cls(gpu="A100-40GB")
-class vLLM_A100_40GB(vLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@vllm_cls(gpu="A100-80GB", region="us-east4")
-class vLLM_A100_80GB(vLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@vllm_cls(gpu="H100!:2")
-class vLLM_2xH100(vLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@vllm_cls(gpu="H100!:4")
-class vLLM_4xH100(vLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@vllm_cls(gpu="H100!:8", cpu=8)
+@vllm_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
 class vLLM_8xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(gpu="H200:4", cpu=8, region="us-east-2", scaledown_window=5 * 60)
-class vLLM_4xH200(vLLMBase):
+@vllm_cls(
+    gpu="H200:8",
+    cpu=32,
+    memory=64 * 1024,
+    region="us-east-2",
+    scaledown_window=5 * 60,
+    timeout=1 * HOURS,
+)
+class vLLM_8xH200(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(gpu="H200:8", cpu=32, region="us-east-2", scaledown_window=5 * 60)
-class vLLM_8xH200(vLLMBase):
+@vllm_cls(gpu="L40S", region="us-ashburn-1", cpu=8, memory=8 * 1024)
+class vLLM_L40S(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
+@vllm_cls(gpu="L40S:4", region="us-ashburn-1", cpu=8, memory=8 * 1024)
+class vLLM_4xL40S(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
@@ -187,32 +171,26 @@ class vLLM_8xH200(vLLMBase):
 
 vllm_classes = {
     VersionDefaults.VLLM: {
+        "A10": {
+            "us-ashburn-1": vLLM_A10,
+        },
+        "A10:4": {
+            "us-ashburn-1": vLLM_4xA10,
+        },
         "H100": {
-            "us-ashburn-1": vLLM_OCI_USASHBURN1,
-            "us-east-1": vLLM_AWS_USEAST1,
-            "us-east4": vLLM_GCP_USEAST4,
-            "us-chicago-1": vLLM_OCI_USCHICAGO1,
-        },
-        "A100-40GB": {
-            "us-chicago-1": vLLM_A100_40GB,
-        },
-        "A100-80GB": {
-            "us-east4": vLLM_A100_80GB,
-        },
-        "H100:2": {
-            "us-chicago-1": vLLM_2xH100,
-        },
-        "H100:4": {
-            "us-chicago-1": vLLM_4xH100,
+            "us-chicago-1": vLLM_H100,
         },
         "H100:8": {
             "us-chicago-1": vLLM_8xH100,
         },
-        "H200:4": {
-            "us-east-2": vLLM_4xH200,
-        },
         "H200:8": {
             "us-east-2": vLLM_8xH200,
+        },
+        "L40S": {
+            "us-ashburn-1": vLLM_L40S,
+        },
+        "L40S:4": {
+            "us-ashburn-1": vLLM_4xL40S,
         },
     }
 }

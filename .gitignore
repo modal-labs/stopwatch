@@ -9,3 +9,4 @@ traces/
 *.db
 results/
 *.json.gz
+\.*.yaml

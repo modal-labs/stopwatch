@@ -37,12 +37,12 @@ def load_benchmarks_from_config(config_path: str):
             benchmarks.append(benchmark_config)
 
     for file in config.get("files", []):
-        file_benchmarks, _, _ = load_benchmarks_from_config(
+        file_benchmarks, _, _, _ = load_benchmarks_from_config(
             os.path.join(os.path.dirname(config_path), file)
         )
         benchmarks.extend(file_benchmarks)
 
-    return benchmarks, config["id"], config.get("repeats", 1)
+    return benchmarks, config["id"], config.get("version", 1), config.get("repeats", 1)
 
 
 @click.command()
@@ -68,12 +68,13 @@ def run_benchmark_suite(
     ignore_previous_errors: bool = False,
     recompute: bool = False,
 ):
-    benchmarks, id, repeats = load_benchmarks_from_config(config_path)
+    benchmarks, id, version, repeats = load_benchmarks_from_config(config_path)
 
     f = modal.Function.from_name("stopwatch", "run_benchmark_suite")
     fc = f.spawn(
         benchmarks=benchmarks,
         id=id,
+        version=version,
         repeats=repeats,
         disable_safe_mode=disable_safe_mode,
         ignore_previous_errors=ignore_previous_errors,
