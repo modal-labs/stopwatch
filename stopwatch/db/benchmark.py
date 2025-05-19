@@ -106,8 +106,13 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
 
         def save_results(self, results):
             requests = results["requests"]["successful"]
-            self.start_time = requests[0]["start_time"]
-            self.end_time = requests[-1]["end_time"]
+
+            if len(requests) > 0:
+                self.start_time = requests[0]["start_time"]
+                self.end_time = requests[-1]["end_time"]
+            else:
+                self.start_time = results["run_stats"]["start_time"]
+                self.end_time = results["run_stats"]["end_time"]
 
             self.duration = self.end_time - self.start_time
             self.completed_request_count = len(requests)
