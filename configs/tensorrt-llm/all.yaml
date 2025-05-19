@@ -1,4 +1,4 @@
 id: tensorrt-llm
 files:
-  # - tensorrt-llm/llama3.yaml
-  - tensorrt-llm/zeta.yaml
+  - tensorrt-llm/llama3.yaml
+  # - tensorrt-llm/zeta.yaml
