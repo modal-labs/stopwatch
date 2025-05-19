@@ -52,6 +52,5 @@ configs:
             # reduce_fusion: true
             # user_buffer: true
           max_input_len: 1024
-          max_sequence_len: 2048
           max_num_tokens: 524288
           max_batch_size: 512
