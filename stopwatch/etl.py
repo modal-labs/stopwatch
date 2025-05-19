@@ -107,7 +107,7 @@ def extract_transform_suite_table(suite_id_or_cls, verbose: bool = False):
         )
     else:  # cls
         SuiteAveragedBenchmark = suite_id_or_cls
-        suite_id = SuiteAveragedBenchmark.__tablename__.rsplit("_averaged").replace(
+        suite_id = SuiteAveragedBenchmark.__tablename__.rsplit("_averaged")[0].replace(
             "_", "-"
         )
     results = session.query(SuiteAveragedBenchmark).all()
