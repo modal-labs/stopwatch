@@ -5,21 +5,10 @@ import json
 import re
 import shlex
 
-# Define the model "family", mostly branding so manual
+# In cases where we can't infer the family from the model repo,
+# we hard-code the family.
 REPO_TO_FAMILY = {
-    "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16": "Llama 3.1",
     "RedHatAI/Meta-Llama-3-70B-Instruct-quantized.w4a16": "Llama 3.3",
-    "Qwen/Qwen3-0.6B-FP8": "Qwen 3",
-    "Qwen/Qwen3-235B-A22B": "Qwen 3",
-    "cognitivecomputations/DeepSeek-V3-0324-AWQ": "DeepSeek-V3",
-    "google/gemma-3-4b-it": "Gemma 3",
-    "google/gemma-3-12b-it": "Gemma 3",
-    "google/gemma-3-27b-it": "Gemma 3",
-    "hugging-quants/meta-llama-3.1-8B-Instruct-awq-int4": "Llama 3.1",
-    "mistralai/Ministral-8B-Instruct-2410": "Ministral",
-    "mistralai/Mistral-Small-3.1-24B-Instruct-2503": "Mistral Small 3.1",
-    "meta-llama/Llama-3.1-8B-Instruct": "Llama 3.1",
-    "meta-llama/Llama-3.3-70B-instruct": "Llama 3.3",
     "zed-industries/zeta": "Qwen 2.5",
 }
 
@@ -51,7 +40,7 @@ REPO_TO_SIZE = {
 # on a dtype argument. Behavior below is from vLLM's docs as of v0.8.
 DTYPE_TO_QUANT = {
     "auto": "f16",
-    "bfloat16": "fp16",
+    "bfloat16": "bf16",
     "float": "fp32",
     "float16": "",
     "float32": "fp32",
@@ -77,7 +66,9 @@ def transform(df):
         lambda x: (
             "reasoning"
             if x["prompt_tokens"] < x["output_tokens"]
-            else "balanced" if x["prompt_tokens"] == x["output_tokens"] else "retrieval"
+            else "balanced"
+            if x["prompt_tokens"] == x["output_tokens"]
+            else "retrieval"
         )
     )
 
@@ -154,6 +145,27 @@ def transform(df):
 
 
 def get_model_family(model_repo):
+    slug = model_repo.split("/")[-1].lower()
+    # happy path
+    for model_slug in [
+        "llama-3.1",
+        "llama-3.2",
+        "llama-3.3",
+        "gemma-3",
+        "ministral",
+        "mistral-small-3.1",
+    ]:
+        if model_slug in slug:
+            return " ".join(model_slug.split("-")).title()
+
+    # simple special cases
+    if "qwen3" in slug:
+        return "Qwen 3"
+
+    if "deepseek-v3" in slug:
+        return "DeepSeek-V3"
+
+    # hard special cases, then default to repo
     return REPO_TO_FAMILY.get(model_repo, model_repo.lower())
 
 
