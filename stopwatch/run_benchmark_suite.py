@@ -1,9 +1,9 @@
 import modal
 
 from .constants import VersionDefaults
+from .etl import extract_transform_suite_table
 from .resources import app, db_volume, results_volume
 from .run_benchmark import all_benchmark_runner_classes
-from .transforms import transform
 
 
 DATASETTE_PATH = "/datasette"
@@ -481,22 +481,7 @@ async def run_benchmark_suite(
     db_volume.commit()
 
     # STEP 4: Export results in frontend format
-    results = session.query(SuiteAveragedBenchmark).all()
-
-    df = pd.DataFrame(
-        [{c.name: getattr(r, c.name) for c in r.__table__.columns} for r in results]
-    )
-    df = transform(df)  # Remap columns, clean up names, etc.
-
-    # Save selected columns to JSONL file
-    df.to_json(
-        os.path.join(RESULTS_PATH, f"{id}.jsonl"),
-        orient="records",
-        lines=True,
-        force_ascii=False,
-    )
-
-    db_volume.commit()
+    extract_transform_suite_table.local(SuiteAveragedBenchmark)
 
 
 @app.function(
