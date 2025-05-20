@@ -3,28 +3,33 @@
 The final output format is json.
 """
 
-import os
 import io
+import json
+import os
 from pathlib import Path
 from typing import Optional
 
 import modal
 
-from .db import benchmark_cls_factory, session
-from .resources import app, db_volume, results_volume
-from .transforms import transform
+from .resources import db_volume, results_volume, web_app
 
 DB_PATH = "/db"
 RESULTS_PATH = "/results"
 
-image = (
+etl_image = (
     modal.Image.debian_slim(python_version="3.13")
-    .pip_install("numpy", "pandas", "SQLAlchemy")
+    .pip_install("fastapi[standard]", "numpy", "pandas", "SQLAlchemy")
     .add_local_python_source("cli")
 )
 
+with etl_image.imports():
+    from .db import benchmark_cls_factory, session
+    from .transforms import transform
 
-@app.function(volumes={RESULTS_PATH: results_volume}, image=image)
+    import pandas as pd
+
+
+@web_app.function(volumes={RESULTS_PATH: results_volume}, image=etl_image)
 def merge_jsonls(jsonl_path: str, json_list: list[dict]) -> list[dict]:
     """Merge JSONL files from the results with an input list of JSON objects."""
     results = [json for json in read_jsonl(Path(RESULTS_PATH) / jsonl_path)]
@@ -32,7 +37,7 @@ def merge_jsonls(jsonl_path: str, json_list: list[dict]) -> list[dict]:
     return results + json_list
 
 
-@app.local_entrypoint()
+@web_app.local_entrypoint()
 def main(
     remote_jsonl_path: str,
     local_jsonl_path: Optional[str] = None,
@@ -91,46 +96,57 @@ def json_list_to_json(jsonls: list[dict], outer_key="rows") -> dict:
 
 
 def read_jsonl(file_path: str | Path) -> list[dict]:
-    import json
-
     return list(map(json.loads, Path(file_path).read_text().splitlines()))
 
 
-@app.function(image=image, volumes={RESULTS_PATH: results_volume, DB_PATH: db_volume})
-def extract_transform_suite_table(suite_id_or_cls, verbose: bool = False):
-    import pandas as pd
+@web_app.function(
+    image=etl_image, volumes={DB_PATH: db_volume, RESULTS_PATH: results_volume}
+)
+@modal.fastapi_endpoint()
+def export_results(suite_ids, verbose: bool = False):
+    if not isinstance(suite_ids, list):
+        suite_ids = [suite_ids]
 
-    if isinstance(suite_id_or_cls, str):  # id
-        suite_id = suite_id_or_cls
-        SuiteAveragedBenchmark = benchmark_cls_factory(
-            table_name=suite_id.replace("-", "_") + "_averaged"
+    if len(suite_ids) == 0:
+        raise ValueError("suite_ids must not be empty")
+
+    # Convert suite_ids to a list of benchmark classes
+    if isinstance(suite_ids[0], str):
+        suite_ids = [
+            benchmark_cls_factory(table_name=suite_id.replace("-", "_") + "_averaged")
+            for suite_id in suite_ids
+        ]
+
+    # Export all results as a single JSONL blob
+    full_buf = io.BytesIO()
+
+    for suite_cls in suite_ids:
+        suite_id = suite_cls.__tablename__.rsplit("_averaged")[0].replace("_", "-")
+        results = session.query(suite_cls).all()
+
+        if verbose:
+            print(f"{len(results)} results to transform from {suite_id}")
+
+        df = pd.DataFrame(
+            [{c.name: getattr(r, c.name) for c in r.__table__.columns} for r in results]
         )
-    else:  # cls
-        SuiteAveragedBenchmark = suite_id_or_cls
-        suite_id = SuiteAveragedBenchmark.__tablename__.rsplit("_averaged")[0].replace(
-            "_", "-"
-        )
-    results = session.query(SuiteAveragedBenchmark).all()
+        df = transform(df)  # Remap columns, clean up names, etc.
 
-    if verbose:
-        print(f"{len(results)} results to transform from {suite_id}")
-    df = pd.DataFrame(
-        [{c.name: getattr(r, c.name) for c in r.__table__.columns} for r in results]
-    )
-    df = transform(df)  # Remap columns, clean up names, etc.
+        if verbose:
+            print(f"{len(df)} result{'s' if len(df) != 1 else ''} left after cleaning")
 
-    if verbose:
-        print(f"{len(df)} result{'s' if len(df) != 1 else ''} left after cleaning")
+        output_path = Path(RESULTS_PATH) / f"{suite_id}.jsonl"
 
-    output_path = Path(RESULTS_PATH) / f"{suite_id}.jsonl"
-    if verbose:
-        print(f"saving to {output_path} on stopwatch-results")
+        if verbose:
+            print(f"saving to {output_path} on stopwatch-results")
 
-    # Save selected columns to JSONL file
-    df.to_json(
-        os.path.join(RESULTS_PATH, f"{suite_id}.jsonl"),
-        orient="records",
-        lines=True,
-        force_ascii=False,
-    )
-    results_volume.commit()
+        # Save each individual suite to a separate JSONL file
+        suite_buf = io.BytesIO()
+
+        for buf in [full_buf, suite_buf]:
+            df.to_json(buf, orient="records", lines=True, force_ascii=False)
+
+        with open(os.path.join(RESULTS_PATH, f"{suite_id}.jsonl"), "w") as f:
+            f.write(suite_buf.getvalue().decode("utf-8"))
+
+    return full_buf.getvalue().decode("utf-8")

@@ -1,7 +1,7 @@
 import modal
 
 from .constants import VersionDefaults
-from .etl import extract_transform_suite_table
+from .etl import export_results
 from .resources import app, db_volume, results_volume
 from .run_benchmark import all_benchmark_runner_classes
 
@@ -33,7 +33,6 @@ with benchmark_suite_image.imports():
 
     import grpclib
     import numpy as np
-    import pandas as pd
 
     from .db import (
         Benchmark,
@@ -412,6 +411,7 @@ async def run_benchmark_suite(
             k: int(v)
             for param in benchmark["data"].split(",")
             for k, v in [param.split("=")]
+            if hasattr(Benchmark, k)
         }
 
         benchmark_models = (
@@ -481,35 +481,4 @@ async def run_benchmark_suite(
     db_volume.commit()
 
     # STEP 4: Export results in frontend format
-    extract_transform_suite_table.local(SuiteAveragedBenchmark)
-
-
-@app.function(
-    image=benchmark_suite_image,
-    volumes={
-        DB_PATH: db_volume,
-        RESULTS_PATH: results_volume,
-    },
-    timeout=TIMEOUT,
-)
-def reload_results():
-    """Full results are saved to disk, while only select statistics are saved
-    to the database. This function saves each benchmark's full results to the
-    database. This can be useful if the save_results function is updated to
-    save new statistics."""
-
-    benchmark_models = session.query(Benchmark).all()
-
-    for benchmark_model in benchmark_models:
-        results_path = os.path.join(RESULTS_PATH, f"{benchmark_model.id}.json")
-
-        if not os.path.exists(results_path):
-            continue
-
-        with open(results_path, "r") as f:
-            results = json.load(f)
-
-        benchmark_model.save_results(results)
-        session.commit()
-
-    db_volume.commit()
+    export_results.local(SuiteAveragedBenchmark)
