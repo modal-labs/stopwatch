@@ -74,8 +74,13 @@ def llm_server(
 
     num_retries = 3
     for retry in range(num_retries):
+        # Ensure we don't hit the default limit of 30 redirects when waiting on
+        # functions with a long startup time.
+        session = requests.Session()
+        session.max_redirects = 9999
+
         try:
-            res = requests.get(health_url, params=extra_query)
+            res = session.get(health_url, params=extra_query)
         except requests.HTTPError as e:
             print(f"Error requesting metrics: {e}")
             extra_query["caller_id"] = str(uuid.uuid4())
