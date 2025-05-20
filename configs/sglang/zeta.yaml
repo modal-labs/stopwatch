@@ -12,3 +12,8 @@ base_config:
 configs:
   - model: zed-industries/zeta
     gpu: H100
+  - model: zed-industries/zeta
+    gpu:
+      - A10
+      - L40S
+    region: us-ashburn-1

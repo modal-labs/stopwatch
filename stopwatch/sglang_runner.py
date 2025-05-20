@@ -107,14 +107,14 @@ class SGLangBase:
         )
 
 
-@sglang_cls(gpu="A10")
+@sglang_cls(gpu="A10", region="us-ashburn-1")
 class SGLang_A10(SGLangBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@sglang_cls(gpu="A10:4")
+@sglang_cls(gpu="A10:4", region="us-ashburn-1")
 class SGLang_4xA10(SGLangBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -152,10 +152,10 @@ class SGLang_4xL40S(SGLangBase):
 sglang_classes = {
     VersionDefaults.SGLANG: {
         "A10": {
-            "us-chicago-1": SGLang_A10,
+            "us-ashburn-1": SGLang_A10,
         },
         "A10:4": {
-            "us-chicago-1": SGLang_4xA10,
+            "us-ashburn-1": SGLang_4xA10,
         },
         "H100": {
             "us-chicago-1": SGLang_H100,
