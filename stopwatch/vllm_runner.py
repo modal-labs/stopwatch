@@ -134,22 +134,15 @@ class vLLM_H100(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
-class vLLM_8xH100(vLLMBase):
+@vllm_cls(region="asia-southeast1")
+class vLLM_H100_GCP_ASIASOUTHEAST1(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(
-    gpu="H200:8",
-    cpu=32,
-    memory=64 * 1024,
-    region="us-east-2",
-    scaledown_window=5 * 60,
-    timeout=1 * HOURS,
-)
-class vLLM_8xH200(vLLMBase):
+@vllm_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
+class vLLM_8xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
@@ -179,12 +172,10 @@ vllm_classes = {
         },
         "H100": {
             "us-chicago-1": vLLM_H100,
+            "asia-southeast1": vLLM_H100_GCP_ASIASOUTHEAST1,
         },
         "H100:8": {
             "us-chicago-1": vLLM_8xH100,
-        },
-        "H200:8": {
-            "us-east-2": vLLM_8xH200,
         },
         "L40S": {
             "us-ashburn-1": vLLM_L40S,

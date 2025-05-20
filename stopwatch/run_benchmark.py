@@ -6,6 +6,7 @@ from .llm_server import llm_server
 
 
 LLM_SERVER_TYPES = ["vllm", "sglang", "tensorrt-llm"]
+NUM_CORES = 2
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5  # 5 seconds
 TIMEOUT = 4 * 60 * 60  # 4 hours
@@ -20,7 +21,7 @@ benchmarking_image = (
     )
     .env(
         {
-            "GUIDELLM__MAX_WORKER_PROCESSES": "1",  # Should be set to n_cores - 1
+            "GUIDELLM__MAX_WORKER_PROCESSES": f"{NUM_CORES - 1}",
         }
     )
     .add_local_python_source("cli")
@@ -94,7 +95,7 @@ def benchmark_runner_cls(region: str):
             image=benchmarking_image,
             secrets=[hf_secret],
             volumes={RESULTS_PATH: results_volume},
-            cpu=2,
+            cpu=NUM_CORES,
             memory=1 * 1024,
             scaledown_window=SCALEDOWN_WINDOW,
             timeout=TIMEOUT,
@@ -249,10 +250,16 @@ class BenchmarkRunner_GCP_USEAST4(BenchmarkRunner):
     pass
 
 
+@benchmark_runner_cls(region="asia-southeast1")
+class BenchmarkRunner_GCP_ASIASOUTHEAST1(BenchmarkRunner):
+    pass
+
+
 all_benchmark_runner_classes = {
     "us-ashburn-1": BenchmarkRunner_OCI_USASHBURN1,
     "us-east-1": BenchmarkRunner_AWS_USEAST1,
     "us-east-2": BenchmarkRunner_AWS_USEAST2,
     "us-east4": BenchmarkRunner_GCP_USEAST4,
     "us-chicago-1": BenchmarkRunner_OCI_USCHICAGO1,
+    "asia-southeast1": BenchmarkRunner_GCP_ASIASOUTHEAST1,
 }

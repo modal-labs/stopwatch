@@ -128,6 +128,13 @@ class SGLang_H100(SGLangBase):
     server_config: str = modal.parameter(default="{}")
 
 
+@sglang_cls(region="asia-southeast1")
+class SGLang_H100_GCP_ASIASOUTHEAST1(SGLangBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
 @sglang_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
 class SGLang_8xH100(SGLangBase):
     model: str = modal.parameter()
@@ -159,6 +166,7 @@ sglang_classes = {
         },
         "H100": {
             "us-chicago-1": SGLang_H100,
+            "asia-southeast1": SGLang_H100_GCP_ASIASOUTHEAST1,
         },
         "H100:8": {
             "us-chicago-1": SGLang_8xH100,
