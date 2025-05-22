@@ -1,26 +1,78 @@
 from typing import Optional
 import json
+import sys
 
 from stopwatch.db import RateType
+from stopwatch.llm_server import deploy_llm_server_cls
 from stopwatch.resources import app
-from stopwatch.run_benchmark import all_benchmark_runner_classes
+from stopwatch.run_benchmark import (
+    deploy_benchmark_runner_cls,
+    get_benchmark_runner_class_name,
+)
+
+CLIENT_REGION = "us-chicago-1"
+GPU = "H100"
+LLM_SERVER_TYPE = "vllm"
+LLM_SERVER_CONFIG = {}
+SERVER_REGION = "us-chicago-1"
 
 
-@app.local_entrypoint()
+def local_entrypoint_with_dynamic_classes():
+    def decorator(fn):
+        # Parse command line arguments
+        args = {
+            k: globals()[k.replace("-", "_").upper()]
+            for k in [
+                "client-region",
+                "gpu",
+                "llm-server-type",
+                "llm-server-config",
+                "server-region",
+            ]
+        }
+
+        for key in args:
+            if f"--{key}" in sys.argv and sys.argv.index(f"--{key}") + 1 < len(
+                sys.argv
+            ):
+                args[key] = sys.argv[sys.argv.index(f"--{key}") + 1]
+
+        # Create client class
+        deploy_benchmark_runner_cls(args["client-region"])
+
+        # Deploy server class
+        deploy_llm_server_cls(
+            args["llm-server-type"],
+            args["gpu"],
+            args["server-region"],
+            args["llm-server-config"],
+        )
+
+        return app.local_entrypoint()(fn)
+
+    return decorator
+
+
+@local_entrypoint_with_dynamic_classes()
 def run_benchmark(
     model: str,
     data: str = "prompt_tokens=512,output_tokens=128",
-    gpu: str = "H100",
-    server_region: str = "us-chicago-1",
-    client_region: str = "us-chicago-1",
-    llm_server_type: str = "vllm",
+    gpu: str = GPU,
+    server_region: str = CLIENT_REGION,
+    client_region: str = SERVER_REGION,
+    llm_server_type: str = LLM_SERVER_TYPE,
     duration: Optional[float] = 120,
-    llm_server_config: Optional[str] = None,
+    llm_server_config: Optional[str] = LLM_SERVER_CONFIG,
     client_config: Optional[str] = None,
     rate_type: str = RateType.SYNCHRONOUS.value,
     rate: Optional[float] = None,
 ):
-    cls = all_benchmark_runner_classes[client_region]
+    cls_name = get_benchmark_runner_class_name(client_region)
+
+    if cls_name not in app.registered_classes:
+        raise ValueError(f"Benchmark runner class {cls_name} not found")
+
+    cls = app.registered_classes[cls_name]
 
     if llm_server_config is not None:
         try:

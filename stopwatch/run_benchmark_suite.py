@@ -3,7 +3,7 @@ import modal
 from .constants import VersionDefaults
 from .etl import export_results
 from .resources import app, db_volume, results_volume
-from .run_benchmark import all_benchmark_runner_classes
+from .run_benchmark import get_benchmark_runner_class_name
 
 
 DATASETTE_PATH = "/datasette"
@@ -141,7 +141,16 @@ async def run_benchmark(
         benchmark = session.query(Benchmark).filter_by(id=benchmark_id).first()
 
         if fc is None:
-            benchmark_cls = all_benchmark_runner_classes[benchmark.client_region]
+            benchmark_cls_name = get_benchmark_runner_class_name(
+                benchmark.client_region
+            )
+
+            if benchmark_cls_name not in app.registered_classes:
+                raise ValueError(
+                    f"Benchmark runner class {benchmark_cls_name} not found"
+                )
+
+            benchmark_cls = app.registered_classes[benchmark_cls_name]
             print("Starting benchmark with config", benchmark.get_config())
             fc = benchmark_cls().run_benchmark.spawn(**benchmark.get_config())
             benchmark.function_call_id = fc.object_id

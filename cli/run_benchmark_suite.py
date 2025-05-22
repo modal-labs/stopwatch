@@ -1,11 +1,18 @@
 import itertools
 import os
+import sys
 import yaml
 
 import modal
 
+from stopwatch.llm_server import deploy_llm_server_cls
 from stopwatch.resources import app
+from stopwatch.run_benchmark import deploy_benchmark_runner_cls
 from stopwatch.run_benchmark_suite import run_benchmark_suite
+
+
+HF_CACHE_PATH = "/cache"
+TRACES_PATH = "/traces"
 
 
 def load_benchmarks_from_config(config_path: str):
@@ -44,9 +51,46 @@ def load_benchmarks_from_config(config_path: str):
     return benchmarks, config["id"], config.get("version", 1), config.get("repeats", 1)
 
 
-@app.local_entrypoint()
-def run_benchmark_suite_cli(config_path: str, disable_safe_mode: bool = False):
+def local_entrypoint_with_dynamic_classes():
+    def decorator(fn):
+        if "--config-path" not in sys.argv:
+            raise ValueError("config-path is required")
+        elif sys.argv.index("--config-path") == len(sys.argv) - 1:
+            raise ValueError("config-path must be followed by a path")
+
+        config_path = sys.argv[sys.argv.index("--config-path") + 1]
+        benchmarks, _, _, _ = load_benchmarks_from_config(config_path)
+
+        # Deploy a class for each unique client and server configuration
+        for benchmark in benchmarks:
+            gpu = benchmark["gpu"]
+            region = benchmark["server_region"]
+            server_type = benchmark["llm_server_type"]
+            server_config = benchmark["llm_server_config"] or {}
+
+            # Create and deploy client class
+            deploy_benchmark_runner_cls(region)
+
+            # Create and deploy server class if it hasn't already been deployed
+            deploy_llm_server_cls(server_type, gpu, region, server_config)
+
+        return app.local_entrypoint()(fn)
+
+    return decorator
+
+
+@local_entrypoint_with_dynamic_classes()
+def run_benchmark_suite_cli(
+    config_path: str,
+    disable_safe_mode: bool = False,
+):
+    print(app.registered_classes)
+    return
+
     benchmarks, id, version, repeats = load_benchmarks_from_config(config_path)
+
+    print(len(benchmarks))
+    return
 
     run_benchmark_suite.remote(
         benchmarks=benchmarks,

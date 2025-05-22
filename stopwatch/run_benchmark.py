@@ -89,22 +89,6 @@ with benchmarking_image.imports():
             return payload
 
 
-def benchmark_runner_cls(region: str):
-    def decorator(cls):
-        return app.cls(
-            image=benchmarking_image,
-            secrets=[hf_secret],
-            volumes={RESULTS_PATH: results_volume},
-            cpu=NUM_CORES,
-            memory=1 * 1024,
-            scaledown_window=SCALEDOWN_WINDOW,
-            timeout=TIMEOUT,
-            region=region,
-        )(cls)
-
-    return decorator
-
-
 class BenchmarkRunner:
     @modal.method()
     async def run_benchmark(
@@ -225,41 +209,40 @@ class BenchmarkRunner:
                     return result.current_benchmark.model_dump()
 
 
-@benchmark_runner_cls(region="us-ashburn-1")
-class BenchmarkRunner_OCI_USASHBURN1(BenchmarkRunner):
-    pass
+def get_benchmark_runner_class_name(region: str):
+    return f"BenchmarkRunner_{region.upper().replace('-', '_')}"
 
 
-@benchmark_runner_cls(region="us-chicago-1")
-class BenchmarkRunner_OCI_USCHICAGO1(BenchmarkRunner):
-    pass
+def BenchmarkRunnerClassFactory(region: str):
+    return type(
+        get_benchmark_runner_class_name(region),
+        (BenchmarkRunner,),
+        {},
+    )
 
 
-@benchmark_runner_cls(region="us-east-1")
-class BenchmarkRunner_AWS_USEAST1(BenchmarkRunner):
-    pass
+def deploy_benchmark_runner_cls(region: str):
+    cls = BenchmarkRunnerClassFactory(region)
+
+    if cls.__name__ in app.registered_classes:
+        return
+
+    # Deploy the newly created class
+    app.cls(
+        image=benchmarking_image,
+        secrets=[hf_secret],
+        volumes={RESULTS_PATH: results_volume},
+        cpu=NUM_CORES,
+        memory=1 * 1024,
+        scaledown_window=SCALEDOWN_WINDOW,
+        timeout=TIMEOUT,
+        region=region,
+    )(cls)
 
 
-@benchmark_runner_cls(region="us-east-2")
-class BenchmarkRunner_AWS_USEAST2(BenchmarkRunner):
-    pass
+# Create classes on demand when they're imported on the Modal container
+def __getattr__(name: str):
+    if not name.startswith("BenchmarkRunner_"):
+        raise AttributeError(f"No attribute {name}")
 
-
-@benchmark_runner_cls(region="us-east4")
-class BenchmarkRunner_GCP_USEAST4(BenchmarkRunner):
-    pass
-
-
-@benchmark_runner_cls(region="asia-southeast1")
-class BenchmarkRunner_GCP_ASIASOUTHEAST1(BenchmarkRunner):
-    pass
-
-
-all_benchmark_runner_classes = {
-    "us-ashburn-1": BenchmarkRunner_OCI_USASHBURN1,
-    "us-east-1": BenchmarkRunner_AWS_USEAST1,
-    "us-east-2": BenchmarkRunner_AWS_USEAST2,
-    "us-east4": BenchmarkRunner_GCP_USEAST4,
-    "us-chicago-1": BenchmarkRunner_OCI_USCHICAGO1,
-    "asia-southeast1": BenchmarkRunner_GCP_ASIASOUTHEAST1,
-}
+    return BenchmarkRunnerClassFactory(name.split("_", 1)[-1].replace("_", "-").lower())

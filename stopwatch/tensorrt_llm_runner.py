@@ -1,3 +1,4 @@
+from typing import Optional
 import hashlib
 import json
 import os
@@ -6,8 +7,7 @@ import traceback
 
 import modal
 
-from .constants import HOURS, MINUTES, SECONDS, VersionDefaults
-from .resources import app, hf_cache_volume, hf_secret
+from .constants import MINUTES, VersionDefaults
 
 
 HF_CACHE_PATH = "/cache"
@@ -16,9 +16,15 @@ PORT = 8000
 
 
 def tensorrt_llm_image_factory(
-    tensorrt_llm_version: str = VersionDefaults.TENSORRT_LLM,
-    cuda_version: str = "12.8.1",
+    tensorrt_llm_version: Optional[str] = None,
+    cuda_version: Optional[str] = None,
 ):
+    if tensorrt_llm_version is None:
+        tensorrt_llm_version = VersionDefaults.TENSORRT_LLM
+
+    if cuda_version is None:
+        cuda_version = VersionDefaults.TENSORRT_LLM_CUDA
+
     return (
         modal.Image.from_registry(
             f"nvidia/cuda:{cuda_version}-devel-ubuntu24.04",
@@ -45,34 +51,6 @@ def tensorrt_llm_image_factory(
         )
         .add_local_python_source("cli")
     )
-
-
-def tensorrt_llm_cls(
-    image=tensorrt_llm_image_factory(),
-    secrets=[hf_secret],
-    gpu="H100!",
-    volumes={HF_CACHE_PATH: hf_cache_volume},
-    cpu=4,
-    memory=4 * 1024,
-    scaledown_window=30 * SECONDS,
-    timeout=1 * HOURS,
-    region="us-chicago-1",
-):
-    def decorator(cls):
-        return app.cls(
-            image=image,
-            secrets=secrets,
-            gpu=gpu,
-            volumes=volumes,
-            cpu=cpu,
-            memory=memory,
-            max_containers=1,
-            scaledown_window=scaledown_window,
-            timeout=timeout,
-            region=region,
-        )(modal.concurrent(max_inputs=1000)(cls))
-
-    return decorator
 
 
 class TensorRTLLMBase:
@@ -192,37 +170,3 @@ class TensorRTLLMBase:
             },
             shell=True,
         )
-
-
-@tensorrt_llm_cls()
-class TensorRTLLM(TensorRTLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@tensorrt_llm_cls(region="asia-southeast1")
-class TensorRTLLM_H100_GCP_ASIASOUTHEAST1(TensorRTLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@tensorrt_llm_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
-class TensorRTLLM_8xH100(TensorRTLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-tensorrt_llm_classes = {
-    VersionDefaults.TENSORRT_LLM: {
-        "H100": {
-            "us-chicago-1": TensorRTLLM,
-            "asia-southeast1": TensorRTLLM_H100_GCP_ASIASOUTHEAST1,
-        },
-        "H100:8": {
-            "us-chicago-1": TensorRTLLM_8xH100,
-        },
-    }
-}
