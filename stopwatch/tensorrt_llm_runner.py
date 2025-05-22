@@ -33,7 +33,7 @@ def tensorrt_llm_image_factory(
         )
         .pip_install(
             "hf-transfer",
-            "huggingface_hub",
+            "huggingface_hub[hf_xet]",
             "requests",
         )
         .env(
@@ -87,6 +87,7 @@ class TensorRTLLMBase:
         from tensorrt_llm.llmapi.llm_args import update_llm_args_with_extra_dict
         from tensorrt_llm.plugin import PluginConfig
         import tensorrt_llm
+        import torch
         import yaml
 
         # This entire function needs to be wrapped in a try/except block. If an error
@@ -140,6 +141,7 @@ class TensorRTLLMBase:
                 llm_kwargs = update_llm_args_with_extra_dict(
                     {
                         "model": model_path,
+                        "tensor_parallel_size": torch.cuda.device_count(),
                         "tokenizer": server_config.get("tokenizer", self.model),
                     },
                     llm_kwargs,

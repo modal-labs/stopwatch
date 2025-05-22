@@ -1,0 +1,15 @@
+id: tensorrt-llm-mistral
+base_config:
+  region: us-chicago-1
+  llm_server_type: tensorrt-llm
+  data:
+    - prompt_tokens=128,output_tokens=1024
+    - prompt_tokens=1024,output_tokens=128
+    - prompt_tokens=512,output_tokens=512
+configs:
+  - model: mistralai/Ministral-8B-Instruct-2410
+    gpu: H100
+
+  # Not supported by TensorRT-LLM
+  # - model: mistralai/Mistral-Small-3.1-24B-Instruct-2503
+  #   gpu: H100

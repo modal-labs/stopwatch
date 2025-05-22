@@ -1,4 +1,9 @@
 id: tensorrt-llm
 files:
-  # - tensorrt-llm/llama3.yaml
-  - tensorrt-llm/zeta.yaml
+  # Gemma3 is not supported by TensorRT-LLM
+  # - gemma3.yaml
+  - llama3.yaml
+  - mistral.yaml
+  # Qwen3MoeForCausalLM is not supported by TensorRT-LLM
+  # - qwen.yaml
+  - zeta.yaml
