@@ -5,8 +5,6 @@ files:
   # - deepseek.yaml
   - gemma3.yaml
   - llama3.yaml
-  # SGLang started supporting Mistral 3 on 2025-05-17 (https://github.com/sgl-project/sglang/pull/5099)
-  # It is likely this will be included in their next release, so for now we can skip.
-  # - mistral.yaml
+  - mistral.yaml
   - qwen.yaml
   - zeta.yaml

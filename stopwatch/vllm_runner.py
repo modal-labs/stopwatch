@@ -13,7 +13,7 @@ PORT = 8000
 TRACES_PATH = "/traces"
 
 
-def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM):
+def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM, use_cu128: bool = False):
     python_binary = (
         "/opt/venv/bin/python3"
         if docker_tag in ["v0.8.0", "v0.8.1"]
@@ -22,16 +22,18 @@ def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM):
 
     return (
         modal.Image.from_registry(
-            f"vllm/vllm-openai:{docker_tag}",
-            setup_dockerfile_commands=[
-                f"RUN echo -n {python_binary} > /home/vllm-python",
-            ],
+            (
+                "nvcr.io/nvidia/tritonserver:25.04-vllm-python-py3"
+                if use_cu128
+                else f"vllm/vllm-openai:{docker_tag}"
+            ),
             add_python="3.13",
         )
         .pip_install("hf-transfer", "grpclib", "requests")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands(
             [
+                f"RUN echo -n {python_binary} > /home/vllm-python",
                 "RUN echo '{%- for message in messages %}{{- message.content }}{%- endfor %}' > /home/no-system-prompt.jinja",
                 "ENTRYPOINT []",
             ]
@@ -127,6 +129,19 @@ class vLLM_4xA10(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
+@vllm_cls(
+    image=vllm_image_factory(use_cu128=True),
+    gpu="B200:8",
+    region="us-ashburn-1",
+    cpu=32,
+    memory=64 * 1024,
+)
+class vLLM_8xB200(vLLMBase):
+    model: str = modal.parameter()
+    caller_id: str = modal.parameter(default="")
+    server_config: str = modal.parameter(default="{}")
+
+
 @vllm_cls()
 class vLLM_H100(vLLMBase):
     model: str = modal.parameter()
@@ -169,6 +184,9 @@ vllm_classes = {
         },
         "A10:4": {
             "us-ashburn-1": vLLM_4xA10,
+        },
+        "B200:8": {
+            "us-ashburn-1": vLLM_8xB200,
         },
         "H100": {
             "us-chicago-1": vLLM_H100,

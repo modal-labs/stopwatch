@@ -8,22 +8,25 @@ base_config:
     - prompt_tokens=128,output_tokens=1024
     - prompt_tokens=1024,output_tokens=128
     - prompt_tokens=512,output_tokens=512
+    - prompt_tokens=256,output_tokens=2048
+    - prompt_tokens=2048,output_tokens=256
+    - prompt_tokens=1024,output_tokens=1024
 configs:
   - model: mistralai/Ministral-8B-Instruct-2410
     gpu: H100
-  - model: mistralai/Ministral-8B-Instruct-2410
-    gpu: A10
-    region: us-ashburn-1
-    llm_server_config:
-      extra_args:
-        [
-          "--chat-template",
-          "/home/no-system-prompt.jinja",
-          "--max-model-len",
-          "8192",
-        ]
-  - model: mistralai/Ministral-8B-Instruct-2410
-    gpu: L40S
-    region: us-ashburn-1
+  # - model: mistralai/Ministral-8B-Instruct-2410
+  #   gpu: A10
+  #   region: us-ashburn-1
+  #   llm_server_config:
+  #     extra_args:
+  #       [
+  #         "--chat-template",
+  #         "/home/no-system-prompt.jinja",
+  #         "--max-model-len",
+  #         "8192",
+  #       ]
+  # - model: mistralai/Ministral-8B-Instruct-2410
+  #   gpu: L40S
+  #   region: us-ashburn-1
   - model: mistralai/Mistral-Small-3.1-24B-Instruct-2503
     gpu: H100
