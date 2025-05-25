@@ -192,7 +192,7 @@ def get_model_quant(row):
                 return cli_args[ii + 1].lower()
 
     if row["framework"] == "tensorrt-llm":
-        if kwargs := row.get("llm_kwargs") or {}:
+        if kwargs := json.loads(row.get("kwargs") or "{}"):
             if quant_config := kwargs.get("quant_config"):
                 if quant_algo := quant_config.get("quant_algo"):
                     return quant_algo.lower()
