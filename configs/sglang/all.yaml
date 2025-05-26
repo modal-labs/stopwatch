@@ -6,5 +6,6 @@ files:
   - gemma3.yaml
   - llama3.yaml
   - mistral.yaml
-  - qwen.yaml
+  # SGLang 8xH100 almost always runs out of memory when trying to load Qwen3-235B-A22B.
+  # - qwen.yaml
   - zeta.yaml

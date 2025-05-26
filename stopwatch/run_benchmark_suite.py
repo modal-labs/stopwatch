@@ -1,6 +1,6 @@
 import modal
 
-from .constants import VersionDefaults
+from .constants import HOURS, VersionDefaults
 from .etl import export_results
 from .resources import app, db_volume, results_volume
 from .run_benchmark import all_benchmark_runner_classes
@@ -12,7 +12,7 @@ MAX_CONCURRENT_BENCHMARKS = 45
 MAX_CONSTANT_RATES = 10
 MIN_QPS_STEP_SIZE = 0.5
 RESULTS_PATH = "/results"
-TIMEOUT = 12 * 60 * 60  # 12 hours
+TIMEOUT = 24 * HOURS  # 1 day
 
 
 benchmark_suite_image = (

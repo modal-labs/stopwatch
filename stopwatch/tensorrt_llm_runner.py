@@ -6,7 +6,7 @@ import traceback
 
 import modal
 
-from .constants import HOURS, MINUTES, SECONDS, VersionDefaults
+from .constants import MINUTES, SECONDS, VersionDefaults
 from .resources import app, hf_cache_volume, hf_secret
 
 
@@ -55,7 +55,7 @@ def tensorrt_llm_cls(
     cpu=4,
     memory=4 * 1024,
     scaledown_window=30 * SECONDS,
-    timeout=1 * HOURS,
+    timeout=2 * MINUTES,
     region="us-chicago-1",
 ):
     def decorator(cls):

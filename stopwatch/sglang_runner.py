@@ -4,7 +4,7 @@ import subprocess
 
 import modal
 
-from .constants import HOURS, MINUTES, VersionDefaults
+from .constants import MINUTES, VersionDefaults
 from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
@@ -49,7 +49,7 @@ def sglang_cls(
     cpu=4,
     memory=4 * 1024,
     scaledown_window=2 * MINUTES,
-    timeout=1 * HOURS,
+    timeout=2 * MINUTES,
     region="us-chicago-1",
 ):
     def decorator(cls):

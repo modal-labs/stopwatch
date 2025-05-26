@@ -4,7 +4,7 @@ import subprocess
 
 import modal
 
-from .constants import HOURS, SECONDS, VersionDefaults
+from .constants import HOURS, MINUTES, SECONDS, VersionDefaults
 from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
 
@@ -50,7 +50,7 @@ def vllm_cls(
     cpu=4,
     memory=4 * 1024,
     scaledown_window=30 * SECONDS,
-    timeout=1 * HOURS,
+    timeout=2 * MINUTES,
     region="us-chicago-1",
 ):
     def decorator(cls):
