@@ -250,16 +250,10 @@ class BenchmarkRunner_GCP_USEAST4(BenchmarkRunner):
     pass
 
 
-@benchmark_runner_cls(region="asia-southeast1")
-class BenchmarkRunner_GCP_ASIASOUTHEAST1(BenchmarkRunner):
-    pass
-
-
 all_benchmark_runner_classes = {
     "us-ashburn-1": BenchmarkRunner_OCI_USASHBURN1,
     "us-east-1": BenchmarkRunner_AWS_USEAST1,
     "us-east-2": BenchmarkRunner_AWS_USEAST2,
     "us-east4": BenchmarkRunner_GCP_USEAST4,
     "us-chicago-1": BenchmarkRunner_OCI_USCHICAGO1,
-    "asia-southeast1": BenchmarkRunner_GCP_ASIASOUTHEAST1,
 }

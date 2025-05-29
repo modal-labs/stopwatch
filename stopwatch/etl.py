@@ -26,9 +26,6 @@ with etl_image.imports():
     from .db import benchmark_cls_factory, session
     from .transforms import transform
 
-    from fastapi import Response
-    import pandas as pd
-
 
 @web_app.function(volumes={RESULTS_PATH: results_volume}, image=etl_image)
 def merge_jsonls(jsonl_path: str, json_list: list[dict]) -> list[dict]:
@@ -105,6 +102,9 @@ def read_jsonl(file_path: str | Path) -> list[dict]:
 )
 @modal.fastapi_endpoint()
 def export_results(suite_ids, verbose: bool = False):
+    from fastapi import Response
+    import pandas as pd
+
     if not isinstance(suite_ids, list):
         suite_ids = [suite_ids]
 

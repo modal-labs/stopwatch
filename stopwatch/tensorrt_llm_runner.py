@@ -55,7 +55,7 @@ def tensorrt_llm_cls(
     cpu=4,
     memory=4 * 1024,
     scaledown_window=30 * SECONDS,
-    timeout=2 * MINUTES,
+    timeout=30 * MINUTES,
     region="us-chicago-1",
 ):
     def decorator(cls):
@@ -161,6 +161,8 @@ class TensorRTLLMBase:
     def start(self):
         """Start a TensorRT-LLM server."""
 
+        hf_cache_volume.reload()
+
         assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
         server_config = json.loads(self.server_config)
 
@@ -203,13 +205,6 @@ class TensorRTLLM(TensorRTLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@tensorrt_llm_cls(region="asia-southeast1")
-class TensorRTLLM_H100_GCP_ASIASOUTHEAST1(TensorRTLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
 @tensorrt_llm_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
 class TensorRTLLM_8xH100(TensorRTLLMBase):
     model: str = modal.parameter()
@@ -221,7 +216,6 @@ tensorrt_llm_classes = {
     VersionDefaults.TENSORRT_LLM: {
         "H100": {
             "us-chicago-1": TensorRTLLM,
-            "asia-southeast1": TensorRTLLM_H100_GCP_ASIASOUTHEAST1,
         },
         "H100:8": {
             "us-chicago-1": TensorRTLLM_8xH100,

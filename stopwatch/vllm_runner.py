@@ -4,13 +4,14 @@ import subprocess
 
 import modal
 
-from .constants import HOURS, MINUTES, SECONDS, VersionDefaults
-from .resources import app, hf_cache_volume, hf_secret, traces_volume
+from .constants import HOURS, SECONDS, VersionDefaults
+from .resources import app, hf_cache_volume, hf_secret, traces_volume, vllm_cache_volume
 
 
 HF_CACHE_PATH = "/cache"
 PORT = 8000
 TRACES_PATH = "/traces"
+VLLM_CACHE_PATH = "/root/.cache/vllm"
 
 
 def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM, use_cu128: bool = False):
@@ -46,11 +47,15 @@ def vllm_cls(
     image=vllm_image_factory(),
     secrets=[hf_secret],
     gpu="H100!",
-    volumes={HF_CACHE_PATH: hf_cache_volume, TRACES_PATH: traces_volume},
+    volumes={
+        HF_CACHE_PATH: hf_cache_volume,
+        TRACES_PATH: traces_volume,
+        VLLM_CACHE_PATH: vllm_cache_volume,
+    },
     cpu=4,
     memory=4 * 1024,
     scaledown_window=30 * SECONDS,
-    timeout=2 * MINUTES,
+    timeout=1 * HOURS,
     region="us-chicago-1",
 ):
     def decorator(cls):
@@ -79,6 +84,9 @@ class vLLMBase:
     @modal.web_server(port=PORT, startup_timeout=1 * HOURS)
     def start(self):
         """Start a vLLM server."""
+
+        hf_cache_volume.reload()
+        vllm_cache_volume.reload()
 
         assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
         server_config = json.loads(self.server_config)
@@ -129,13 +137,7 @@ class vLLM_4xA10(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(
-    image=vllm_image_factory(use_cu128=True),
-    gpu="B200:8",
-    region="us-ashburn-1",
-    cpu=32,
-    memory=64 * 1024,
-)
+@vllm_cls(gpu="B200:8", region="us-ashburn-1", cpu=32, memory=64 * 1024)
 class vLLM_8xB200(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -149,15 +151,15 @@ class vLLM_H100(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(region="asia-southeast1")
-class vLLM_H100_GCP_ASIASOUTHEAST1(vLLMBase):
+@vllm_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
+class vLLM_8xH100(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
-class vLLM_8xH100(vLLMBase):
+@vllm_cls(gpu="H200:8", region="us-east-2", cpu=32, memory=64 * 1024)
+class vLLM_8xH200(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
@@ -190,10 +192,12 @@ vllm_classes = {
         },
         "H100": {
             "us-chicago-1": vLLM_H100,
-            "asia-southeast1": vLLM_H100_GCP_ASIASOUTHEAST1,
         },
         "H100:8": {
             "us-chicago-1": vLLM_8xH100,
+        },
+        "H200:8": {
+            "us-east-2": vLLM_8xH200,
         },
         "L40S": {
             "us-ashburn-1": vLLM_L40S,

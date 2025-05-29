@@ -2,7 +2,7 @@ class VersionDefaults:
     GUIDELLM = "678adea"
     SGLANG = "v0.4.6.post5-cu124"
     TENSORRT_LLM = "0.20.0rc3"
-    VLLM = "v0.8.5.post1"
+    VLLM = "v0.9.0"
 
     LLM_SERVERS = {
         "sglang": SGLANG,

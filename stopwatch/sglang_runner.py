@@ -49,7 +49,7 @@ def sglang_cls(
     cpu=4,
     memory=4 * 1024,
     scaledown_window=2 * MINUTES,
-    timeout=2 * MINUTES,
+    timeout=30 * MINUTES,
     region="us-chicago-1",
 ):
     def decorator(cls):
@@ -75,6 +75,8 @@ class SGLangBase:
     @modal.web_server(port=PORT, startup_timeout=30 * MINUTES)
     def start(self):
         """Start an SGLang server."""
+
+        hf_cache_volume.reload()
 
         assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
         server_config = json.loads(self.server_config)
@@ -128,13 +130,6 @@ class SGLang_H100(SGLangBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@sglang_cls(region="asia-southeast1")
-class SGLang_H100_GCP_ASIASOUTHEAST1(SGLangBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
 @sglang_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
 class SGLang_8xH100(SGLangBase):
     model: str = modal.parameter()
@@ -166,7 +161,6 @@ sglang_classes = {
         },
         "H100": {
             "us-chicago-1": SGLang_H100,
-            "asia-southeast1": SGLang_H100_GCP_ASIASOUTHEAST1,
         },
         "H100:8": {
             "us-chicago-1": SGLang_8xH100,

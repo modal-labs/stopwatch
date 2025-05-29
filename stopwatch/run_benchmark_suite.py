@@ -17,7 +17,7 @@ TIMEOUT = 24 * HOURS  # 1 day
 
 benchmark_suite_image = (
     modal.Image.debian_slim(python_version="3.13")
-    .pip_install("numpy", "pandas", "SQLAlchemy")
+    .pip_install("fastapi[standard]", "numpy", "pandas", "SQLAlchemy")
     .add_local_python_source("cli")
 )
 
