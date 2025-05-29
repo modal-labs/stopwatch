@@ -26,6 +26,7 @@ with etl_image.imports():
     from .db import benchmark_cls_factory, session
     from .transforms import transform
 
+    from fastapi import Response
     import pandas as pd
 
 
@@ -149,4 +150,6 @@ def export_results(suite_ids, verbose: bool = False):
         with open(os.path.join(RESULTS_PATH, f"{suite_id}.jsonl"), "w") as f:
             f.write(suite_buf.getvalue().decode("utf-8"))
 
-    return full_buf.getvalue().decode("utf-8")
+    return Response(
+        content=full_buf.getvalue().decode("utf-8"), media_type="application/jsonl"
+    )
