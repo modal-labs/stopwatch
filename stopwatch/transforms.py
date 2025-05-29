@@ -88,6 +88,13 @@ def transform(df):
     df["cli_args"] = df["llm_server_config"].map(
         lambda x: " ".join(x["extra_args"]) if "extra_args" in x else None
     )
+    # # remove chat template from CLI args if present
+    df["cli_args"] = df["cli_args"].map(
+        lambda x: x.replace("--chat-template /home/no-system-prompt.jinja", "").strip()
+        or None
+        if x
+        else x
+    )
     df["env_vars"] = df["llm_server_config"].map(
         lambda x: (
             "\n".join(f"{k}={v}" for k, v in x["env_vars"].items())
@@ -97,6 +104,13 @@ def transform(df):
     )
     df["kwargs"] = df["llm_server_config"].map(
         lambda x: json.dumps(x["llm_kwargs"]) if "llm_kwargs" in x else None
+    )
+    df["tokenizer"] = df["llm_server_config"].map(lambda x: x.get("tokenizer", None))
+    df["framework_version"] = df.apply(
+        lambda row: row["version_metadata"].get(row["framework"], None)
+        if row["version_metadata"]
+        else None,
+        axis=1,
     )
 
     # Extract model quantization
@@ -120,8 +134,8 @@ def transform(df):
 
     return df[
         [
-            *metrics_columns,
             "framework",
+            "framework_version",
             "queries_per_second",
             "task",
             "prompt_tokens",
@@ -133,6 +147,7 @@ def transform(df):
             "gpu_count",
             "model",
             "model_repo",
+            "tokenizer",
             "model_family",
             "model_size",
             "quant",
@@ -140,6 +155,7 @@ def transform(df):
             "env_vars",
             "kwargs",
             "rate_type",
+            *metrics_columns,
         ]
     ]
 
