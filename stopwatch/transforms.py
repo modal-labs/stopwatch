@@ -73,7 +73,7 @@ def transform(df):
     )
 
     df["total_tokens"] = df["prompt_tokens"] + df["output_tokens"]
-    df["tokens"] = df["prompt_tokens"].apply(str).str.cat(df["output_tokens"].apply(str), ",")
+    df["tokens"] = df["prompt_tokens"].apply(str).str.cat(df["output_tokens"].apply(str), ";")
     df["generated_tokens"] = df["output_tokens"]
 
     # Parse GPU configuration
