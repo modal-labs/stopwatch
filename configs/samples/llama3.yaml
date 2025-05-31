@@ -6,15 +6,14 @@
 # - 128 prompt tokens + 1024 output tokens with SGLang
 # - 1024 prompt tokens + 128 output tokens with SGLang
 
-id: llama3-1
+id: llama3-8b
 base_config:
   model: meta-llama/Llama-3.1-8B-Instruct
   region: us-chicago-1
-  llm_server_type: sglang
+  llm_server_type:
+    - sglang
+    - vllm
   gpu: H100
   data:
     - prompt_tokens=128,output_tokens=1024
     - prompt_tokens=1024,output_tokens=128
-configs:
-  - llm_server_type: vllm
-  - llm_server_type: sglang

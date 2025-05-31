@@ -16,7 +16,7 @@ def load_benchmarks_from_config(config_path: str):
 
     benchmarks = []
 
-    for config_spec in config.get("configs", []):
+    for config_spec in config.get("configs", [{}]):
         config_spec = {**config.get("base_config", {}), **config_spec}
         keys = []
         values = []
@@ -67,7 +67,7 @@ def run_benchmark_suite_cli(config_path: str, disable_safe_mode: bool = False):
 
         print("- Open the Datasette UI at:")
         print(
-            f"   {datasette_url}/stopwatch/-/query?sql=select+*+from+{id.replace('-', '_')}_averaged"
+            f"   {datasette_url}/stopwatch/-/query?sql=select+*+from+{id.replace('-', '_')}_averaged+where+rate_type+%21%3D+\"throughput\""
         )
     except Exception:
         print("- Deploy the Datasette UI with:")
