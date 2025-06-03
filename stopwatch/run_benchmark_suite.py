@@ -214,7 +214,7 @@ async def run_benchmark_suite(
     create_all()
 
     # STEP 0: Validate benchmarks
-    for i, benchmark in enumerate(benchmarks):
+    for benchmark in benchmarks:
         for key in [
             "llm_server_type",
             "model",
@@ -224,7 +224,7 @@ async def run_benchmark_suite(
             "client_region",
         ]:
             if benchmark.get(key) is None:
-                raise ValueError(f"Benchmark {i} has no {key}")
+                raise ValueError(f"Benchmark {benchmark} has no {key}")
 
         if "llm_server_config" not in benchmark:
             benchmark["llm_server_config"] = {}

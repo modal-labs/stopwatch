@@ -16,7 +16,7 @@ def load_benchmarks_from_config(config_path: str):
 
     benchmarks = []
 
-    for config_spec in config.get("configs", [{}]):
+    for config_spec in config.get("configs", [] if "files" in config else [{}]):
         config_spec = {**config.get("base_config", {}), **config_spec}
         keys = []
         values = []
