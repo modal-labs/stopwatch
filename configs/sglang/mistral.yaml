@@ -17,19 +17,5 @@ base_config:
 configs:
   - model: mistralai/Ministral-8B-Instruct-2410
     gpu: H100
-  # - model: mistralai/Ministral-8B-Instruct-2410
-  #   gpu: A10
-  #   region: us-ashburn-1
-  #   llm_server_config:
-  #     extra_args:
-  #       [
-  #         "--chat-template",
-  #         "/home/no-system-prompt.jinja",
-  #         "--context-length",
-  #         "8192",
-  #       ]
-  # - model: mistralai/Ministral-8B-Instruct-2410
-  #   gpu: L40S
-  #   region: us-ashburn-1
   - model: mistralai/Mistral-Small-3.1-24B-Instruct-2503
     gpu: H100

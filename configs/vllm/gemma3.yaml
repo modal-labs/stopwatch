@@ -4,7 +4,14 @@ base_config:
   llm_server_type: vllm
   llm_server_config:
     extra_args:
-      ["--chat-template", "/home/no-system-prompt.jinja", "--dtype", "bfloat16"]
+      [
+        "--chat-template",
+        "/home/no-system-prompt.jinja",
+        "--dtype",
+        "bfloat16",
+        "--max-model-len",
+        "65536",
+      ]
   data:
     - prompt_tokens=128,output_tokens=1024
     - prompt_tokens=1024,output_tokens=128
@@ -19,6 +26,19 @@ configs:
   # 4B
   - model: google/gemma-3-4b-it
     gpu: H100
+    data:
+      - prompt_tokens=128,output_tokens=1024
+      - prompt_tokens=1024,output_tokens=128
+      - prompt_tokens=512,output_tokens=512
+      - prompt_tokens=256,output_tokens=2048
+      - prompt_tokens=2048,output_tokens=256
+      - prompt_tokens=1024,output_tokens=1024
+      - prompt_tokens=512,output_tokens=4096
+      - prompt_tokens=4096,output_tokens=512
+      - prompt_tokens=2048,output_tokens=2048
+      - prompt_tokens=8192,output_tokens=512
+      - prompt_tokens=16384,output_tokens=512
+      - prompt_tokens=32768,output_tokens=512
   # - model: google/gemma-3-4b-it
   #   gpu:
   #     - A10

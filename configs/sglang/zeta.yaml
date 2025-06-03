@@ -3,8 +3,16 @@ base_config:
   region: us-chicago-1
   llm_server_type: sglang
   llm_server_config:
-    extra_args: ["--chat-template", "/home/no-system-prompt.jinja"]
-    tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+    - extra_args: ["--chat-template", "/home/no-system-prompt.jinja"]
+      tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+    - extra_args:
+        [
+          "--chat-template",
+          "/home/no-system-prompt.jinja",
+          "--quantization",
+          "fp8",
+        ]
+      tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
   data:
     - prompt_tokens=128,output_tokens=1024
     - prompt_tokens=1024,output_tokens=128
@@ -15,11 +23,8 @@ base_config:
     - prompt_tokens=512,output_tokens=4096
     - prompt_tokens=4096,output_tokens=512
     - prompt_tokens=2048,output_tokens=2048
+    - prompt_tokens=8192,output_tokens=512
+    - prompt_tokens=16384,output_tokens=512
 configs:
   - model: zed-industries/zeta
     gpu: H100
-  # - model: zed-industries/zeta
-  #   gpu:
-  #     - A10
-  #     - L40S
-  #   region: us-ashburn-1

@@ -1,5 +1,4 @@
 id: vllm-deepseek
-# repeats: 3
 base_config:
   region: us-chicago-1
   llm_server_type: vllm
