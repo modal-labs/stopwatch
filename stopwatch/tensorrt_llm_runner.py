@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import subprocess
+import time
 import traceback
 
 import modal
@@ -161,8 +162,6 @@ class TensorRTLLMBase:
     def start(self):
         """Start a TensorRT-LLM server."""
 
-        hf_cache_volume.reload()
-
         assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
         server_config = json.loads(self.server_config)
 
@@ -170,6 +169,16 @@ class TensorRTLLMBase:
         # engine_path to "none", trtllm-serve will fail, as explained in the comment
         # at the start of enter().
         engine_path = self.engine_path if hasattr(self, "engine_path") else "none"
+        engine_config_path = os.path.join(self.engine_path, LLM_KWARGS_PATH)
+
+        # Make sure the volume is up-to-date and this container has access to the built
+        # engine.
+        for _ in range(10):
+            if os.path.exists(engine_config_path):
+                break
+            else:
+                time.sleep(5)
+                hf_cache_volume.reload()
 
         # Start TensorRT-LLM server
         subprocess.Popen(
@@ -180,7 +189,7 @@ class TensorRTLLMBase:
                     "--host",
                     "0.0.0.0",
                     "--extra_llm_api_options",
-                    os.path.join(engine_path, LLM_KWARGS_PATH),
+                    engine_config_path,
                     *(
                         ["--tokenizer", server_config["tokenizer"]]
                         if "tokenizer" in server_config
