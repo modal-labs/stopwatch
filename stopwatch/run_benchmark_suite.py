@@ -176,7 +176,7 @@ async def run_benchmarks(
     fc: Optional[modal.FunctionCall],
     semaphore: asyncio.Semaphore,
 ):
-    if isinstance(benchmark_ids, str):
+    if not isinstance(benchmark_ids, list):
         benchmark_ids = [benchmark_ids]
 
     async with semaphore:
