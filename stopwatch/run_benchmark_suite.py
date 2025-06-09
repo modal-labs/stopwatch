@@ -22,7 +22,7 @@ benchmark_suite_image = (
 )
 
 with benchmark_suite_image.imports():
-    from typing import Any, Dict, List, Optional
+    from typing import Any, Dict, List, Optional, Union
     import asyncio
     import itertools
     import json
@@ -59,97 +59,170 @@ def find_function_call(
 
 def get_benchmarks_to_run(benchmarks: List[Dict[str, Any]]):
     for config in benchmarks:
-        benchmark_models = (
-            session.query(Benchmark)
-            .filter_by(**{k: v for k, v in config.items() if k != "group_id"})
-            .all()
+        benchmark_ids_to_run = []
+
+        if isinstance(config["rate_type"], str):
+            config["rate_type"] = [config["rate_type"]]
+
+        # If no rate is specified, this is a synchronous or throughput benchmark, so
+        # run a single benchmark with no rate. Otherwise, run a benchmark for each rate
+        # specified.
+        rates_to_run = itertools.product(
+            config["rate_type"],
+            (
+                [None]
+                if "rate" not in config
+                else (
+                    config["rate"]
+                    if isinstance(config["rate"], list)
+                    else [config["rate"]]
+                )
+            ),
         )
 
-        assert len(benchmark_models) <= 1, f"Multiple benchmarks found for {config}"
-        benchmark = benchmark_models[0] if benchmark_models else None
+        for rate_type, rate in rates_to_run:
+            benchmark_config = {
+                **config,
+                "rate_type": rate_type,
+            }
 
-        if benchmark is not None:
-            if benchmark.start_time is not None:
-                # TODO: Check errors?
-                continue
-            elif benchmark.function_call_id is not None:
-                fc = modal.FunctionCall.from_id(benchmark.function_call_id)
+            if rate is not None:
+                benchmark_config["rate"] = rate
 
-                try:
-                    call_graph = fc.get_call_graph()
-                except grpclib.exceptions.GRPCError as e:
-                    if e.status == grpclib.const.Status.NOT_FOUND:
-                        # The function call ID is invalid, so we need to re-run
-                        # the benchmark
-                        pass
-                    else:
-                        raise e
-                else:
-                    previous_function_call = find_function_call(
-                        call_graph, benchmark.function_call_id
-                    )
+            benchmark_models = (
+                session.query(Benchmark)
+                .filter_by(
+                    **{k: v for k, v in benchmark_config.items() if k != "group_id"}
+                )
+                .all()
+            )
 
-                    if (
-                        previous_function_call is not None
-                        and previous_function_call.status
-                        in [
-                            modal.call_graph.InputStatus.PENDING,
-                            modal.call_graph.InputStatus.SUCCESS,
-                        ]
-                    ):
-                        try:
-                            # If the previous function call has already
-                            # completed, we should check if the input is valid.
-                            fc.get(timeout=0)
-                        except modal.exception.OutputExpiredError:
-                            # The result has expired, so we need to re-run the
-                            # benchmark since its result wasn't previously
-                            # saved to the database
+            assert (
+                len(benchmark_models) <= 1
+            ), f"Multiple benchmarks found for {benchmark_config}"
+
+            benchmark = benchmark_models[0] if benchmark_models else None
+
+            if benchmark is not None:
+                if benchmark.start_time is not None:
+                    # TODO: Check errors?
+                    continue
+                elif benchmark.function_call_id is not None:
+                    fc = modal.FunctionCall.from_id(benchmark.function_call_id)
+
+                    try:
+                        call_graph = fc.get_call_graph()
+                    except grpclib.exceptions.GRPCError as e:
+                        if e.status == grpclib.const.Status.NOT_FOUND:
+                            # The function call ID is invalid, so we need to re-run the
+                            # benchmark
                             pass
-                        except TimeoutError:
-                            # The previous function call is still running
-                            # (since we called get with timeout=0), so we can
-                            # save its results directly.
-                            yield (benchmark.id, fc)
-                            continue
-                        except Exception as e:
-                            # This function call likely crashed
-                            raise Exception(
-                                f"The previous function call {benchmark.function_call_id} for benchmark {benchmark.id} crashed. You may ignore this error with --ignore-previous-errors"
-                            ) from e
                         else:
-                            # The previous function call has completed
-                            # successfully, so we can save its results
-                            # directly.
-                            yield (benchmark.id, fc)
-                            continue
-        else:
-            benchmark = Benchmark(**config)
-            session.add(benchmark)
-            session.commit()
-            db_volume.commit()
+                            raise e
+                    else:
+                        previous_function_call = find_function_call(
+                            call_graph, benchmark.function_call_id
+                        )
 
-        yield (benchmark.id, None)
+                        if (
+                            previous_function_call is not None
+                            and previous_function_call.status
+                            in [
+                                modal.call_graph.InputStatus.PENDING,
+                                modal.call_graph.InputStatus.SUCCESS,
+                            ]
+                        ):
+                            try:
+                                # If the previous function call has already completed, we
+                                # should check if the input is valid.
+                                fc.get(timeout=0)
+                            except modal.exception.OutputExpiredError:
+                                # The result has expired, so we need to re-run the
+                                # benchmark since its result wasn't previously saved to the
+                                # database
+                                pass
+                            except TimeoutError:
+                                # The previous function call is still running (since we
+                                # called get with timeout=0), so we can save its results
+                                # directly.
+                                yield (benchmark.id, fc)
+                                continue
+                            except Exception as e:
+                                # This function call likely crashed
+                                raise Exception(
+                                    f"The previous function call {benchmark.function_call_id} for benchmark {benchmark.id} crashed. You may ignore this error with --ignore-previous-errors"
+                                ) from e
+                            else:
+                                # The previous function call has completed successfully, so
+                                # we can save its results directly.
+                                yield (benchmark.id, fc)
+                                continue
+            else:
+                benchmark = Benchmark(**benchmark_config)
+                session.add(benchmark)
+                session.commit()
+                db_volume.commit()
+
+            benchmark_ids_to_run.append(benchmark.id)
+
+        # If no benchmark IDs were added to the list, don't yield anything for this
+        # config.
+        if len(benchmark_ids_to_run) > 0:
+            yield (benchmark_ids_to_run, None)
 
 
-async def run_benchmark(
-    benchmark_id: str,
+async def run_benchmarks(
+    benchmark_ids: Union[str, List[str]],
     fc: Optional[modal.FunctionCall],
     semaphore: asyncio.Semaphore,
 ):
+    if isinstance(benchmark_ids, str):
+        benchmark_ids = [benchmark_ids]
+
     async with semaphore:
-        benchmark = session.query(Benchmark).filter_by(id=benchmark_id).first()
+        benchmarks = (
+            session.query(Benchmark).filter(Benchmark.id.in_(benchmark_ids)).all()
+        )
+
+        assert len(benchmarks) > 0, f"No benchmarks found for {benchmark_ids}"
+
+        rate_types = []
+        rates = []
+
+        for benchmark in benchmarks:
+            assert (
+                benchmark.client_region == benchmarks[0].client_region
+            ), f"All benchmarks must have the same client region: {benchmark.client_region} != {benchmarks[0].client_region}"
+
+            if benchmark.rate_type not in rate_types:
+                rate_types.append(benchmark.rate_type)
+
+            if benchmark.rate not in rates:
+                rates.append(benchmark.rate)
+
+        assert (
+            len(rate_types) == 1 or len(rates) == 1
+        ), f"All benchmarks must have either the same rate type or the same rate: {rate_types} vs. {rates}"
 
         if fc is None:
-            benchmark_cls = all_benchmark_runner_classes[benchmark.client_region]
-            print("Starting benchmark with config", benchmark.get_config())
-            fc = benchmark_cls().run_benchmark.spawn(**benchmark.get_config())
-            benchmark.function_call_id = fc.object_id
+            config = {
+                **benchmarks[0].get_config(),
+                "rate_type": rate_types,
+                "rate": rates,
+            }
+
+            print("Starting benchmarks with config", config)
+            benchmark_cls = all_benchmark_runner_classes[benchmarks[0].client_region]
+            fc = benchmark_cls().run_benchmark.spawn(**config)
+
+            for benchmark in benchmarks:
+                benchmark.function_call_id = fc.object_id
+
             session.commit()
             db_volume.commit()
 
         try:
-            result = await fc.get.aio()
+            fc_result = await fc.get.aio()
         except modal.exception.RemoteError as e:
             # Happens when the function call is interrupted manually
             warnings.warn(f"WARNING: Function call result could not be retrieved: {e}")
@@ -164,22 +237,32 @@ async def run_benchmark(
 
         print("Saving results for", fc.object_id)
 
-        with open(os.path.join(RESULTS_PATH, f"{benchmark.id}.json"), "w") as f:
-            # The full results are saved to disk since they are too big to
-            # fit into the database (~20MB per benchmark)
-            json.dump(result, f)
+        with open(os.path.join(RESULTS_PATH, f"{fc.object_id}.json"), "w") as f:
+            # The full results are saved to disk since they are too big to fit in the
+            # database (~20MB per benchmark run)
+            json.dump(fc_result, f)
 
-        benchmark.save_results(result)
-        session.commit()
         db_volume.commit()
+
+        for benchmark in benchmarks:
+            benchmark.save_results(
+                next(
+                    r
+                    for r in fc_result
+                    if r["rate_type"] == benchmark.rate_type
+                    and r["rate"] == benchmark.rate
+                )["results"]
+            )
+
+        session.commit()
 
 
 async def run_benchmarks_in_parallel(benchmarks: List[Dict[str, Any]]):
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_BENCHMARKS)
     tasks = []
 
-    for benchmark_id, fc in get_benchmarks_to_run(benchmarks):
-        task = asyncio.create_task(run_benchmark(benchmark_id, fc, semaphore))
+    for benchmark_ids, fc in get_benchmarks_to_run(benchmarks):
+        task = asyncio.create_task(run_benchmarks(benchmark_ids, fc, semaphore))
         tasks.append(task)
 
     if len(tasks) == 0:
@@ -204,7 +287,7 @@ async def run_benchmark_suite(
     id: str,
     version: int = 1,
     repeats: int = 1,
-    disable_safe_mode: bool = False,
+    fast_mode: bool = False,
 ):
     db_volume.reload()
     SuiteBenchmark = benchmark_cls_factory(table_name=id.replace("-", "_"))
@@ -241,44 +324,28 @@ async def run_benchmark_suite(
             "suite": version,
         }
 
-    # STEP 0.75: Run synchronous benchmarks without repeats to ensure that all
-    # benchmark configurations are working.
-    if not disable_safe_mode:
-        await run_benchmarks_in_parallel(
-            [
-                {
-                    **benchmark,
-                    "rate_type": RateType.SYNCHRONOUS.value,
-                    "repeat_index": 0,
-                }
-                for benchmark in benchmarks
-            ]
-        )
-
     # STEP 1: Run synchronous and throughput benchmarks
-    # TODO: If repeat_index is increased, all of the constant rate benchmarks
-    # need to be re-run with the new synchronous and throughput rates in mind
+    # TODO: If repeat_index is increased, all of the constant rate benchmarks need to
+    # be re-run with the new synchronous and throughput rates in mind
     await run_benchmarks_in_parallel(
         [
             {
                 **benchmark,
-                "rate_type": rate_type.value,
+                "rate_type": rate_type,
                 "repeat_index": repeat_index,
             }
             for benchmark, rate_type, repeat_index in itertools.product(
                 benchmarks,
-                [RateType.SYNCHRONOUS, RateType.THROUGHPUT],
+                (
+                    # If fast_mode is enabled, run synchronous and throughput
+                    # benchmarks in parallel to save time. Otherwise, run them
+                    # sequentially on a single container to save cost.
+                    [RateType.SYNCHRONOUS.value, RateType.THROUGHPUT.value]
+                    if fast_mode
+                    else [[RateType.SYNCHRONOUS.value, RateType.THROUGHPUT.value]]
+                ),
                 range(repeats),
             )
-            if disable_safe_mode
-            or session.query(Benchmark)
-            .filter_by(
-                **{k: v for k, v in benchmark.items() if k != "group_id"},
-                rate_type=RateType.SYNCHRONOUS.value,
-            )
-            .filter(Benchmark.completed_request_rate.is_not(None))
-            .count()
-            == 1
         ]
     )
 
@@ -326,37 +393,43 @@ async def run_benchmark_suite(
         max_rate = np.mean([x.completed_request_rate for x in throughput_benchmarks])
 
         if min_rate >= max_rate:
-            # This generally happens when the model is extremely large and the
-            # server can't handle the load well during a throughput test,
-            # resulting in 0 or 1 successful requests.
+            # This generally happens when the model is extremely large and the server
+            # can't handle the load well during a throughput test, resulting in 0 or 1
+            # successful requests.
             warnings.warn(
                 f"WARNING: Synchronous rate ({min_rate}) is greater than throughput rate ({max_rate}) with config {benchmark}"
             )
             continue
 
-        # By default, run 10 constant-rate runs per benchmark. However, if the
-        # QPS step size between constant rates is less than 0.5, run fewer than
-        # 10 constant-rate runs.
+        # By default, run 10 constant-rate runs per benchmark. However, if the QPS step
+        # size between constant rates is less than 0.5, run fewer than 10 constant-rate
+        # runs.
         for num_constant_rates in range(MAX_CONSTANT_RATES, -1, -1):
             if num_constant_rates == 0:
                 constant_rates = []
                 break
 
-            constant_rates = np.linspace(min_rate, max_rate, num_constant_rates + 1)[1:]
+            constant_rates = np.linspace(min_rate, max_rate, num_constant_rates + 1)[
+                1:
+            ].tolist()
             qps_step_size = (max_rate - min_rate) / num_constant_rates
 
             if qps_step_size >= MIN_QPS_STEP_SIZE:
                 break
 
-        for rate, repeat_index in itertools.product(constant_rates, range(repeats)):
-            benchmarks_to_run.append(
-                {
-                    **benchmark,
-                    "rate_type": RateType.CONSTANT.value,
-                    "rate": rate,
-                    "repeat_index": repeat_index,
-                }
-            )
+        for repeat_index in range(repeats):
+            # If fast_mode is enabled, run all constant-rate benchmarks in parallel to
+            # save time. Otherwise, run them sequentially on a single container to save
+            # cost.
+            for rate in constant_rates if fast_mode else [constant_rates]:
+                benchmarks_to_run.append(
+                    {
+                        **benchmark,
+                        "rate_type": RateType.CONSTANT.value,
+                        "rate": rate,
+                        "repeat_index": repeat_index,
+                    }
+                )
 
     await run_benchmarks_in_parallel(benchmarks_to_run)
 
@@ -365,9 +438,9 @@ async def run_benchmark_suite(
         cls.__table__.drop(engine, checkfirst=True)
         cls.__table__.create(engine)
 
-    # STEP 3: Average the results together. Start by finding the parameters
-    # that vary between benchmarks in order to get descriptive group IDs for
-    # each averaged benchmark.
+    # STEP 3: Average the results together. Start by finding the parameters that vary
+    # between benchmarks in order to get descriptive group IDs for each averaged
+    # benchmark.
     parameters = {}
 
     for benchmark in benchmarks:

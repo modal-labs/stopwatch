@@ -45,7 +45,7 @@ def load_benchmarks_from_config(config_path: str):
 
 
 @app.local_entrypoint()
-def run_benchmark_suite_cli(config_path: str, disable_safe_mode: bool = False):
+def run_benchmark_suite_cli(config_path: str, fast_mode: bool = False):
     benchmarks, id, version, repeats = load_benchmarks_from_config(config_path)
 
     run_benchmark_suite.remote(
@@ -53,7 +53,7 @@ def run_benchmark_suite_cli(config_path: str, disable_safe_mode: bool = False):
         id=id,
         version=version,
         repeats=repeats,
-        disable_safe_mode=disable_safe_mode,
+        fast_mode=fast_mode,
     )
 
     print()

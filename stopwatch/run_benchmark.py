@@ -1,15 +1,19 @@
 import modal
 
-from .constants import VersionDefaults
+from .constants import VersionDefaults, HOURS, SECONDS
 from .resources import app, hf_secret, results_volume
 from .llm_server import llm_server
 
 
+# Delay between benchmarks when running multiple constant-rate benchmarks on the same
+# LLM server. Must be less than the LLM server's scaledown_window.
+DELAY_BETWEEN_BENCHMARKS = 15 * SECONDS
+
 LLM_SERVER_TYPES = ["vllm", "sglang", "tensorrt-llm"]
 NUM_CORES = 2
 RESULTS_PATH = "/results"
-SCALEDOWN_WINDOW = 5  # 5 seconds
-TIMEOUT = 4 * 60 * 60  # 4 hours
+SCALEDOWN_WINDOW = 5 * SECONDS
+TIMEOUT = 4 * HOURS
 
 benchmarking_image = (
     modal.Image.debian_slim()
@@ -28,7 +32,9 @@ benchmarking_image = (
 )
 
 with benchmarking_image.imports():
-    from typing import Any, Mapping, Optional
+    from typing import Any, Mapping, Optional, Union
+    import itertools
+    import time
     import urllib.parse
 
     from guidellm.backend import OpenAIHTTPBackend
@@ -111,21 +117,21 @@ class BenchmarkRunner:
         self,
         llm_server_type: str,
         model: str,
-        rate_type: str,
+        rate_type: Union[str, list[str]],
         data: str,
         gpu: str,
         server_region: str,
         duration: Optional[float] = 120,  # 2 minutes
         llm_server_config: Optional[Mapping[str, Any]] = None,
         client_config: Optional[Mapping[str, Any]] = None,
-        rate: Optional[float] = None,
+        rate: Optional[Union[float, list[float]]] = None,
         **kwargs,
     ):
         """Benchmarks a LLM deployment on Modal.
 
         Args:
-            llm_server_type (str): The server to use for benchmarking, either
-                'vllm', 'sglang', or 'tensorrt-llm'.
+            llm_server_type (str): The server to use for benchmarking, either 'vllm',
+                'sglang', or 'tensorrt-llm'.
             model (str): Name of the model to benchmark.
             rate_type (str): The type of rate to use for benchmarking, either
                 'constant', 'synchronous', or 'throughput'.
@@ -136,8 +142,9 @@ class BenchmarkRunner:
             duration (float): The duration of the benchmark in seconds.
             llm_server_config (dict): Configuration for the LLM server.
             client_config (dict): Configuration for the GuideLLM client.
-            rate (float): If rate_type is 'constant', optionally specify the
-                number of requests that should be made per second.
+            rate (list[float]): If rate_type is 'constant', optionally specify the
+                number of requests that should be made per second. If this is a list,
+                benchmarks will be run sequentially at each request rate.
         """
 
         if llm_server_type not in LLM_SERVER_TYPES:
@@ -150,6 +157,17 @@ class BenchmarkRunner:
 
         if client_config is None:
             client_config = {}
+
+        if not isinstance(rate_type, list):
+            rate_type = [rate_type]
+
+        if not isinstance(rate, list):
+            rate = [rate]
+
+        if len(rate_type) > 1 and len(rate) > 1:
+            raise ValueError(
+                f"All benchmarks must have either the same rate type or the same rate: {rate_type} vs. {rate}"
+            )
 
         # Create the request loader before starting the LLM server, since this can take
         # a long time for data configs with many prompt tokens.
@@ -172,6 +190,8 @@ class BenchmarkRunner:
             else f"Created loader with unknown number unique requests from {data}.\n\n"
         )
 
+        benchmark_results = []
+
         # Start LLM server in background
         with llm_server(
             llm_server_type,
@@ -191,38 +211,57 @@ class BenchmarkRunner:
             await backend.validate()
             print(f"Connected to backend for model {backend.model}.")
 
-            profile = create_profile(rate_type=rate_type, rate=rate)
-            benchmarker_kwargs = {
-                "backend": backend,
-                "request_loader": request_loader,
-                "request_loader_description": request_loader.description,
-                "benchmark_save_extras": None,
-                "processor": processor,
-                "processor_args": None,
-            }
+            rates_to_run = list(itertools.product(rate_type, rate))
+            print(f"Running {len(rates_to_run)} benchmarks")
 
-            if llm_server_type == "vllm" and client_config.get(
-                "collect_metrics", False
-            ):
-                benchmarker = GenerativeBenchmarkerWithvLLMMetrics(
-                    vllm_metrics_url=metrics_url,
-                    **benchmarker_kwargs,
+            for i, (rate_type_i, rate_i) in enumerate(rates_to_run):
+                print(
+                    f"Starting benchmark with rate type {rate_type_i} and rate {rate_i}"
                 )
-            else:
-                benchmarker = GenerativeBenchmarker(**benchmarker_kwargs)
 
-            async for result in benchmarker.run(
-                profile=profile,
-                max_number_per_strategy=None,
-                max_duration_per_strategy=duration,
-                warmup_percent_per_strategy=None,
-                cooldown_percent_per_strategy=None,
-            ):
-                if result.type_ == "benchmark_compiled":
-                    if result.current_benchmark is None:
-                        raise ValueError("Current benchmark is None")
+                profile = create_profile(rate_type=rate_type_i, rate=rate_i)
+                benchmarker_kwargs = {
+                    "backend": backend,
+                    "request_loader": request_loader,
+                    "request_loader_description": request_loader.description,
+                    "benchmark_save_extras": None,
+                    "processor": processor,
+                    "processor_args": None,
+                }
 
-                    return result.current_benchmark.model_dump()
+                if llm_server_type == "vllm" and client_config.get(
+                    "collect_metrics", False
+                ):
+                    benchmarker = GenerativeBenchmarkerWithvLLMMetrics(
+                        vllm_metrics_url=metrics_url,
+                        **benchmarker_kwargs,
+                    )
+                else:
+                    benchmarker = GenerativeBenchmarker(**benchmarker_kwargs)
+
+                async for result in benchmarker.run(
+                    profile=profile,
+                    max_number_per_strategy=None,
+                    max_duration_per_strategy=duration,
+                    warmup_percent_per_strategy=None,
+                    cooldown_percent_per_strategy=None,
+                ):
+                    if result.type_ == "benchmark_compiled":
+                        if result.current_benchmark is None:
+                            raise ValueError("Current benchmark is None")
+
+                        benchmark_results.append(
+                            {
+                                "rate": rate_i,
+                                "rate_type": rate_type_i,
+                                "results": result.current_benchmark.model_dump(),
+                            }
+                        )
+
+                if i != len(rates_to_run) - 1:
+                    time.sleep(DELAY_BETWEEN_BENCHMARKS)
+
+        return benchmark_results
 
 
 @benchmark_runner_cls(region="us-ashburn-1")
