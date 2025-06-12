@@ -48,6 +48,35 @@ configs:
 
         extra_args: ["--max_batch_size", "1"]
 
+      - llm_kwargs:
+          quant_config:
+            quant_algo: FP8
+
+          calib_config:
+            calib_batches: 512
+            calib_batch_size: 1
+            calib_max_seq_length: 2048
+            tokenizer_max_seq_length: 4096
+
+          build_config:
+            plugin_config:
+              multiple_profiles: true
+              paged_kv_cache: true
+              low_latency_gemm_swiglu_plugin: fp8
+              low_latency_gemm_plugin: fp8
+            speculative_decoding_mode: LOOKAHEAD_DECODING
+            max_input_len: 1024
+            max_num_tokens: 1152
+            max_batch_size: 2
+
+          speculative_config:
+            decoding_type: Lookahead
+            max_window_size: 8
+            max_ngram_size: 6
+            max_verification_set_size: 8
+
+        extra_args: ["--max_batch_size", "2"]
+
       # Tuned for throughput
       - llm_kwargs:
           quant_config:
