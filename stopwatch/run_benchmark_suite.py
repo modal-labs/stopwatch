@@ -277,6 +277,8 @@ async def run_benchmarks_in_parallel(benchmarks: List[Dict[str, Any]]):
         DB_PATH: db_volume,
         RESULTS_PATH: results_volume,
     },
+    cpu=2,
+    memory=1 * 1024,
     max_containers=1,
     scaledown_window=2,
     timeout=TIMEOUT,
