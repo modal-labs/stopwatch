@@ -11,14 +11,16 @@ import modal
 from .constants import VersionDefaults
 from .sglang_runner import sglang_classes
 from .tensorrt_llm_runner import tensorrt_llm_classes
+from .tokasaurus_runner import tokasaurus_classes
 from .vllm_runner import vllm_classes
 
 SGLANG = "sglang"
 TENSORRT_LLM = "tensorrt-llm"
+TOKASAURUS = "tokasaurus"
 VLLM = "vllm"
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 @contextlib.contextmanager
@@ -36,7 +38,7 @@ def llm_server(
     parameters.
 
     :param: llm_server_type: The type of LLM server to start, either 'sglang',
-        'tensorrt-llm', or 'vllm'.
+        'tensorrt-llm', 'tokasaurus', or 'vllm'.
     :param: model: The model to start the server with.
     :param: gpu: The GPU to start the server with.
     :param: region: The region to start the server in.
@@ -55,6 +57,7 @@ def llm_server(
     llm_server_classes = {
         SGLANG: sglang_classes,
         TENSORRT_LLM: tensorrt_llm_classes,
+        TOKASAURUS: tokasaurus_classes,
         VLLM: vllm_classes,
     }
 
@@ -89,6 +92,8 @@ def llm_server(
         health_url = f"{url}/health_generate"
     elif llm_server_type == TENSORRT_LLM:
         health_url = f"{url}/health"
+    elif llm_server_type == TOKASAURUS:
+        health_url = f"{url}/ping"
     elif llm_server_type == VLLM:
         health_url = f"{url}/metrics"
 
@@ -126,7 +131,7 @@ def llm_server(
             raise Exception(msg)
 
         if (
-            llm_server_type in (SGLANG, TENSORRT_LLM)
+            llm_server_type in (SGLANG, TENSORRT_LLM, TOKASAURUS)
             and res.status_code == 200  # noqa: PLR2004
         ) or (llm_server_type == VLLM and "vllm:gpu_cache_usage_perc" in res.text):
             break

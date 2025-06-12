@@ -93,6 +93,12 @@ select = [
   "S104",
   "S602",
 ]
+"stopwatch/tokasaurus_runner.py" = [
+  "D101",
+  "N801",
+  "S104",
+  "S602",
+]
 "stopwatch/vllm_runner.py" = [
   "D101",
   "N801",

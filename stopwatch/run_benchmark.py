@@ -15,20 +15,20 @@ from .resources import app, hf_secret, results_volume
 # LLM server. Must be less than the LLM server's scaledown_window.
 DELAY_BETWEEN_BENCHMARKS = 15 * SECONDS
 
-LLM_SERVER_TYPES = ["vllm", "sglang", "tensorrt-llm"]
+LLM_SERVER_TYPES = ["vllm", "sglang", "tensorrt-llm", "tokasaurus"]
 NUM_CORES = 2
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5 * SECONDS
 TIMEOUT = 4 * HOURS
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 benchmarking_image = (
     modal.Image.debian_slim()
     .apt_install("git")
     .pip_install(
-        f"git+https://github.com/neuralmagic/guidellm.git#{VersionDefaults.GUIDELLM}",
+        f"git+https://github.com/jackcook/guidellm.git#{VersionDefaults.GUIDELLM}",
         "prometheus-client",
         "tiktoken",
     )
@@ -42,6 +42,7 @@ benchmarking_image = (
 
 with benchmarking_image.imports():
     from guidellm.backend import OpenAIHTTPBackend
+    from guidellm.backend.openai import EndpointType
     from guidellm.benchmark.benchmarker import GenerativeBenchmarker
     from guidellm.benchmark.profile import create_profile
     from guidellm.request import GenerationRequest, GenerativeRequestLoader
@@ -97,13 +98,13 @@ with benchmarking_image.imports():
     class CustomOpenAIHTTPBackend(OpenAIHTTPBackend):
         def _completions_payload(
             self,
-            body: dict | None,
+            endpoint_type: EndpointType,
             orig_kwargs: dict | None,
             max_output_tokens: int | None,
             **kwargs: dict[str, Any],
         ) -> dict:
             payload = super()._completions_payload(
-                body,
+                endpoint_type,
                 orig_kwargs,
                 max_output_tokens,
                 **kwargs,
@@ -158,7 +159,7 @@ class BenchmarkRunner:
         Benchmarks a LLM deployment on Modal.
 
         :param: llm_server_type: The server to use for benchmarking, either 'vllm',
-                'sglang', or 'tensorrt-llm'.
+            'sglang', 'tensorrt-llm', or 'tokasaurus'.
         :param: model: Name of the model to benchmark.
         :param: rate_type: The type of rate to use for benchmarking, either 'constant',
             'synchronous', or 'throughput'.
@@ -234,13 +235,15 @@ class BenchmarkRunner:
             region=server_region,
             server_config=llm_server_config,
         ) as (llm_server_url, extra_query):
-            extra_query_args = urllib.parse.urlencode(extra_query)
-            metrics_url = f"{llm_server_url}/metrics?{extra_query_args}"
-
             # Create backend
             backend = CustomOpenAIHTTPBackend(
                 target=f"{llm_server_url}/v1",
                 extra_query=extra_query,
+                remove_from_body=(
+                    ["max_completion_tokens", "stream"]
+                    if llm_server_type == "tokasaurus"
+                    else None
+                ),
             )
             await backend.validate()
             logger.info("Connected to backend for model %s", backend.model)
@@ -250,7 +253,7 @@ class BenchmarkRunner:
 
             for i, (rate_type_i, rate_i) in enumerate(rates_to_run):
                 logger.info(
-                    "Starting benchmark with rate type %s and rate %f",
+                    "Starting benchmark with rate type %s and rate %s",
                     rate_type_i,
                     rate_i,
                 )
@@ -269,6 +272,9 @@ class BenchmarkRunner:
                     "collect_metrics",
                     False,
                 ):
+                    extra_query_args = urllib.parse.urlencode(extra_query)
+                    metrics_url = f"{llm_server_url}/metrics?{extra_query_args}"
+
                     benchmarker = GenerativeBenchmarkerWithvLLMMetrics(
                         vllm_metrics_url=metrics_url,
                         **benchmarker_kwargs,

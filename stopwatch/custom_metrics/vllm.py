@@ -23,7 +23,7 @@ from .histogram import Histogram
 REFRESH_INTERVAL = 10  # 10 seconds
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 class vLLMMetrics(StandardBaseModel):  # noqa: N801

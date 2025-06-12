@@ -5,7 +5,7 @@ from stopwatch.resources import app, traces_volume
 from stopwatch.run_profiler import run_profiler
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 @app.local_entrypoint()

@@ -18,7 +18,7 @@ RESULTS_PATH = "/results"
 TIMEOUT = 24 * HOURS  # 1 day
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 benchmark_suite_image = (
@@ -643,7 +643,7 @@ async def run_benchmark_suite(
 
             session.add(averaged_benchmark)
             logger.info(
-                "Added averaged benchmark %s for %s %f",
+                "Added averaged benchmark %s for %s %s",
                 group_id,
                 rate_type,
                 rate,

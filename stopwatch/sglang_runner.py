@@ -6,11 +6,10 @@ from collections.abc import Callable
 import modal
 
 from .constants import MINUTES, VersionDefaults
-from .resources import app, hf_cache_volume, hf_secret, traces_volume
+from .resources import app, hf_cache_volume, hf_secret
 
 HF_CACHE_PATH = "/cache"
 PORT = 30000
-TRACES_PATH = "/traces"
 
 
 def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG) -> modal.Image:
@@ -53,10 +52,7 @@ def sglang_cls(
     image: modal.Image = sglang_image_factory(),  # noqa: B008
     secrets: list[modal.Secret] = [hf_secret],  # noqa: B006
     gpu: str = "H100!",
-    volumes: dict[str, modal.Volume] = {  # noqa: B006
-        HF_CACHE_PATH: hf_cache_volume,
-        TRACES_PATH: traces_volume,
-    },
+    volumes: dict[str, modal.Volume] = {HF_CACHE_PATH: hf_cache_volume},  # noqa: B006
     cpu: int = 4,
     memory: int = 4 * 1024,
     scaledown_window: int = 2 * MINUTES,

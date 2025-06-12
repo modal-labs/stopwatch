@@ -11,14 +11,14 @@ TIMEOUT = 60 * 60  # 1 hour
 TRACES_PATH = "/traces"
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 profiling_image = (
     modal.Image.debian_slim()
     .apt_install("git")
     .pip_install(
-        f"git+https://github.com/neuralmagic/guidellm.git#{VersionDefaults.GUIDELLM}",
+        f"git+https://github.com/jackcook/guidellm.git#{VersionDefaults.GUIDELLM}",
         "openai",
     )
     .add_local_python_source("cli")

@@ -18,7 +18,7 @@ LLM_KWARGS_PATH = "llm_kwargs.yaml"
 PORT = 8000
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 def tensorrt_llm_image_factory(
@@ -29,7 +29,7 @@ def tensorrt_llm_image_factory(
     Create a Modal image for running a TensorRT-LLM server.
 
     :param: tensorrt_llm_version: The version of TensorRT-LLM to install.
-    :param: cuda_version: The version of the CUDA container to start the image from.
+    :param: cuda_version: The version of CUDA to start the image from.
     :return: A Modal image for running a TensorRT-LLM server.
     """
 
