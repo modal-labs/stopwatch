@@ -1,9 +1,15 @@
+import asyncio
+import itertools
+import logging
+import urllib.parse
+from collections.abc import Callable, Iterator, Mapping
+from typing import Any
+
 import modal
 
-from .constants import VersionDefaults, HOURS, SECONDS
-from .resources import app, hf_secret, results_volume
+from .constants import HOURS, SECONDS, VersionDefaults
 from .llm_server import llm_server
-
+from .resources import app, hf_secret, results_volume
 
 # Delay between benchmarks when running multiple constant-rate benchmarks on the same
 # LLM server. Must be less than the LLM server's scaledown_window.
@@ -14,6 +20,9 @@ NUM_CORES = 2
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5 * SECONDS
 TIMEOUT = 4 * HOURS
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 benchmarking_image = (
     modal.Image.debian_slim()
@@ -26,21 +35,16 @@ benchmarking_image = (
     .env(
         {
             "GUIDELLM__MAX_WORKER_PROCESSES": f"{NUM_CORES - 1}",
-        }
+        },
     )
     .add_local_python_source("cli")
 )
 
 with benchmarking_image.imports():
-    from typing import Any, Mapping, Optional, Union
-    import itertools
-    import time
-    import urllib.parse
-
     from guidellm.backend import OpenAIHTTPBackend
     from guidellm.benchmark.benchmarker import GenerativeBenchmarker
     from guidellm.benchmark.profile import create_profile
-    from guidellm.request import GenerativeRequestLoader
+    from guidellm.request import GenerationRequest, GenerativeRequestLoader
 
     from .custom_metrics.vllm import GenerativeBenchmarkerWithvLLMMetrics
 
@@ -55,15 +59,28 @@ with benchmarking_image.imports():
 
         def __init__(
             self,
-            extra_body: Optional[dict[str, Any]] = None,
+            extra_body: dict[str, Any] | None = None,
+            *,
             use_chat_completions: bool = False,
-            **kwargs,
-        ):
+            **kwargs: dict[str, Any],
+        ) -> None:
+            """
+            Create a custom generative request loader.
+
+            :param: extra_body: Extra parameters to add to the body of each request.
+            :param: use_chat_completions: Whether to use the chat completions endpoint,
+                as opposed to the text completions endpoint.
+            :param: kwargs: Additional keyword arguments to pass to the
+                GenerativeRequestLoader constructor.
+            """
+
             super().__init__(**kwargs)
             self.extra_body = extra_body or {}
             self.use_chat_completions = use_chat_completions
 
-        def __iter__(self):
+        def __iter__(self) -> Iterator[GenerationRequest]:
+            """Iterate over the requests in the loader."""
+
             for item in super().__iter__():
                 for k, v in self.extra_body.items():
                     item.params[k] = v
@@ -73,19 +90,23 @@ with benchmarking_image.imports():
 
                 yield item
 
-        def __len__(self):
+        def __len__(self) -> int:
+            """Return the number of unique requests in the loader."""
             return super().__len__()
 
     class CustomOpenAIHTTPBackend(OpenAIHTTPBackend):
         def _completions_payload(
             self,
-            body: Optional[dict],
-            orig_kwargs: Optional[dict],
-            max_output_tokens: Optional[int],
-            **kwargs,
+            body: dict | None,
+            orig_kwargs: dict | None,
+            max_output_tokens: int | None,
+            **kwargs: dict[str, Any],
         ) -> dict:
             payload = super()._completions_payload(
-                body, orig_kwargs, max_output_tokens, **kwargs
+                body,
+                orig_kwargs,
+                max_output_tokens,
+                **kwargs,
             )
 
             if "max_completion_tokens" in payload:
@@ -95,8 +116,14 @@ with benchmarking_image.imports():
             return payload
 
 
-def benchmark_runner_cls(region: str):
-    def decorator(cls):
+def benchmark_runner_cls(region: str) -> Callable:
+    """
+    Create a guidellm benchmark runner class that runs on Modal.
+
+    :param: region: The region to run the benchmark in.
+    """
+
+    def decorator(cls: type) -> Callable:
         return app.cls(
             image=benchmarking_image,
             secrets=[hf_secret],
@@ -117,40 +144,43 @@ class BenchmarkRunner:
         self,
         llm_server_type: str,
         model: str,
-        rate_type: Union[str, list[str]],
+        rate_type: str | list[str],
         data: str,
         gpu: str,
         server_region: str,
-        duration: Optional[float] = 120,  # 2 minutes
-        llm_server_config: Optional[Mapping[str, Any]] = None,
-        client_config: Optional[Mapping[str, Any]] = None,
-        rate: Optional[Union[float, list[float]]] = None,
-        **kwargs,
-    ):
-        """Benchmarks a LLM deployment on Modal.
+        duration: float | None = 120,  # 2 minutes
+        llm_server_config: Mapping[str, Any] | None = None,
+        client_config: Mapping[str, Any] | None = None,
+        rate: float | list[float] | None = None,
+        **kwargs: dict[str, Any],  # noqa: ARG002
+    ) -> list[dict[str, Any]]:
+        """
+        Benchmarks a LLM deployment on Modal.
 
-        Args:
-            llm_server_type (str): The server to use for benchmarking, either 'vllm',
+        :param: llm_server_type: The server to use for benchmarking, either 'vllm',
                 'sglang', or 'tensorrt-llm'.
-            model (str): Name of the model to benchmark.
-            rate_type (str): The type of rate to use for benchmarking, either
-                'constant', 'synchronous', or 'throughput'.
-            data (str): A configuration for emulated data (e.g.:
-                'prompt_tokens=128,output_tokens=128').
-            gpu (str): The GPU to use for benchmarking.
-            server_region (str): Region to run the LLM server on.
-            duration (float): The duration of the benchmark in seconds.
-            llm_server_config (dict): Configuration for the LLM server.
-            client_config (dict): Configuration for the GuideLLM client.
-            rate (list[float]): If rate_type is 'constant', optionally specify the
-                number of requests that should be made per second. If this is a list,
-                benchmarks will be run sequentially at each request rate.
+        :param: model: Name of the model to benchmark.
+        :param: rate_type: The type of rate to use for benchmarking, either 'constant',
+            'synchronous', or 'throughput'.
+        :param: data: A configuration for emulated data (e.g.:
+            'prompt_tokens=128,output_tokens=128').
+        :param: gpu: The GPU to use for benchmarking.
+        :param: server_region: Region to run the LLM server on.
+        :param: duration: The duration of the benchmark in seconds.
+        :param: llm_server_config: Configuration for the LLM server.
+        :param: client_config: Configuration for the GuideLLM client.
+        :param: rate: If rate_type is 'constant', specify the number of requests that
+            should be made per second. If this is a list, benchmarks will be run
+            sequentially at each request rate.
+        :param: kwargs: Additional keyword arguments.
         """
 
         if llm_server_type not in LLM_SERVER_TYPES:
-            raise ValueError(
-                f"Invalid value for llm_server: {llm_server_type}. Must be one of {LLM_SERVER_TYPES}"
+            msg = (
+                f"Invalid value for llm_server: {llm_server_type}. Must be one of "
+                f"{LLM_SERVER_TYPES}"
             )
+            raise ValueError(msg)
 
         if llm_server_config is None:
             llm_server_config = {}
@@ -165,9 +195,11 @@ class BenchmarkRunner:
             rate = [rate]
 
         if len(rate_type) > 1 and len(rate) > 1:
-            raise ValueError(
-                f"All benchmarks must have either the same rate type or the same rate: {rate_type} vs. {rate}"
+            msg = (
+                f"All benchmarks must have either the same rate type or the same rate: "
+                f"{rate_type} vs. {rate}"
             )
+            raise ValueError(msg)
 
         # Create the request loader before starting the LLM server, since this can take
         # a long time for data configs with many prompt tokens.
@@ -184,10 +216,12 @@ class BenchmarkRunner:
             use_chat_completions=client_config.get("use_chat_completions", False),
         )
         unique_requests = request_loader.num_unique_items(raise_err=False)
-        print(
-            f"Created loader with {unique_requests} unique requests from {data}.\n\n"
-            if unique_requests > 0
-            else f"Created loader with unknown number unique requests from {data}.\n\n"
+        logger.info(
+            (
+                f"Created loader with {unique_requests} unique requests from {data}"
+                if unique_requests > 0
+                else f"Created loader with unknown number unique requests from {data}"
+            ),
         )
 
         benchmark_results = []
@@ -209,14 +243,16 @@ class BenchmarkRunner:
                 extra_query=extra_query,
             )
             await backend.validate()
-            print(f"Connected to backend for model {backend.model}.")
+            logger.info("Connected to backend for model %s", backend.model)
 
             rates_to_run = list(itertools.product(rate_type, rate))
-            print(f"Running {len(rates_to_run)} benchmarks")
+            logger.info("Running %d benchmarks", len(rates_to_run))
 
             for i, (rate_type_i, rate_i) in enumerate(rates_to_run):
-                print(
-                    f"Starting benchmark with rate type {rate_type_i} and rate {rate_i}"
+                logger.info(
+                    "Starting benchmark with rate type %s and rate %f",
+                    rate_type_i,
+                    rate_i,
                 )
 
                 profile = create_profile(rate_type=rate_type_i, rate=rate_i)
@@ -230,7 +266,8 @@ class BenchmarkRunner:
                 }
 
                 if llm_server_type == "vllm" and client_config.get(
-                    "collect_metrics", False
+                    "collect_metrics",
+                    False,
                 ):
                     benchmarker = GenerativeBenchmarkerWithvLLMMetrics(
                         vllm_metrics_url=metrics_url,
@@ -248,18 +285,19 @@ class BenchmarkRunner:
                 ):
                     if result.type_ == "benchmark_compiled":
                         if result.current_benchmark is None:
-                            raise ValueError("Current benchmark is None")
+                            msg = "Current benchmark is None"
+                            raise ValueError(msg)
 
                         benchmark_results.append(
                             {
                                 "rate": rate_i,
                                 "rate_type": rate_type_i,
                                 "results": result.current_benchmark.model_dump(),
-                            }
+                            },
                         )
 
                 if i != len(rates_to_run) - 1:
-                    time.sleep(DELAY_BETWEEN_BENCHMARKS)
+                    await asyncio.sleep(DELAY_BETWEEN_BENCHMARKS)
 
         return benchmark_results
 

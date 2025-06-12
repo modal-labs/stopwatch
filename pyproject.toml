@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stopwatch"
+version = "0.1.0"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+  "modal~=1.0.3",
+  "PyYAML~=6.0.2",
+]
+authors = [
+  {name = "Jack Cook", email = "hello@jackcook.com"},
+]
+description = "A tool for benchmarking LLMs on Modal"
+readme = "README.md"
+license = "CC-BY-4.0"
+license-files = ["LICENSE.md"]
+keywords = ["machine-learning", "llms", "vllm", "sglang", "tensorrt-llm"]
+
+[project.optional-dependencies]
+extras = [
+  "datasette~=0.65.1",
+  "fastapi[standard]~=0.115.12",
+  "grpclib==0.4.7",
+  "guidellm @ git+https://github.com/neuralmagic/guidellm.git#678adea",
+  "hf-transfer~=0.1.9",
+  "numpy~=2.3.0",
+  "pandas~=2.3.0",
+  "prometheus-client~=0.22.1",
+  "requests~=2.32.4",
+  "SQLAlchemy~=2.0.41",
+  "tiktoken~=0.9.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/modal-labs/stopwatch"
+Documentation = "https://github.com/modal-labs/stopwatch/blob/main/README.md"
+Repository = "https://github.com/modal-labs/stopwatch.git"
+
+[tool.setuptools]
+packages = ["stopwatch"]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+exclude = ["build", "dist", "env", ".venv"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+ignore = [
+  "C901",
+  "D100",
+  "D104",
+  "D202",
+  "D203",
+  "D205",
+  "D212",
+  "FIX002",
+  "PD901",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  "S113",
+  "TD003",
+  "TRY002", # remove this one later
+]
+select = [
+  "ALL",
+]
+
+[tool.ruff.lint.extend-per-file-ignores]
+"cli/run_benchmark_suite.py" = [
+  "T201",
+]
+"stopwatch/run_benchmark.py" = [
+  "D101",
+  "N801",
+]
+"stopwatch/sglang_runner.py" = [
+  "D101",
+  "N801",
+  "S104",
+  "S602",
+]
+"stopwatch/tensorrt_llm_runner.py" = [
+  "D101",
+  "N801",
+  "S104",
+  "S602",
+]
+"stopwatch/vllm_runner.py" = [
+  "D101",
+  "N801",
+  "S104",
+  "S602",
+]

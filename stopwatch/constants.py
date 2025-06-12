@@ -1,10 +1,15 @@
+import typing
+
+
 class VersionDefaults:
+    """Default framework versions to use when building LLM server images."""
+
     GUIDELLM = "678adea"
     SGLANG = "v0.4.6.post5-cu124"
     TENSORRT_LLM = "0.21.0rc0"
     VLLM = "v0.9.0"
 
-    LLM_SERVERS = {
+    LLM_SERVERS: typing.ClassVar[dict[str, str]] = {
         "sglang": SGLANG,
         "tensorrt-llm": TENSORRT_LLM,
         "vllm": VLLM,

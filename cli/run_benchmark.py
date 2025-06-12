@@ -1,4 +1,3 @@
-from typing import Optional
 import json
 
 from stopwatch.db import RateType
@@ -14,30 +13,32 @@ def run_benchmark(
     server_region: str = "us-chicago-1",
     client_region: str = "us-chicago-1",
     llm_server_type: str = "vllm",
-    duration: Optional[float] = 120,
-    llm_server_config: Optional[str] = None,
-    client_config: Optional[str] = None,
+    duration: float | None = 120,
+    llm_server_config: str | None = None,
+    client_config: str | None = None,
     rate_type: str = RateType.SYNCHRONOUS.value,
-    rate: Optional[float] = None,
-):
+    rate: float | None = None,
+) -> str:
+    """Run a benchmark."""
     cls = all_benchmark_runner_classes[client_region]
 
     if llm_server_config is not None:
         try:
             llm_server_config = json.loads(llm_server_config)
-        except json.JSONDecodeError:
-            raise ValueError("Invalid JSON for --llm-server-config")
+        except json.JSONDecodeError as e:
+            msg = "Invalid JSON for --llm-server-config"
+            raise ValueError(msg) from e
 
     if client_config is not None:
         try:
             client_config = json.loads(client_config)
-        except json.JSONDecodeError:
-            raise ValueError("Invalid JSON for --client-config")
+        except json.JSONDecodeError as e:
+            msg = "Invalid JSON for --client-config"
+            raise ValueError(msg) from e
 
     if rate_type == RateType.CONSTANT.value and rate is None:
-        raise ValueError(
-            f"--rate is required when --rate-type is {RateType.CONSTANT.value}"
-        )
+        msg = f"--rate is required when --rate-type is {RateType.CONSTANT.value}"
+        raise ValueError(msg)
 
     results = cls().run_benchmark.remote(
         llm_server_type=llm_server_type,

@@ -1,9 +1,9 @@
 """Functions for transforming columns and rows of benchmark suite data."""
 
-from itertools import product
 import json
 import re
 import shlex
+from itertools import product
 
 # In cases where we can't infer the family from the model repo,
 # we hard-code the family.
@@ -48,32 +48,39 @@ DTYPE_TO_QUANT = {
 }
 
 
-def transform(df):
-    """Transform a benchmark suite dataframe into the data model expected by the (external) frontend."""
+def transform(df):  # noqa: ANN001, ANN201
+    """
+    Transform a benchmark suite dataframe into the data model expected by the
+    (external) frontend.
+
+    :param: df: A pandas dataframe containing benchmark suite data.
+    :return: A pandas dataframe containing the transformed benchmark suite data.
+    """
+
     df = df.rename(
         columns={
             "llm_server_type": "framework",
             "completed_request_rate": "queries_per_second",
-        }
+        },
     )
 
     # Parse data configuration into human-readable strings
     df["data"] = df["data"].map(
-        lambda x: {k: int(v) for param in x.split(",") for k, v in [param.split("=")]}
+        lambda x: {k: int(v) for param in x.split(",") for k, v in [param.split("=")]},
     )
 
     df["task"] = df["data"].map(
         lambda x: (
             "reasoning"
             if x["prompt_tokens"] < x["output_tokens"]
-            else "balanced"
-            if x["prompt_tokens"] == x["output_tokens"]
-            else "retrieval"
-        )
+            else "balanced" if x["prompt_tokens"] == x["output_tokens"] else "retrieval"
+        ),
     )
 
     df["total_tokens"] = df["prompt_tokens"] + df["output_tokens"]
-    df["tokens"] = df["prompt_tokens"].apply(str).str.cat(df["output_tokens"].apply(str), ";")
+    df["tokens"] = (
+        df["prompt_tokens"].apply(str).str.cat(df["output_tokens"].apply(str), ";")
+    )
     df["generated_tokens"] = df["output_tokens"]
 
     # Parse GPU configuration
@@ -87,30 +94,34 @@ def transform(df):
 
     # Split LLM server configuration into separate columns
     df["cli_args"] = df["llm_server_config"].map(
-        lambda x: " ".join(x["extra_args"]) if "extra_args" in x else None
+        lambda x: " ".join(x["extra_args"]) if "extra_args" in x else None,
     )
     # # remove chat template from CLI args if present
     df["cli_args"] = df["cli_args"].map(
-        lambda x: x.replace("--chat-template /home/no-system-prompt.jinja", "").strip()
-        or None
-        if x
-        else x
+        lambda x: (
+            x.replace("--chat-template /home/no-system-prompt.jinja", "").strip()
+            or None
+            if x
+            else x
+        ),
     )
     df["env_vars"] = df["llm_server_config"].map(
         lambda x: (
             "\n".join(f"{k}={v}" for k, v in x["env_vars"].items())
             if "env_vars" in x
             else None
-        )
+        ),
     )
     df["kwargs"] = df["llm_server_config"].map(
-        lambda x: json.dumps(x["llm_kwargs"]) if "llm_kwargs" in x else None
+        lambda x: json.dumps(x["llm_kwargs"]) if "llm_kwargs" in x else None,
     )
     df["tokenizer"] = df["llm_server_config"].map(lambda x: x.get("tokenizer", None))
     df["framework_version"] = df.apply(
-        lambda row: row["version_metadata"].get(row["framework"], None)
-        if row["version_metadata"]
-        else None,
+        lambda row: (
+            row["version_metadata"].get(row["framework"], None)
+            if row["version_metadata"]
+            else None
+        ),
         axis=1,
     )
 
@@ -123,12 +134,13 @@ def transform(df):
     metrics_columns = [
         f"{m}_{a}"
         for m, a in product(
-            ["itl", "ttft", "ttlt"], ["mean", "p50", "p90", "p95", "p99"]
+            ["itl", "ttft", "ttlt"],
+            ["mean", "p50", "p90", "p95", "p99"],
         )
     ]
 
     # handle non-nullable, non-negative columns -- derived metrics and rates
-    strictly_positive_columns = metrics_columns + ["queries_per_second"]
+    strictly_positive_columns = [*metrics_columns, "queries_per_second"]
     for column in strictly_positive_columns:  # all
         df[column] = df[column].apply(lambda x: None if x <= 0 else x)
     df = df.dropna(subset=strictly_positive_columns)
@@ -162,7 +174,14 @@ def transform(df):
     ]
 
 
-def get_model_family(model_repo):
+def get_model_family(model_repo: str) -> str:
+    """
+    Get the family of a model from a model repository name.
+
+    :param: model_repo: The name of the model repository.
+    :return: The family of the model.
+    """
+
     slug = model_repo.split("/")[-1].lower()
     # happy path
     for model_slug in [
@@ -187,17 +206,31 @@ def get_model_family(model_repo):
     return REPO_TO_FAMILY.get(model_repo, model_repo.lower())
 
 
-def get_model_size(model_repo):
+def get_model_size(model_repo: str) -> str | None:
+    """
+    Get the size of a model from a model repository name.
+
+    :param: model_repo: The name of the model repository.
+    :return: The size of the model.
+    """
+
     model_slug = model_repo.upper().split("/")[-1]
     # match on something that looks like a model size
     size = SIZE_PATTERN.search(model_slug)
     if size:
         return size.group(0).strip("-").upper()
-    else:
-        return REPO_TO_SIZE.get(model_repo, None)
+    return REPO_TO_SIZE.get(model_repo)
 
 
-def get_model_quant(row):
+def get_model_quant(row) -> str | None:  # noqa: ANN001, PLR0911
+    """
+    Get the quantization level of a model from a row of benchmark suite data.
+
+    :param: row: A row of benchmark suite data, which should contain the LLM server
+        type and any server arguments used to run the benchmark.
+    :return: The quantization level of the model.
+    """
+
     # try to read from configuration
     dtype = None
     if row["framework"] in ["vllm", "sglang"]:
@@ -206,12 +239,12 @@ def get_model_quant(row):
             if cli_arg == "--dtype":
                 # dtype is needed if we don't find a better indicator
                 dtype = cli_args[ii + 1].lower()
-            if (cli_arg == "--quantization") or (cli_arg == "--torchao-config"):
+            if cli_arg in ("--quantization", "--torchao-config"):
                 return cli_args[ii + 1].lower()
 
-    if row["framework"] == "tensorrt-llm":
-        if kwargs := json.loads(row.get("kwargs") or "{}"):
-            if quant_config := kwargs.get("quant_config"):
+    if row["framework"] == "tensorrt-llm":  # noqa: SIM102
+        if kwargs := json.loads(row.get("kwargs") or "{}"):  # noqa: SIM102
+            if quant_config := kwargs.get("quant_config"):  # noqa: SIM102
                 if quant_algo := quant_config.get("quant_algo"):
                     return quant_algo.lower()
 
@@ -232,17 +265,25 @@ def get_model_quant(row):
         if matches:
             return f"int{matches[-1]}"  # digit
 
-    if "awq" in model_name:
-        if "deepseek" in model_name:
-            return "int4"
+    if "awq" in model_name and "deepseek" in model_name:
+        return "int4"
 
     if dtype:
         return DTYPE_TO_QUANT.get(dtype, dtype)
-    else:  # heuristics failed, we don't know
-        return None
+
+    # heuristics failed, we don't know
+    return None
 
 
-def get_model_name(row):
+def get_model_name(row) -> str:  # noqa: ANN001
+    """
+    Get the name of a model from a row of benchmark suite data.
+
+    :param: row: A row of benchmark suite data, which should contain the model family,
+        size, and level of quantization.
+    :return: The name of the model.
+    """
+
     return " ".join(
-        [row["model_family"], row["model_size"] or "", row["quant"] or ""]
+        [row["model_family"], row["model_size"] or "", row["quant"] or ""],
     ).strip()

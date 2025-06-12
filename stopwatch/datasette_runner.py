@@ -1,7 +1,10 @@
+import asyncio
+from collections.abc import Callable
+from pathlib import Path
+
 import modal
 
 from .resources import db_volume, web_app
-
 
 DB_PATH = "/db"
 
@@ -11,15 +14,12 @@ datasette_image = (
     .apt_install("git")
     .pip_install("datasette")
     .run_commands(
-        "datasette install git+https://github.com/jackcook/stopwatch-plot.git@ff5b060"
+        "datasette install git+https://github.com/jackcook/stopwatch-plot.git@ff5b060",
     )
     .add_local_python_source("cli")
 )
 
 with datasette_image.imports():
-    import asyncio
-    import os
-
     from datasette.app import Datasette
 
 
@@ -29,10 +29,13 @@ with datasette_image.imports():
 )
 @modal.concurrent(max_inputs=100)
 class DatasetteRunner:
+    """Modal class that runs a Datasette server."""
+
     @modal.asgi_app(label="datasette")
-    def start(self):
+    def start(self) -> Callable:
+        """Start the Datasette server."""
         ds = Datasette(
-            files=[os.path.join(DB_PATH, "stopwatch.db")],
+            files=[str(Path(DB_PATH) / "stopwatch.db")],
             settings={"sql_time_limit_ms": 10000},
             cors=True,
         )

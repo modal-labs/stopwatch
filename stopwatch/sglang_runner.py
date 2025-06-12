@@ -1,19 +1,26 @@
 import json
 import os
 import subprocess
+from collections.abc import Callable
 
 import modal
 
 from .constants import MINUTES, VersionDefaults
 from .resources import app, hf_cache_volume, hf_secret, traces_volume
 
-
 HF_CACHE_PATH = "/cache"
 PORT = 30000
 TRACES_PATH = "/traces"
 
 
-def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG):
+def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG) -> modal.Image:
+    """
+    Create a Modal image for running an SGLang server.
+
+    :param: docker_tag: The tag of the SGLang Docker image to use.
+    :return: A Modal image for running a SGLang server.
+    """
+
     return (
         modal.Image.from_registry(
             f"lmsysorg/sglang:{docker_tag}",
@@ -33,26 +40,47 @@ def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG):
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands(
             [
-                "RUN echo '{%- for message in messages %}{{- message.content }}{%- endfor %}' > /home/no-system-prompt.jinja",
+                "RUN echo '{%- for message in messages %}{{- message.content }}"
+                "{%- endfor %}' > /home/no-system-prompt.jinja",
                 "ENTRYPOINT []",
-            ]
+            ],
         )
         .add_local_python_source("cli")
     )
 
 
 def sglang_cls(
-    image=sglang_image_factory(),
-    secrets=[hf_secret],
-    gpu="H100!",
-    volumes={HF_CACHE_PATH: hf_cache_volume, TRACES_PATH: traces_volume},
-    cpu=4,
-    memory=4 * 1024,
-    scaledown_window=2 * MINUTES,
-    timeout=30 * MINUTES,
-    region="us-chicago-1",
-):
-    def decorator(cls):
+    image: modal.Image = sglang_image_factory(),  # noqa: B008
+    secrets: list[modal.Secret] = [hf_secret],  # noqa: B006
+    gpu: str = "H100!",
+    volumes: dict[str, modal.Volume] = {  # noqa: B006
+        HF_CACHE_PATH: hf_cache_volume,
+        TRACES_PATH: traces_volume,
+    },
+    cpu: int = 4,
+    memory: int = 4 * 1024,
+    scaledown_window: int = 2 * MINUTES,
+    timeout: int = 30 * MINUTES,
+    region: str = "us-chicago-1",
+) -> Callable:
+    """
+    Create an SGLang server class that runs on Modal.
+
+    :param: image: Image to use for the SGLang server.
+    :param: secrets: Secrets to add to the container.
+    :param: gpu: GPU to attach to the server's container.
+    :param: volumes: Modal volumes to attach to the server's container.
+    :param: cpu: Number of CPUs to add to the server.
+    :param: memory: RAM, in MB, to add to the server.
+    :param: scaledown_window: Time, in seconds, to wait between requests before scaling
+        down the server.
+    :param: timeout: Time, in seconds, to wait after startup before scaling down the
+        server.
+    :param: region: Region in which to run the server.
+    :return: An SGLang server class that runs on Modal.
+    """
+
+    def decorator(cls: type) -> Callable:
         return app.cls(
             image=image,
             secrets=secrets,
@@ -73,12 +101,15 @@ class SGLangBase:
     """A Modal class that runs an SGLang server."""
 
     @modal.web_server(port=PORT, startup_timeout=30 * MINUTES)
-    def start(self):
+    def start(self) -> None:
         """Start an SGLang server."""
 
         hf_cache_volume.reload()
 
-        assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
+        if not self.model:
+            msg = "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
+            raise ValueError(msg)
+
         server_config = json.loads(self.server_config)
 
         # Start SGLang server
@@ -98,7 +129,7 @@ class SGLangBase:
                         else []
                     ),
                     *server_config.get("extra_args", []),
-                ]
+                ],
             )
             + f" || python -m http.server {PORT}",
             env={
@@ -171,5 +202,5 @@ sglang_classes = {
         "L40S:4": {
             "us-ashburn-1": SGLang_4xL40S,
         },
-    }
+    },
 }

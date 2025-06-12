@@ -1,3 +1,4 @@
+import logging
 import time
 
 import modal
@@ -6,9 +7,11 @@ from .constants import VersionDefaults
 from .llm_server import llm_server
 from .resources import app, hf_secret, traces_volume
 
-
 TIMEOUT = 60 * 60  # 1 hour
 TRACES_PATH = "/traces"
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 profiling_image = (
@@ -22,7 +25,8 @@ profiling_image = (
 )
 
 with profiling_image.imports():
-    from typing import Any, Mapping, Optional
+    from collections.abc import Mapping
+    from typing import Any
 
     from guidellm.dataset import SyntheticDatasetConfig, SyntheticTextItemsGenerator
     from openai import OpenAI
@@ -43,11 +47,30 @@ def run_profiler(
     num_requests: int = 10,
     prompt_tokens: int = 512,
     output_tokens: int = 8,
-    llm_server_config: Optional[Mapping[str, Any]] = None,
-):
-    print(f"Starting profiler with {model}")
+    llm_server_config: Mapping[str, Any] | None = None,
+) -> str:
+    """
+    Run the PyTorch profiler alongside an LLM server. Currently, only vLLM is
+    supported.
 
-    assert llm_server_type == "vllm", "Profiling is only supported with vLLM"
+    :param: llm_server_type: The type of LLM server to use. Currently, only "vLLM" is
+        supported.
+    :param: model: The model to use.
+    :param: gpu: The GPU to use.
+    :param: server_region: The region in which to run the server.
+    :param: num_requests: The number of requests to make. Traces get large very
+        quickly, so this should be kept small.
+    :param: prompt_tokens: The number of tokens to include in each request's prompt.
+    :param: output_tokens: The number of tokens to generate in each request.
+    :param: llm_server_config: The configuration for the LLM server.
+    :return: The path to the trace file.
+    """
+
+    logger.info("Starting profiler with %s", model)
+
+    if llm_server_type != "vllm":
+        msg = "Profiling is only supported with vLLM"
+        raise ValueError(msg)
 
     if llm_server_config is None:
         llm_server_config = {}
@@ -59,13 +82,16 @@ def run_profiler(
     llm_server_config["env_vars"]["VLLM_RPC_TIMEOUT"] = "1800000"
 
     generator_config = SyntheticDatasetConfig(
-        prompt_tokens=prompt_tokens, output_tokens=output_tokens
+        prompt_tokens=prompt_tokens,
+        output_tokens=output_tokens,
     )
     tokenizer = AutoTokenizer.from_pretrained(model)
     text_generator = iter(
         SyntheticTextItemsGenerator(
-            config=generator_config, processor=tokenizer, random_seed=42
-        )
+            config=generator_config,
+            processor=tokenizer,
+            random_seed=42,
+        ),
     )
 
     # Start vLLM server in background

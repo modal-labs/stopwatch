@@ -1,12 +1,13 @@
 import json
 import os
 import subprocess
+from collections.abc import Callable
+from pathlib import Path
 
 import modal
 
 from .constants import HOURS, SECONDS, VersionDefaults
 from .resources import app, hf_cache_volume, hf_secret, traces_volume, vllm_cache_volume
-
 
 HF_CACHE_PATH = "/cache"
 PORT = 8000
@@ -14,7 +15,14 @@ TRACES_PATH = "/traces"
 VLLM_CACHE_PATH = "/root/.cache/vllm"
 
 
-def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM, use_cu128: bool = False):
+def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM) -> modal.Image:
+    """
+    Create a Modal image for running a vLLM server.
+
+    :param: docker_tag: The tag of the vLLM Docker image to use.
+    :return: A Modal image for running a vLLM server.
+    """
+
     python_binary = (
         "/opt/venv/bin/python3"
         if docker_tag in ["v0.8.0", "v0.8.1"]
@@ -23,11 +31,7 @@ def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM, use_cu128: bool =
 
     return (
         modal.Image.from_registry(
-            (
-                "nvcr.io/nvidia/tritonserver:25.04-vllm-python-py3"
-                if use_cu128
-                else f"vllm/vllm-openai:{docker_tag}"
-            ),
+            f"vllm/vllm-openai:{docker_tag}",
             add_python="3.13",
         )
         .pip_install("hf-transfer", "grpclib", "requests")
@@ -35,30 +39,48 @@ def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM, use_cu128: bool =
         .dockerfile_commands(
             [
                 f"RUN echo -n {python_binary} > /home/vllm-python",
-                "RUN echo '{%- for message in messages %}{{- message.content }}{%- endfor %}' > /home/no-system-prompt.jinja",
+                "RUN echo '{%- for message in messages %}{{- message.content }}"
+                "{%- endfor %}' > /home/no-system-prompt.jinja",
                 "ENTRYPOINT []",
-            ]
+            ],
         )
         .add_local_python_source("cli")
     )
 
 
 def vllm_cls(
-    image=vllm_image_factory(),
-    secrets=[hf_secret],
-    gpu="H100!",
-    volumes={
+    image: modal.Image = vllm_image_factory(),  # noqa: B008
+    secrets: list[modal.Secret] = [hf_secret],  # noqa: B006
+    gpu: str = "H100!",
+    volumes: dict[str, modal.Volume] = {  # noqa: B006
         HF_CACHE_PATH: hf_cache_volume,
         TRACES_PATH: traces_volume,
         VLLM_CACHE_PATH: vllm_cache_volume,
     },
-    cpu=4,
-    memory=4 * 1024,
-    scaledown_window=30 * SECONDS,
-    timeout=1 * HOURS,
-    region="us-chicago-1",
-):
-    def decorator(cls):
+    cpu: int = 4,
+    memory: int = 4 * 1024,
+    scaledown_window: int = 30 * SECONDS,
+    timeout: int = 1 * HOURS,
+    region: str = "us-chicago-1",
+) -> Callable:
+    """
+    Create a vLLM server class that runs on Modal.
+
+    :param: image: Image to use for the vLLM server.
+    :param: secrets: Secrets to add to the container.
+    :param: gpu: GPU to attach to the server's container.
+    :param: volumes: Modal volumes to attach to the server's container.
+    :param: cpu: Number of CPUs to add to the server.
+    :param: memory: RAM, in MB, to add to the server.
+    :param: scaledown_window: Time, in seconds, to wait between requests before scaling
+        down the server.
+    :param: timeout: Time, in seconds, to wait after startup before scaling down the
+        server.
+    :param: region: Region in which to run the server.
+    :return: A vLLM server class that runs on Modal.
+    """
+
+    def decorator(cls: type) -> Callable:
         return app.cls(
             image=image,
             secrets=secrets,
@@ -76,24 +98,24 @@ def vllm_cls(
 
 
 class vLLMBase:
-    """
-    A Modal class that runs a vLLM server. The endpoint is exposed via a
-    tunnel, the URL for which is stored in a shared dict.
-    """
+    """A Modal class that runs a vLLM server."""
 
     @modal.web_server(port=PORT, startup_timeout=1 * HOURS)
-    def start(self):
+    def start(self) -> None:
         """Start a vLLM server."""
 
         hf_cache_volume.reload()
         vllm_cache_volume.reload()
 
-        assert self.model, "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
+        if not self.model:
+            msg = "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"
+            raise ValueError(msg)
+
         server_config = json.loads(self.server_config)
 
         # Read the location of the correct Python binary from the file created while
         # building the image.
-        python_binary = open("/home/vllm-python").read()
+        python_binary = Path("/home/vllm-python").read_text()
 
         # Start vLLM server
         subprocess.Popen(
@@ -112,7 +134,7 @@ class vLLMBase:
                         else []
                     ),
                     *server_config.get("extra_args", []),
-                ]
+                ],
             )
             + f" || {python_binary} -m http.server {PORT}",
             env={
@@ -205,5 +227,5 @@ vllm_classes = {
         "L40S:4": {
             "us-ashburn-1": vLLM_4xL40S,
         },
-    }
+    },
 }

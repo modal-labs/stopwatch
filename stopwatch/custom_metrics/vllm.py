@@ -1,26 +1,33 @@
-from typing import AsyncGenerator
+import logging
 import threading
 import time
+from collections.abc import AsyncGenerator
+from typing import Any
 
+import requests
 from guidellm.benchmark import (
     AggregatorT,
-    BenchmarkT,
     BenchmarkerResult,
+    BenchmarkT,
     GenerativeBenchmarker,
 )
 from guidellm.objects import StandardBaseModel
 from guidellm.scheduler import RequestT, ResponseT
+from prometheus_client.metrics_core import Metric
 from prometheus_client.parser import text_string_to_metric_families
+from prometheus_client.samples import Sample
 from pydantic import Field
-import requests
 
 from .histogram import Histogram
 
-
 REFRESH_INTERVAL = 10  # 10 seconds
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-class vLLMMetrics(StandardBaseModel):
+
+class vLLMMetrics(StandardBaseModel):  # noqa: N801
+    """Custom metrics reported by the vLLM server's metrics endpoint."""
 
     end_to_end_request_latency: Histogram = Field(
         default_factory=Histogram,
@@ -76,14 +83,25 @@ class vLLMMetrics(StandardBaseModel):
         description="Histogram of time per output token in seconds.",
     )
 
-    def __init__(self, metric_families, first_metric_families):
+    def __init__(
+        self,
+        metric_families: list[Metric],
+        first_metric_families: list[Metric],
+    ) -> None:
+        """
+        Create a vLLM metrics object from a list of metric families. Values in the
+        metric families are cumulative since the vLLM server started up, so all values
+        are subtracted from the first metric families to get the actual values.
+        """
+
         super().__init__()
 
-        def get_histogram_samples(metric_family):
+        def get_histogram_samples(metric_family: Metric) -> list[Sample]:
             return list(
                 filter(
-                    lambda sample: sample.name.endswith("bucket"), metric_family.samples
-                )
+                    lambda sample: sample.name.endswith("bucket"),
+                    metric_family.samples,
+                ),
             )
 
         # All histogram data is returned cumulatively since the vLLM server
@@ -109,12 +127,20 @@ class vLLMMetrics(StandardBaseModel):
 
             if family.type == "gauge":
                 setattr(
-                    self, vllm_keys_to_field_names[family.name], family.samples[0].value
+                    self,
+                    vllm_keys_to_field_names[family.name],
+                    family.samples[0].value,
                 )
             elif family.type == "histogram":
                 samples = get_histogram_samples(family)
 
-                assert len(samples) == len(first_histogram_samples[family.name])
+                if len(samples) != len(first_histogram_samples[family.name]):
+                    msg = (
+                        f"Number of samples for {family.name} changed from "
+                        f"{len(first_histogram_samples[family.name])} to "
+                        f"{len(samples)}"
+                    )
+                    raise ValueError(msg)
 
                 counts = [
                     sample.value - first_histogram_samples[family.name][i].value
@@ -139,26 +165,37 @@ class vLLMMetrics(StandardBaseModel):
                     ],
                 )
             else:
-                raise ValueError(f"Unsupported metric type: {family.type}")
+                msg = f"Unsupported metric type: {family.type}"
+                raise ValueError(msg)
 
 
 class GenerativeBenchmarkerWithvLLMMetrics(GenerativeBenchmarker):
+    """A benchmarker that periodically fetches metrics from the vLLM server."""
 
-    def __init__(self, vllm_metrics_url: str, **kwargs):
+    def __init__(self, vllm_metrics_url: str, **kwargs: dict[str, Any]) -> None:
+        """
+        Create a benchmarker that periodically fetches metrics from the vLLM server.
+
+        :param: vllm_metrics_url: The URL of the vLLM server metrics endpoint.
+        :param: kwargs: Additional keyword arguments to pass to the benchmarker.
+        """
+
         super().__init__(**kwargs)
         self.vllm_metrics_url = vllm_metrics_url
 
     async def run(
-        self, **kwargs
+        self,
+        **kwargs: dict[str, Any],
     ) -> AsyncGenerator[
-        BenchmarkerResult[AggregatorT, BenchmarkT, RequestT, ResponseT], None
+        BenchmarkerResult[AggregatorT, BenchmarkT, RequestT, ResponseT],
+        None,
     ]:
         """
-        Runs the executor and periodically fetches metrics from the vLLM server
-        while benchmarks are running.
+        Run the executor and periodically fetch metrics from the vLLM server while
+        benchmarks are running.
         """
 
-        def reset():
+        def reset() -> tuple[list, threading.Event, threading.Thread]:
             vllm_metrics = []
             stop_signal = threading.Event()
             stats_thread = threading.Thread(
@@ -197,10 +234,11 @@ class GenerativeBenchmarkerWithvLLMMetrics(GenerativeBenchmarker):
                 result.current_benchmark.extras["vllm_metrics"].extend(
                     [
                         vLLMMetrics(
-                            metrics, first_metric_families=vllm_metric_families[i]
+                            metrics,
+                            first_metric_families=vllm_metric_families[i],
                         )
                         for metrics in vllm_metric_families
-                    ]
+                    ],
                 )
 
             yield result
@@ -214,16 +252,18 @@ class GenerativeBenchmarkerWithvLLMMetrics(GenerativeBenchmarker):
         stats_thread.join()
 
     def refresh_vllm_stats(
-        self, metrics_url: str, metrics: list, stop_signal: threading.Event
-    ):
+        self,
+        metrics_url: str,
+        metrics: list,
+        stop_signal: threading.Event,
+    ) -> None:
         """
         Periodically fetches metrics from the vLLM server while benchmarks are
         running.
 
-        Args:
-            metrics_url (str): The URL of the vLLM server metrics endpoint.
-            metrics (list): A list to store the fetched metrics.
-            stop_signal (threading.Event): A signal to stop the metrics refresh.
+        :param: metrics_url: The URL of the vLLM server metrics endpoint.
+        :param: metrics: A list to store the fetched metrics.
+        :param: stop_signal: A signal to stop the metrics refresh.
         """
 
         while not stop_signal.is_set():
@@ -231,7 +271,7 @@ class GenerativeBenchmarkerWithvLLMMetrics(GenerativeBenchmarker):
 
             try:
                 metrics.append(list(text_string_to_metric_families(res.text)))
-            except Exception as e:
-                print(f"Error parsing metrics: {e}")
+            except Exception:
+                logger.exception("Error parsing metrics")
 
             time.sleep(REFRESH_INTERVAL)

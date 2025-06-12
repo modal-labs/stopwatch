@@ -7,7 +7,7 @@ _A simple solution for benchmarking [vLLM](https://docs.vllm.ai/en/latest/), [SG
 ### Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[extras]"
 ```
 
 ## Run a benchmark

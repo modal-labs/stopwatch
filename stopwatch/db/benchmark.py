@@ -1,17 +1,28 @@
-from enum import Enum
 import itertools
+from enum import Enum
+from typing import Any
 
-from sqlalchemy import Column, DateTime, Float, Integer, JSON, String
+from sqlalchemy import JSON, Column, DateTime, Float, Integer, String
 from sqlalchemy.sql import func
 
 from .base import Base
 
 
-def histogram_median(bins, counts):
+def histogram_median(bins: list[float], counts: list[int]) -> float | None:
+    """
+    Estimate the median of a distribution from histogram data.
+
+    :param: bins: The bins of the histogram.
+    :param: counts: The counts in each bin.
+    :return: The estimated median of the distribution.
+    """
+
     if len(bins) == len(counts) == 0:
         return None
 
-    assert len(bins) == len(counts) + 1, f"len({bins}) != len({counts}) + 1"
+    if len(bins) != len(counts) + 1:
+        msg = f"len({bins}) != len({counts}) + 1"
+        raise ValueError(msg)
 
     total = sum(counts)
     half = total / 2
@@ -29,8 +40,18 @@ def histogram_median(bins, counts):
 
         cumulative = new_cumulative
 
+    msg = "No median found"
+    raise ValueError(msg)
 
-def benchmark_cls_factory(table_name: str = "benchmarks"):
+
+def benchmark_cls_factory(table_name: str = "benchmarks") -> type:
+    """
+    Create a benchmark class that can be used by SQLAlchemy to store benchmark results.
+
+    :param: table_name: The name of this benchmark's database table.
+    :return: A benchmark class.
+    """
+
     import numpy as np
 
     class Benchmark(Base):
@@ -89,7 +110,13 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
         ttlt_p95 = Column(Float)
         ttlt_p99 = Column(Float)
 
-        def get_config(self):
+        def get_config(self) -> dict[str, Any]:
+            """
+            Get the input parameters of this benchmark.
+
+            :return: A dictionary of the benchmark's configuration.
+            """
+
             return {
                 "llm_server_type": self.llm_server_type,
                 "llm_server_config": self.llm_server_config,
@@ -104,7 +131,7 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
                 "version_metadata": self.version_metadata,
             }
 
-        def save_results(self, results):
+        def save_results(self, results: dict[str, Any]) -> None:
             requests = results["requests"]["successful"]
 
             if len(requests) > 0:
@@ -140,10 +167,12 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
                         "time_to_first_token_ms",
                         "request_latency",
                     ],
+                    strict=False,
                 ),
                 zip(
                     ["mean", "p50", "p90", "p95", "p99"],
                     ["mean", "median", "p90", "p95", "p99"],
+                    strict=False,
                 ),
             ):
                 if statistic_key.startswith("p"):
@@ -161,7 +190,7 @@ def benchmark_cls_factory(table_name: str = "benchmarks"):
             # Save vLLM metrics
             if vllm_metrics := results["extras"].get("vllm_metrics", None):
                 self.kv_cache_usage_mean = 100 * np.mean(
-                    [metrics["kv_cache_usage"] for metrics in vllm_metrics]
+                    [metrics["kv_cache_usage"] for metrics in vllm_metrics],
                 )
                 self.tpot_median = histogram_median(
                     vllm_metrics[-1]["time_per_output_token"]["bins"],
@@ -175,6 +204,8 @@ Benchmark = benchmark_cls_factory()
 
 
 class RateType(Enum):
+    """Types of rates for running benchmarks."""
+
     CONSTANT = "constant"
     SYNCHRONOUS = "synchronous"
     THROUGHPUT = "throughput"

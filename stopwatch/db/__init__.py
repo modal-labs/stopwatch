@@ -1,13 +1,14 @@
-from .db import engine, session
 from .base import Base
 from .benchmark import (
     Benchmark,
     RateType,
     benchmark_cls_factory,
 )
+from .db import engine, session
 
 
-def create_all():
+def create_all() -> None:
+    """Create base tables in the database."""
     Base.metadata.create_all(engine)
 
 

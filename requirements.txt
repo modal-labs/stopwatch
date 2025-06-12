@@ -1,5 +1,0 @@
-guidellm @ git+https://github.com/neuralmagic/guidellm.git#678adea
-modal==1.0.2
-numpy==2.2.6
-PyYAML==6.0.2
-SQLAlchemy==2.0.41
