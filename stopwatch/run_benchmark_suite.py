@@ -332,6 +332,9 @@ async def run_benchmarks_in_parallel(benchmarks: list[dict[str, Any]]) -> None:
         task = asyncio.create_task(run_benchmarks(benchmark_ids, fc, semaphore))
         tasks.append(task)
 
+        # Yield control to the event loop to allow the task to be scheduled
+        await asyncio.sleep(0.01)
+
     if len(tasks) == 0:
         return
 
