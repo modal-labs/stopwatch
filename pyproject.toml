@@ -22,11 +22,11 @@ keywords = ["machine-learning", "llms", "vllm", "sglang", "tensorrt-llm"]
 [project.optional-dependencies]
 extras = [
   "datasette~=0.65.1",
-  "fastapi[standard]~=0.115.12",
-  "grpclib==0.4.7",
-  "guidellm @ git+https://github.com/neuralmagic/guidellm.git#678adea",
+  "fastapi[standard]~=0.115.13",
+  "grpclib==0.4.8",
+  "guidellm @ git+https://github.com/jackcook/guidellm.git#10ca1d4",
   "hf-transfer~=0.1.9",
-  "numpy~=2.3.0",
+  "numpy~=2.3.1",
   "pandas~=2.3.0",
   "prometheus-client~=0.22.1",
   "requests~=2.32.4",
