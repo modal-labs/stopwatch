@@ -91,6 +91,8 @@ def benchmark_cls_factory(table_name: str = "benchmarks") -> type:
         start_time = Column(Float)
         end_time = Column(Float)
         duration = Column(Float)
+        queue_duration = Column(Float)
+        cold_start_duration = Column(Float)
         completed_request_count = Column(Integer)
         completed_request_rate = Column(Float)
 
@@ -142,6 +144,8 @@ def benchmark_cls_factory(table_name: str = "benchmarks") -> type:
                 self.end_time = results["run_stats"]["end_time"]
 
             self.duration = self.end_time - self.start_time
+            self.cold_start_duration = results["cold_start_duration"]
+            self.queue_duration = results["queue_duration"]
             self.completed_request_count = len(requests)
             self.completed_request_rate = self.completed_request_count / self.duration
 

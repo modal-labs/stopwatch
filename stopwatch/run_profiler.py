@@ -102,7 +102,7 @@ def run_profiler(
         region=server_region,
         server_config=llm_server_config,
         profile=True,
-    ) as (vllm_url, extra_query):
+    ) as (vllm_url, extra_query, _):
         client = OpenAI(api_key="EMPTY", base_url=f"{vllm_url}/v1")
 
         for _ in range(num_requests):

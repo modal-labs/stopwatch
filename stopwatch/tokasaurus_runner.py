@@ -2,11 +2,12 @@ import json
 import os
 import subprocess
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 import modal
 
 from .constants import MINUTES, VersionDefaults
-from .resources import app, hf_cache_volume, hf_secret
+from .resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
 
 HF_CACHE_PATH = "/cache"
 PORT = 10210
@@ -94,6 +95,9 @@ class TokasaurusBase:
     @modal.web_server(port=PORT, startup_timeout=30 * MINUTES)
     def start(self) -> None:
         """Start a Tokasaurus server."""
+
+        # Save the startup time to a dictionary so we can measure cold start duration
+        startup_metrics_dict[self.caller_id] = datetime.now(UTC).timestamp()
 
         hf_cache_volume.reload()
 

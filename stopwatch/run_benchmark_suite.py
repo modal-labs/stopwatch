@@ -618,6 +618,8 @@ async def run_benchmark_suite(
 
             for key in [
                 "duration",
+                "queue_duration",
+                "cold_start_duration",
                 "completed_request_count",
                 "completed_request_rate",
                 "tpot_median",

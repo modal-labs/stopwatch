@@ -2,12 +2,20 @@ import json
 import os
 import subprocess
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 
 import modal
 
 from .constants import HOURS, SECONDS, VersionDefaults
-from .resources import app, hf_cache_volume, hf_secret, traces_volume, vllm_cache_volume
+from .resources import (
+    app,
+    hf_cache_volume,
+    hf_secret,
+    startup_metrics_dict,
+    traces_volume,
+    vllm_cache_volume,
+)
 
 HF_CACHE_PATH = "/cache"
 PORT = 8000
@@ -103,6 +111,9 @@ class vLLMBase:
     @modal.web_server(port=PORT, startup_timeout=1 * HOURS)
     def start(self) -> None:
         """Start a vLLM server."""
+
+        # Save the startup time to a dictionary so we can measure cold start duration
+        startup_metrics_dict[self.caller_id] = datetime.now(UTC).timestamp()
 
         hf_cache_volume.reload()
         vllm_cache_volume.reload()

@@ -6,12 +6,13 @@ import subprocess
 import time
 import traceback
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 
 import modal
 
 from .constants import MINUTES, SECONDS, VersionDefaults
-from .resources import app, hf_cache_volume, hf_secret
+from .resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
 
 HF_CACHE_PATH = "/cache"
 LLM_KWARGS_PATH = "llm_kwargs.yaml"
@@ -190,6 +191,9 @@ class TensorRTLLMBase:
     @modal.web_server(port=PORT, startup_timeout=30 * MINUTES)
     def start(self) -> None:
         """Start a TensorRT-LLM server."""
+
+        # Save the startup time to a dictionary so we can measure cold start duration
+        startup_metrics_dict[self.caller_id] = datetime.now(UTC).timestamp()
 
         if not self.model:
             msg = "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"

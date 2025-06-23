@@ -4,11 +4,13 @@ import logging
 import time
 import uuid
 from collections.abc import Iterator, Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 import modal
 
 from .constants import VersionDefaults
+from .resources import startup_metrics_dict
 from .sglang_runner import sglang_classes
 from .tensorrt_llm_runner import tensorrt_llm_classes
 from .tokasaurus_runner import tokasaurus_classes
@@ -87,6 +89,7 @@ def llm_server(
         raise ValueError(msg) from e
 
     url = cls(model="").start.get_web_url()
+    queue_time = datetime.now(UTC).timestamp()
 
     if llm_server_type == SGLANG:
         health_url = f"{url}/health_generate"
@@ -146,12 +149,29 @@ def llm_server(
         time.sleep(5)
 
     logger.info("Connected to LLM server")
+    connection_time = datetime.now(UTC).timestamp()
+    queue_duration = connection_time - queue_time
+
+    if (
+        container_start_time := startup_metrics_dict.get(extra_query["caller_id"])
+    ) is not None:
+        cold_start_duration = connection_time - container_start_time
+        queue_duration -= cold_start_duration
+    else:
+        cold_start_duration = None
 
     if profile:
         requests.post(f"{url}/start_profile", params=extra_query)
 
     try:
-        yield (url, extra_query)
+        yield (
+            url,
+            extra_query,
+            {
+                "queue_duration": queue_duration,
+                "cold_start_duration": cold_start_duration,
+            },
+        )
     finally:
         if profile:
             requests.post(f"{url}/stop_profile", params=extra_query)

@@ -234,7 +234,7 @@ class BenchmarkRunner:
             gpu=gpu,
             region=server_region,
             server_config=llm_server_config,
-        ) as (llm_server_url, extra_query):
+        ) as (llm_server_url, extra_query, startup_metrics):
             # Create backend
             backend = CustomOpenAIHTTPBackend(
                 target=f"{llm_server_url}/v1",
@@ -298,7 +298,10 @@ class BenchmarkRunner:
                             {
                                 "rate": rate_i,
                                 "rate_type": rate_type_i,
-                                "results": result.current_benchmark.model_dump(),
+                                "results": {
+                                    **result.current_benchmark.model_dump(),
+                                    **startup_metrics,
+                                },
                             },
                         )
 
