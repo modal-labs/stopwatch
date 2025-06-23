@@ -26,6 +26,7 @@ def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG) -> modal.Imag
             f"lmsysorg/sglang:{docker_tag}",
             setup_dockerfile_commands=[
                 "RUN ln -s /usr/bin/python3 /usr/bin/python",
+                "ENV PIP_BREAK_SYSTEM_PACKAGES=1",
             ],
         )
         .pip_install(
