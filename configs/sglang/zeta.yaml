@@ -3,15 +3,8 @@ base_config:
   region: us-chicago-1
   llm_server_type: sglang
   llm_server_config:
-    - extra_args: ["--chat-template", "/home/no-system-prompt.jinja"]
-      tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
-    - extra_args:
-        [
-          "--chat-template",
-          "/home/no-system-prompt.jinja",
-          "--quantization",
-          "fp8",
-        ]
+    - tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
+    - extra_args: ["--quantization", "fp8"]
       tokenizer: Qwen/Qwen2.5-Coder-7B-Instruct
   data:
     - prompt_tokens=128,output_tokens=1024

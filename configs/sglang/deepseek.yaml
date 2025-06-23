@@ -9,8 +9,6 @@ base_config:
   llm_server_config:
     extra_args:
       [
-        "--chat-template",
-        "/home/no-system-prompt.jinja",
         "--tp",
         "8",
         "--context-length",

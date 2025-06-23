@@ -96,15 +96,6 @@ def transform(df):  # noqa: ANN001, ANN201
     df["cli_args"] = df["llm_server_config"].map(
         lambda x: " ".join(x["extra_args"]) if "extra_args" in x else None,
     )
-    # # remove chat template from CLI args if present
-    df["cli_args"] = df["cli_args"].map(
-        lambda x: (
-            x.replace("--chat-template /home/no-system-prompt.jinja", "").strip()
-            or None
-            if x
-            else x
-        ),
-    )
     df["env_vars"] = df["llm_server_config"].map(
         lambda x: (
             "\n".join(f"{k}={v}" for k, v in x["env_vars"].items())

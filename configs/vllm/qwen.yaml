@@ -20,8 +20,6 @@ configs:
           [
             "--tensor-parallel-size",
             "8",
-            "--chat-template",
-            "/home/no-system-prompt.jinja",
             "--enable-reasoning",
             "--reasoning-parser",
             "deepseek_r1",
@@ -30,8 +28,6 @@ configs:
           [
             "--tensor-parallel-size",
             "8",
-            "--chat-template",
-            "/home/no-system-prompt.jinja",
             "--enable-reasoning",
             "--reasoning-parser",
             "deepseek_r1",

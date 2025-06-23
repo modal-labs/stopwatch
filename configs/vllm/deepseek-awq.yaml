@@ -17,8 +17,6 @@ base_config:
         [
           "--tensor-parallel-size",
           "8",
-          "--chat-template",
-          "/home/no-system-prompt.jinja",
           "--max-model-len",
           "8192",
           "--gpu-memory-utilization",

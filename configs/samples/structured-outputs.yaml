@@ -42,6 +42,8 @@ configs:
       # The default backend, xgrammar, doesn't seem to work with this schema
       extra_args:
         [
+          "--chat-template",
+          "/home/no-system-prompt.jinja",
           "--grammar-backend",
           "outlines",
           "--tp",

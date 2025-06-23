@@ -2,8 +2,6 @@ id: vllm-mistral
 base_config:
   region: us-chicago-1
   llm_server_type: vllm
-  llm_server_config:
-    extra_args: ["--chat-template", "/home/no-system-prompt.jinja"]
   data:
     - prompt_tokens=128,output_tokens=1024
     - prompt_tokens=1024,output_tokens=128
