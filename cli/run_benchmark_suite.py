@@ -95,7 +95,7 @@ def run_benchmark_suite_cli(config_path: str, *, fast_mode: bool = False) -> Non
         print(
             f"   {datasette_url}/stopwatch/-/query?sql=select+*+from+"
             f"{suite_id.replace('-', '_')}_averaged+where+rate_type+%21%3D+"
-            '"throughput"',
+            "'throughput'",
         )
     except Exception:  # noqa: BLE001
         print("- Deploy the Datasette UI with:")
