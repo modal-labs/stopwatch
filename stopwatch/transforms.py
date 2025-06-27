@@ -82,6 +82,9 @@ def transform(df):  # noqa: ANN001, ANN201
         df["prompt_tokens"].apply(str).str.cat(df["output_tokens"].apply(str), ";")
     )
     df["generated_tokens"] = df["output_tokens"]
+    df["generated_tokens_per_second"] = (
+        df["queries_per_second"] * df["generated_tokens"]
+    )
 
     # Parse GPU configuration
     df["gpu_type"] = df["gpu"].map(lambda x: x.split(":")[0].strip("!"))
@@ -122,13 +125,22 @@ def transform(df):  # noqa: ANN001, ANN201
     # Create human-readable name for model
     df["model"] = df.apply(get_model_name, axis=1)
 
+    aggregates = ["mean", "p50", "p90", "p95", "p99"]
     metrics_columns = [
         f"{m}_{a}"
-        for m, a in product(
-            ["itl", "ttft", "ttlt"],
-            ["mean", "p50", "p90", "p95", "p99"],
-        )
+        for m, a in product(["itl", "ttft", "ttlt"], aggregates)
     ]
+
+    for a in aggregates:
+        column_name = f"generated_tokens_per_second_per_query_{a}"
+        df[column_name] = 1./df[f"itl_{a}"]
+        metrics_columns.append(column_name)
+
+    # Cost-related metrics
+    df["gpu_seconds_per_query"] = df["gpu_count"] * 1./df["queries_per_second"]
+    df["gpu_seconds_per_1M_total_tokens"] = (
+        df["gpu_seconds_per_query"] * (1_000_000./df["total_tokens"])
+    )
 
     # handle non-nullable, non-negative columns -- derived metrics and rates
     strictly_positive_columns = [*metrics_columns, "queries_per_second"]
@@ -145,11 +157,14 @@ def transform(df):  # noqa: ANN001, ANN201
             "prompt_tokens",
             "output_tokens",
             "generated_tokens",
+            "generated_tokens_per_second",
             "total_tokens",
             "tokens",
             "gpu",
             "gpu_type",
             "gpu_count",
+            "gpu_seconds_per_query",
+            "gpu_seconds_per_1M_total_tokens",
             "model",
             "model_repo",
             "tokenizer",
