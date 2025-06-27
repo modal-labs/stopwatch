@@ -117,7 +117,7 @@ class TensorRTLLMBase:
         import torch
         import yaml
         from huggingface_hub import snapshot_download
-        from tensorrt_llm import LLM
+        from tensorrt_llm._tensorrt_engine import LLM
         from tensorrt_llm.llmapi.llm_args import update_llm_args_with_extra_dict
         from tensorrt_llm.plugin import PluginConfig
 

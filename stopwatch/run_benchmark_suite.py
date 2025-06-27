@@ -384,7 +384,8 @@ async def run_benchmark_suite(
     create_all()
 
     # STEP 0: Validate benchmarks
-    print("step 0/4: validating benchmarks...")
+    logger.info("Validating benchmarks...")
+
     for benchmark in benchmarks:
         for key in [
             "llm_server_type",
@@ -415,7 +416,8 @@ async def run_benchmark_suite(
         }
 
     # STEP 1: Run synchronous and throughput benchmarks
-    print("step 1/4: run synchronous and throughput benchmarks...")
+    logger.info("Running synchronous and throughput benchmarks...")
+
     # TODO(jack): If repeat_index is increased, all of the constant rate benchmarks need
     # to be re-run with the new synchronous and throughput rates in mind
     await run_benchmarks_in_parallel(
@@ -441,7 +443,8 @@ async def run_benchmark_suite(
     )
 
     # STEP 2: Run benchmarks at constant rates
-    print("step 2/4: run benchmark at constant rates...")
+    logger.info("Running benchmarks at constant rates...")
+
     benchmarks_to_run = []
     skipped_benchmark_indices = set()
 
@@ -534,7 +537,8 @@ async def run_benchmark_suite(
     await run_benchmarks_in_parallel(benchmarks_to_run)
 
     # STEP 2.5: Delete existing benchmark results
-    print("step 2.5/4: delete existing benchmark results...")
+    logger.info("Deleting existing benchmark results...")
+
     for cls in [SuiteBenchmark, SuiteAveragedBenchmark]:
         cls.__table__.drop(engine, checkfirst=True)
         cls.__table__.create(engine)
@@ -542,7 +546,8 @@ async def run_benchmark_suite(
     # STEP 3: Average the results together. Start by finding the parameters that vary
     # between benchmarks in order to get descriptive group IDs for each averaged
     # benchmark.
-    print("step 3/4: averaging benchmark results...")
+    logger.info("Averaging benchmark results...")
+
     parameters = {}
 
     for benchmark in benchmarks:
@@ -663,5 +668,5 @@ async def run_benchmark_suite(
     db_volume.commit()
 
     # STEP 4: Export results in frontend format
-    print("step 4/4: export results to frontend format...")
+    logger.info("Exporting results to frontend format...")
     export_results.local(SuiteAveragedBenchmark)

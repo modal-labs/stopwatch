@@ -3,7 +3,6 @@ import os
 import subprocess
 from collections.abc import Callable
 from datetime import UTC, datetime
-from pathlib import Path
 
 import modal
 
@@ -31,12 +30,6 @@ def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM) -> modal.Image:
     :return: A Modal image for running a vLLM server.
     """
 
-    python_binary = (
-        "/opt/venv/bin/python3"
-        if docker_tag in ["v0.8.0", "v0.8.1"]
-        else "/usr/bin/python3"
-    )
-
     return (
         modal.Image.from_registry(
             f"vllm/vllm-openai:{docker_tag}",
@@ -46,7 +39,7 @@ def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM) -> modal.Image:
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands(
             [
-                f"RUN echo -n {python_binary} > /home/vllm-python",
+                "RUN echo -n /usr/bin/python3 > /home/vllm-python",
                 "RUN echo '{%- for message in messages %}{{- message.content }}"
                 "{%- endfor %}' > /home/no-system-prompt.jinja",
                 "ENTRYPOINT []",
@@ -123,10 +116,7 @@ class vLLMBase:
             raise ValueError(msg)
 
         server_config = json.loads(self.server_config)
-
-        # Read the location of the correct Python binary from the file created while
-        # building the image.
-        python_binary = Path("/home/vllm-python").read_text()
+        python_binary = "/usr/bin/python3"
 
         # Start vLLM server
         subprocess.Popen(

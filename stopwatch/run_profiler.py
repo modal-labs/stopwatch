@@ -18,7 +18,7 @@ profiling_image = (
     modal.Image.debian_slim()
     .apt_install("git")
     .pip_install(
-        f"git+https://github.com/jackcook/guidellm.git#{VersionDefaults.GUIDELLM}",
+        f"git+https://github.com/neuralmagic/guidellm.git#{VersionDefaults.GUIDELLM}",
         "openai",
     )
     .add_local_python_source("cli")

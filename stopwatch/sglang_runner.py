@@ -2,7 +2,7 @@ import json
 import os
 import subprocess
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import modal
 
@@ -22,21 +22,13 @@ def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG) -> modal.Imag
     """
 
     return (
-        modal.Image.from_registry(
-            f"lmsysorg/sglang:{docker_tag}",
-            setup_dockerfile_commands=[
-                "RUN ln -s /usr/bin/python3 /usr/bin/python",
-                "ENV PIP_BREAK_SYSTEM_PACKAGES=1",
-            ],
-        )
+        modal.Image.from_registry(f"lmsysorg/sglang:{docker_tag}")
         .pip_install(
             "hf-transfer",
             "grpclib",
             "requests",
-            # vLLM is needed for its AWQ marlin kernel, but v0.8.5 has a breaking
-            # change that makes it incompatible with SGLang's model loader when running
-            # some models, e.g. Qwen/Qwen3-235B-A22B.
-            "vllm==0.8.4",
+            # vLLM is needed for its AWQ marlin kernel
+            "vllm",
         )
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands(
@@ -103,7 +95,7 @@ class SGLangBase:
         """Start an SGLang server."""
 
         # Save the startup time to a dictionary so we can measure cold start duration
-        startup_metrics_dict[self.caller_id] = datetime.now(UTC).timestamp()
+        startup_metrics_dict[self.caller_id] = datetime.now(timezone.utc).timestamp()
 
         hf_cache_volume.reload()
 

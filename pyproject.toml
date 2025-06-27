@@ -22,9 +22,9 @@ keywords = ["machine-learning", "llms", "vllm", "sglang", "tensorrt-llm"]
 [project.optional-dependencies]
 extras = [
   "datasette~=0.65.1",
-  "fastapi[standard]~=0.115.13",
+  "fastapi[standard]~=0.115.14",
   "grpclib==0.4.8",
-  "guidellm @ git+https://github.com/jackcook/guidellm.git#10ca1d4",
+  "guidellm @ git+https://github.com/neuralmagic/guidellm.git#0e78c65",
   "hf-transfer~=0.1.9",
   "numpy~=2.3.1",
   "pandas~=2.3.0",
@@ -87,6 +87,7 @@ select = [
   "N801",
   "S104",
   "S602",
+  "UP017", # sglang image uses python 3.10
 ]
 "stopwatch/tensorrt_llm_runner.py" = [
   "D101",

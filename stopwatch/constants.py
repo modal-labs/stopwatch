@@ -4,9 +4,9 @@ import typing
 class VersionDefaults:
     """Default framework versions to use when building LLM server images."""
 
-    GUIDELLM = "10ca1d4"
-    SGLANG = "v0.4.7.post1-cu124"
-    TENSORRT_LLM = "0.21.0rc2"
+    GUIDELLM = "0e78c65"
+    SGLANG = "v0.4.8.post1-cu128-b200"
+    TENSORRT_LLM = "1.0.0rc0"
     TOKASAURUS = "c01e494"
     VLLM = "v0.9.1"
 

@@ -1,3 +1,4 @@
+import fnmatch
 import itertools
 from pathlib import Path
 from typing import Any
@@ -11,12 +12,15 @@ from stopwatch.run_benchmark_suite import run_benchmark_suite
 
 def load_benchmarks_from_config(
     config_path: Path,
+    exclude_instance_types: str | None = None,
 ) -> tuple[list[dict[str, Any]], str, int, int]:
     """
     Load benchmark configurations from a YAML config file.
 
     :param: config_path: The path to the YAML file containing the benchmark
         configurations.
+    :param: exclude_instance_types: A comma-separated list of instance types to exclude
+        from the benchmark suite. Asterisks are supported, e.g. "H100:*" or "*:8".
     :return: A tuple containing all specified benchmark configurations, the suite ID,
         the suite version, and the number of times the suite should be repeated.
     """
@@ -46,11 +50,18 @@ def load_benchmarks_from_config(
                 benchmark_config["client_region"] = benchmark_config["region"]
                 del benchmark_config["region"]
 
+            if exclude_instance_types is not None and any(
+                fnmatch.fnmatch(benchmark_config["gpu"], exclude_filter)
+                for exclude_filter in exclude_instance_types.split(",")
+            ):
+                continue
+
             benchmarks.append(benchmark_config)
 
     for file in config.get("files", []):
         file_benchmarks, _, _, _ = load_benchmarks_from_config(
             config_path.parent / file,
+            exclude_instance_types,
         )
         benchmarks.extend(file_benchmarks)
 
@@ -58,12 +69,19 @@ def load_benchmarks_from_config(
 
 
 @app.local_entrypoint()
-def run_benchmark_suite_cli(config_path: str, *, fast_mode: bool = False) -> None:
+def run_benchmark_suite_cli(
+    config_path: str,
+    *,
+    exclude_instance_types: str | None = None,
+    fast_mode: bool = False,
+) -> None:
     """
     Run a benchmark suite.
 
     :param: config_path: The path to the YAML file containing the benchmark
         configurations.
+    :param: exclude_instance_types: A comma-separated list of instance types to exclude
+        from the benchmark suite. Asterisks are supported, e.g. "H100:*" or "*:8".
     :param: fast_mode: Whether to run the benchmark suite in fast mode, which will run
         more benchmarks in parallel, incurring extra costs since LLM servers are not
         reused between benchmarks. Disabled by default.
@@ -71,7 +89,12 @@ def run_benchmark_suite_cli(config_path: str, *, fast_mode: bool = False) -> Non
 
     benchmarks, suite_id, version, repeats = load_benchmarks_from_config(
         Path(config_path),
+        exclude_instance_types,
     )
+
+    if len(benchmarks) == 0:
+        print("No benchmarks to run")
+        return
 
     run_benchmark_suite.remote(
         benchmarks=benchmarks,
