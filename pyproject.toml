@@ -68,6 +68,7 @@ ignore = [
   "PLR0915",
   "S113",
   "TD003",
+  "G004", # f-string in log
   "TRY002", # remove this one later
 ]
 select = [

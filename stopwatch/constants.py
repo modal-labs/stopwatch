@@ -21,3 +21,4 @@ class VersionDefaults:
 SECONDS = 1
 MINUTES = 60 * SECONDS
 HOURS = 60 * MINUTES
+

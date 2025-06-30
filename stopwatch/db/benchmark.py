@@ -44,7 +44,7 @@ def histogram_median(bins: list[float], counts: list[int]) -> float | None:
     raise ValueError(msg)
 
 
-def benchmark_cls_factory(table_name: str = "benchmarks") -> type:
+def benchmark_class_factory(table_name: str = "benchmarks") -> type:
     """
     Create a benchmark class that can be used by SQLAlchemy to store benchmark results.
 
@@ -204,7 +204,7 @@ def benchmark_cls_factory(table_name: str = "benchmarks") -> type:
     return Benchmark
 
 
-Benchmark = benchmark_cls_factory()
+Benchmark = benchmark_class_factory()
 
 
 class RateType(Enum):

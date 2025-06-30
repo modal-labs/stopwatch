@@ -68,6 +68,47 @@ modal run -w $OUTPUT_PATH -m cli.run_profiler --model $MODEL --num-requests 10
 Once the profiling is done, the trace will be saved to `trace.json.gz`, which you can open and visualize at [https://ui.perfetto.dev](https://ui.perfetto.dev).
 Keep in mind that generated traces can get very large, so it is recommended to only send a few requests while profiling.
 
+
+## Design
+### Goals
+The goal of stopwatch is to understand the throughput and latency of different LLM engines as well as different
+configurations of each engine. Adjacent goals are:
+1) LLM Almanac for #growth / #sales
+2) FDE tool for #sales
+3) hyperparameter optimization fo #fde / #ml-perf
+
+At the moment it has been optimized for (1). For goals (2) and (3) a alternative view/visualization system is probably necessary.
+
+### Overview
+A YAML file in configs/ specifies a suite of benchmarks to be run. If the benchmarks have already been run, or are already in progress, they are not
+re-run without adding extra parameters, e.g. 'version'. There are three types of ORM tables, all with the same schema, specified in stopwatch/db/benchmark.py):
+A) benchmarks
+B) {suite_id}
+C) {suite_id}_averaged
+
+(A) has a record added as soon a benchmark run has been requested so that future requests do not re-run benchmarks. 
+Results are inserted into (B) after the experiment is run. (A) and (B), for a single benchmark_config, have a unique
+(config, rate_type, rate, repeat_index) and (C) is the median of (B) across repeat_index to minimize noise in the results.
+
+### Terminology
+- config_path -- path to a YAML file that describes the set of configs we want to benchmark
+- benchmark_suite -- a set of benchmarks specified by an 'id' in config_path
+- benchmark_config - the engine parameters that we want to benchmark
+- benchmark - benchmark_config + a rate type & rate if applicable
+- benchmark_record - a row from the Benchmark table
+- group_id - Unique ID for a benchmark_config
+
+### TODO
+- TRTLLM metrics
+- Remove network latency via modal tunnels or modal flash
+- Multi node experiments
+- Visualizations, e.g. for comparing with Artificial Analysis
+- Refactor for:
+- - Functions to be shorter, with more smaller helper functions
+- - Better separation of concerns, e.g. descriptive group_ids can be made at CLI stage?
+- - Better way to minimize dozens of column names replicated everywhere? (itl_p50, ...)
+
+
 ## Contributing
 
 We welcome contributions, including those that add tuned benchmarks to our collection.
