@@ -86,7 +86,7 @@ def llm_server(
     # Pick LLM server class
     try:
         cls = llm_server_classes[llm_server_type][llm_server_version][
-            gpu.replace("!", "") # FIXME? should add if needed '!' not remove?
+            gpu.replace("!", "") # FIXME? shouldn't we add, not remove, this always?
         ][region]
     except KeyError as e:
         msg = (
