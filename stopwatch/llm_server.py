@@ -68,6 +68,13 @@ def llm_server(
         VersionDefaults.LLM_SERVERS[llm_server_type],
     )
 
+    llm_health_routes = {
+        SGLANG: "/health_generate",
+        TENSORRT_LLM: "/health",
+        TOKASAURUS: "/ping",
+        VLLM: "/metrics",
+    }
+
     extra_query = {
         "model": model,
         # Sort keys to ensure that this parameter doesn't change between runs
@@ -79,7 +86,7 @@ def llm_server(
     # Pick LLM server class
     try:
         cls = llm_server_classes[llm_server_type][llm_server_version][
-            gpu.replace("!", "")
+            gpu.replace("!", "") # FIXME? shouldn't we add, not remove, this always?
         ][region]
     except KeyError as e:
         msg = (
@@ -89,16 +96,8 @@ def llm_server(
         raise ValueError(msg) from e
 
     url = cls(model="").start.get_web_url()
+    health_url = f"{url}/{llm_health_routes[llm_server_type]}"
     queue_time = datetime.now(UTC).timestamp()
-
-    if llm_server_type == SGLANG:
-        health_url = f"{url}/health_generate"
-    elif llm_server_type == TENSORRT_LLM:
-        health_url = f"{url}/health"
-    elif llm_server_type == TOKASAURUS:
-        health_url = f"{url}/ping"
-    elif llm_server_type == VLLM:
-        health_url = f"{url}/metrics"
 
     # Wait for LLM server to start
     logger.info(

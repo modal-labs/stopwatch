@@ -10,12 +10,13 @@ from stopwatch.resources import app
 from stopwatch.run_benchmark_suite import run_benchmark_suite
 
 
-def load_benchmarks_from_config(
+def build_all_benchmark_configs(
     config_path: Path,
     exclude_instance_types: str | None = None,
 ) -> tuple[list[dict[str, Any]], str, int, int]:
     """
-    Load benchmark configurations from a YAML config file.
+    Build benchmark configurations by computing the outer product of all listed
+    configurations in the YAML config file.
 
     :param: config_path: The path to the YAML file containing the benchmark
         configurations.
@@ -25,13 +26,14 @@ def load_benchmarks_from_config(
         the suite version, and the number of times the suite should be repeated.
     """
 
-    config = yaml.load(config_path.open(), Loader=yaml.SafeLoader)
+    with config_path.open() as f:
+        config = yaml.load(f, Loader=yaml.SafeLoader)
 
     if "id" not in config:
         msg = "'id' is required in the config"
         raise ValueError(msg)
 
-    benchmarks = []
+    benchmark_configs = []
 
     for config_spec in config.get("configs", [] if "files" in config else [{}]):
         full_config_spec = {**config.get("base_config", {}), **config_spec}
@@ -56,16 +58,16 @@ def load_benchmarks_from_config(
             ):
                 continue
 
-            benchmarks.append(benchmark_config)
+            benchmark_configs.append(benchmark_config)
 
     for file in config.get("files", []):
-        file_benchmarks, _, _, _ = load_benchmarks_from_config(
+        file_benchmark_configs, _, _, _ = build_all_benchmark_configs(
             config_path.parent / file,
             exclude_instance_types,
         )
-        benchmarks.extend(file_benchmarks)
+        benchmark_configs.extend(file_benchmark_configs)
 
-    return benchmarks, config["id"], config.get("version", 1), config.get("repeats", 1)
+    return benchmark_configs, config["id"], config.get("version", 1), config.get("repeats", 1)
 
 
 @app.local_entrypoint()
@@ -87,7 +89,7 @@ def run_benchmark_suite_cli(
         reused between benchmarks. Disabled by default.
     """
 
-    benchmarks, suite_id, version, repeats = load_benchmarks_from_config(
+    benchmark_configs, suite_id, version, repeats = build_all_benchmark_configs(
         Path(config_path),
         exclude_instance_types,
     )
@@ -97,7 +99,7 @@ def run_benchmark_suite_cli(
         return
 
     run_benchmark_suite.remote(
-        benchmarks=benchmarks,
+        benchmark_configs=benchmark_configs,
         suite_id=suite_id,
         version=version,
         repeats=repeats,

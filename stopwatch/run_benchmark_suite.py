@@ -42,7 +42,7 @@ with benchmark_suite_image.imports():
     from .db import (
         Benchmark,
         RateType,
-        benchmark_cls_factory,
+        benchmark_class_factory,
         create_all,
         engine,
         session,
@@ -85,7 +85,10 @@ def get_benchmarks_to_run(
     :return: A generator of benchmark IDs and function calls that need to be run.
     """
 
-    for config in benchmarks:
+    # FIXME -- these aren't benchmarks since rate_type could be a list
+    logging.info(f"reviewing if all {len(benchmarks)} benchmarks need to be run...")
+    n = len(benchmarks)
+    for i, config in enumerate(benchmarks):
         benchmark_ids_to_run = []
 
         if isinstance(config["rate_type"], str):
@@ -116,7 +119,7 @@ def get_benchmarks_to_run(
             if rate is not None:
                 benchmark_config["rate"] = rate
 
-            benchmark_models = (
+            benchmark_records = (
                 session.query(Benchmark)
                 .filter_by(
                     **{k: v for k, v in benchmark_config.items() if k != "group_id"},
@@ -124,21 +127,22 @@ def get_benchmarks_to_run(
                 .all()
             )
 
-            if len(benchmark_models) > 1:
+            if len(benchmark_records) > 1:
                 msg = (
                     f"Multiple benchmarks found for {benchmark_config}: "
-                    f"{benchmark_models}"
+                    f"{benchmark_records}"
                 )
                 raise Exception(msg)
 
-            benchmark = benchmark_models[0] if benchmark_models else None
+            benchmark_record = benchmark_records[0] if benchmark_records else None
 
-            if benchmark is not None:
-                if benchmark.start_time is not None:
+            if benchmark_record is not None:
+                logging.info(f"benchmark {i+1}/{n} r={rate_type} started, checking...")
+                if benchmark_record.start_time is not None:
                     # TODO(jack): Check errors?
                     continue
-                elif benchmark.function_call_id is not None:
-                    fc = modal.FunctionCall.from_id(benchmark.function_call_id)
+                elif benchmark_record.function_call_id is not None:
+                    fc = modal.FunctionCall.from_id(benchmark_record.function_call_id)
 
                     try:
                         call_graph = fc.get_call_graph()
@@ -152,7 +156,7 @@ def get_benchmarks_to_run(
                     else:
                         previous_function_call = find_function_call(
                             call_graph,
-                            benchmark.function_call_id,
+                            benchmark_record.function_call_id,
                         )
 
                         if (
@@ -168,37 +172,34 @@ def get_benchmarks_to_run(
                                 # we should check if the input is valid.
                                 fc.get(timeout=0)
                             except modal.exception.OutputExpiredError:
-                                # The result has expired, so we need to re-run the
-                                # benchmark since its result wasn't previously saved to
-                                # the database
-                                pass
+                                logging.info(
+                                    f"benchmark {i}/{n} result expired, re-running",
+                                )
                             except TimeoutError:
-                                # The previous function call is still running (since we
-                                # called get with timeout=0), so we can save its results
-                                # directly.
-                                yield (benchmark.id, fc)
+                                logging.info(f"benchmark {i}/{n} is still running")
+                                yield (benchmark_record.id, fc)
                                 continue
                             except Exception as e:
                                 # This function call likely crashed
                                 msg = (
                                     "The previous function call "
-                                    f"{benchmark.function_call_id} for benchmark "
-                                    f"{benchmark.id} crashed. You may ignore this "
-                                    "error with --ignore-previous-errors",
+                                    f"{benchmark_record.function_call_id} for benchmark"
+                                    f" {benchmark_record.id} crashed. You may ignore"
+                                    " this error with --ignore-previous-errors",
                                 )
                                 raise Exception(msg) from e
                             else:
-                                # The previous function call has completed successfully,
-                                # so we can save its results directly.
-                                yield (benchmark.id, fc)
+                                logging.info(f"benchmark {i}/{n} already completed.")
+                                yield (benchmark_record.id, fc)
                                 continue
             else:
-                benchmark = Benchmark(**benchmark_config)
-                session.add(benchmark)
+                logging.info(f"benchmark {i}/{n} record created")
+                benchmark_record = Benchmark(**benchmark_config)
+                session.add(benchmark_record)
                 session.commit()
                 db_volume.commit()
 
-            benchmark_ids_to_run.append(benchmark.id)
+            benchmark_ids_to_run.append(benchmark_record.id)
 
         # If no benchmark IDs were added to the list, don't yield anything for this
         # config.
@@ -226,30 +227,31 @@ async def run_benchmarks(
         benchmark_ids = [benchmark_ids]
 
     async with semaphore:
-        benchmarks = (
+        benchmark_records = (
             session.query(Benchmark).filter(Benchmark.id.in_(benchmark_ids)).all()
         )
 
-        if len(benchmarks) == 0:
-            msg = f"No benchmarks found for {benchmark_ids}"
+        if len(benchmark_records) == 0:
+            msg = f"No benchmark records found for {benchmark_ids}"
             raise Exception(msg)
 
         rate_types = []
         rates = []
 
-        for benchmark in benchmarks:
-            if benchmark.client_region != benchmarks[0].client_region:
+        for benchmark_record in benchmark_records:
+            if benchmark_record.client_region != benchmark_records[0].client_region:
                 msg = (
                     f"All benchmarks must have the same client region: "
-                    f"{benchmark.client_region} != {benchmarks[0].client_region}"
+                    f"{benchmark_record.client_region} != "
+                    f"{benchmark_records[0].client_region}"
                 )
                 raise Exception(msg)
 
-            if benchmark.rate_type not in rate_types:
-                rate_types.append(benchmark.rate_type)
+            if benchmark_record.rate_type not in rate_types:
+                rate_types.append(benchmark_record.rate_type)
 
-            if benchmark.rate not in rates:
-                rates.append(benchmark.rate)
+            if benchmark_record.rate not in rates:
+                rates.append(benchmark_record.rate)
 
         if len(rate_types) != 1 and len(rates) != 1:
             msg = (
@@ -260,17 +262,19 @@ async def run_benchmarks(
 
         if fc is None:
             config = {
-                **benchmarks[0].get_config(),
+                **benchmark_records[0].get_config(),
                 "rate_type": rate_types,
                 "rate": rates,
             }
 
             logger.info("Starting benchmarks with config %s", config)
-            benchmark_cls = all_benchmark_runner_classes[benchmarks[0].client_region]
+            benchmark_cls = all_benchmark_runner_classes[
+                benchmark_records[0].client_region
+            ]
             fc = benchmark_cls().run_benchmark.spawn(**config)
 
-            for benchmark in benchmarks:
-                benchmark.function_call_id = fc.object_id
+            for benchmark_record in benchmark_records:
+                benchmark_record.function_call_id = fc.object_id
 
             session.commit()
             db_volume.commit()
@@ -304,13 +308,13 @@ async def run_benchmarks(
 
         db_volume.commit()
 
-        for benchmark in benchmarks:
-            benchmark.save_results(
+        for benchmark_record in benchmark_records:
+            benchmark_record.save_results(
                 next(
                     r
                     for r in fc_result
-                    if r["rate_type"] == benchmark.rate_type
-                    and r["rate"] == benchmark.rate
+                    if r["rate_type"] == benchmark_record.rate_type
+                    and r["rate"] == benchmark_record.rate
                 )["results"],
             )
 
@@ -340,7 +344,6 @@ async def run_benchmarks_in_parallel(benchmarks: list[dict[str, Any]]) -> None:
 
     await asyncio.gather(*tasks)
 
-
 @app.function(
     image=benchmark_suite_image,
     volumes={
@@ -355,7 +358,7 @@ async def run_benchmarks_in_parallel(benchmarks: list[dict[str, Any]]) -> None:
 )
 @modal.concurrent(max_inputs=1)
 async def run_benchmark_suite(
-    benchmarks: list[dict[str, Any]],
+    benchmark_configs: list[dict[str, Any]],
     suite_id: str,
     *,
     version: int = 1,
@@ -365,7 +368,7 @@ async def run_benchmark_suite(
     """
     Run a suite of benchmarks.
 
-    :param: benchmarks: The benchmark configurations to run.
+    :param: benchmark_configs: The benchmark configurations to run.
     :param: suite_id: The ID of the benchmark suite.
     :param: version: The version of the benchmark suite.
     :param: repeats: The number of times to repeat each benchmark configuration.
@@ -373,11 +376,13 @@ async def run_benchmark_suite(
         more benchmarks in parallel, incurring extra costs since LLM servers are not
         reused between benchmarks. Disabled by default.
     """
+    n = len(benchmark_configs)
+    logging.info(f"Running {n} configs with benchmark suite id {suite_id}")
     db_volume.reload()
-    SuiteBenchmark = benchmark_cls_factory(  # noqa: N806
+    SuiteBenchmark = benchmark_class_factory(  # noqa: N806
         table_name=suite_id.replace("-", "_"),
     )
-    SuiteAveragedBenchmark = benchmark_cls_factory(  # noqa: N806
+    SuiteAveragedBenchmark = benchmark_class_factory(  # noqa: N806
         table_name=suite_id.replace("-", "_") + "_averaged",
     )
 
@@ -385,8 +390,7 @@ async def run_benchmark_suite(
 
     # STEP 0: Validate benchmarks
     logger.info("Validating benchmarks...")
-
-    for benchmark in benchmarks:
+    for benchmark_config in benchmark_configs:
         for key in [
             "llm_server_type",
             "model",
@@ -395,40 +399,40 @@ async def run_benchmark_suite(
             "server_region",
             "client_region",
         ]:
-            if benchmark.get(key) is None:
-                msg = f"Benchmark {benchmark} has no {key}"
+            if benchmark_config.get(key) is None:
+                msg = f"Benchmark {benchmark_config} has no {key}"
                 raise Exception(msg)
 
-        if "llm_server_config" not in benchmark:
-            benchmark["llm_server_config"] = {}
+        if "llm_server_config" not in benchmark_config:
+            benchmark_config["llm_server_config"] = {}
 
-        if "client_config" not in benchmark:
-            benchmark["client_config"] = {}
+        if "client_config" not in benchmark_config:
+            benchmark_config["client_config"] = {}
 
-        benchmark["group_id"] = str(uuid.uuid4())[:8]
-        benchmark["version_metadata"] = {
+        benchmark_config["group_id"] = str(uuid.uuid4())[:8]
+        benchmark_config["version_metadata"] = {
             "guidellm": VersionDefaults.GUIDELLM,
-            benchmark["llm_server_type"]: benchmark["llm_server_config"].get(
-                "version",
-                VersionDefaults.LLM_SERVERS[benchmark["llm_server_type"]],
-            ),
+            benchmark_config["llm_server_type"]:
+                benchmark_config["llm_server_config"].get(
+                    "version",
+                    VersionDefaults.LLM_SERVERS[benchmark_config["llm_server_type"]],
+                ),
             "suite": version,
         }
 
     # STEP 1: Run synchronous and throughput benchmarks
     logger.info("Running synchronous and throughput benchmarks...")
-
     # TODO(jack): If repeat_index is increased, all of the constant rate benchmarks need
     # to be re-run with the new synchronous and throughput rates in mind
     await run_benchmarks_in_parallel(
         [
             {
-                **benchmark,
+                **benchmark_config,
                 "rate_type": rate_type,
                 "repeat_index": repeat_index,
             }
-            for benchmark, rate_type, repeat_index in itertools.product(
-                benchmarks,
+            for benchmark_config, rate_type, repeat_index in itertools.product(
+                benchmark_configs,
                 (
                     # If fast_mode is enabled, run synchronous and throughput
                     # benchmarks in parallel to save time. Otherwise, run them
@@ -444,15 +448,14 @@ async def run_benchmark_suite(
 
     # STEP 2: Run benchmarks at constant rates
     logger.info("Running benchmarks at constant rates...")
-
     benchmarks_to_run = []
     skipped_benchmark_indices = set()
 
-    for i, benchmark in enumerate(benchmarks):
-        synchronous_benchmarks = (
+    for i, benchmark_config in enumerate(benchmark_configs):
+        synchronous_benchmark_records = (
             session.query(Benchmark)
             .filter_by(
-                **{k: v for k, v in benchmark.items() if k != "group_id"},
+                **{k: v for k, v in benchmark_config.items() if k != "group_id"},
                 rate_type=RateType.SYNCHRONOUS.value,
             )
             .filter(
@@ -461,10 +464,10 @@ async def run_benchmark_suite(
             )
             .all()
         )
-        throughput_benchmarks = (
+        throughput_benchmark_records = (
             session.query(Benchmark)
             .filter_by(
-                **{k: v for k, v in benchmark.items() if k != "group_id"},
+                **{k: v for k, v in benchmark_config.items() if k != "group_id"},
                 rate_type=RateType.THROUGHPUT.value,
             )
             .filter(
@@ -475,21 +478,25 @@ async def run_benchmark_suite(
         )
 
         if (
-            len(synchronous_benchmarks) < repeats
-            or len(throughput_benchmarks) < repeats
+            len(synchronous_benchmark_records) < repeats
+            or len(throughput_benchmark_records) < repeats
         ):
             warnings.warn(
                 f"WARNING: Expected {repeats} synchronous and throughput benchmarks, "
-                f"but got {len(synchronous_benchmarks)} and "
-                f"{len(throughput_benchmarks)} for config {benchmark}. Skipping "
-                "constant rate benchmarks for this config.",
+                f"but got {len(synchronous_benchmark_records)} and "
+                f"{len(throughput_benchmark_records)} for config {benchmark_config}. "
+                "Skipping constant rate benchmarks for this config.",
                 stacklevel=2,
             )
             skipped_benchmark_indices.add(i)
             continue
 
-        min_rate = np.mean([x.completed_request_rate for x in synchronous_benchmarks])
-        max_rate = np.mean([x.completed_request_rate for x in throughput_benchmarks])
+        min_rate = np.mean(
+            [x.completed_request_rate for x in synchronous_benchmark_records],
+        )
+        max_rate = np.mean(
+            [x.completed_request_rate for x in throughput_benchmark_records],
+        )
 
         if min_rate >= max_rate:
             # This generally happens when the model is extremely large and the server
@@ -497,7 +504,7 @@ async def run_benchmark_suite(
             # successful requests.
             warnings.warn(
                 f"WARNING: Synchronous rate ({min_rate}) is greater than throughput "
-                f"rate ({max_rate}) with config {benchmark}",
+                f"rate ({max_rate}) with config {benchmark_config}",
                 stacklevel=2,
             )
             continue
@@ -525,7 +532,7 @@ async def run_benchmark_suite(
             benchmarks_to_run.extend(
                 [
                     {
-                        **benchmark,
+                        **benchmark_config,
                         "rate_type": RateType.CONSTANT.value,
                         "rate": rate,
                         "repeat_index": repeat_index,
@@ -537,11 +544,7 @@ async def run_benchmark_suite(
     await run_benchmarks_in_parallel(benchmarks_to_run)
 
     # STEP 2.5: Delete existing benchmark results
-    logger.info("Deleting existing benchmark results...")
-
-    for cls in [SuiteBenchmark, SuiteAveragedBenchmark]:
-        cls.__table__.drop(engine, checkfirst=True)
-        cls.__table__.create(engine)
+    logger.info("(Re)creating benchmark suite tables...")
 
     # STEP 3: Average the results together. Start by finding the parameters that vary
     # between benchmarks in order to get descriptive group IDs for each averaged
@@ -550,15 +553,15 @@ async def run_benchmark_suite(
 
     parameters = {}
 
-    for benchmark in benchmarks:
-        for k in benchmark:
-            if isinstance(benchmark[k], dict) or k == "group_id":
+    for benchmark_config in benchmark_configs:
+        for k in benchmark_config:
+            if isinstance(benchmark_config[k], dict) or k == "group_id":
                 continue
 
             if k not in parameters:
                 parameters[k] = set()
 
-            parameters[k].add(benchmark[k])
+            parameters[k].add(benchmark_config[k])
 
     for k in list(parameters.keys()):
         if len(parameters[k]) == 1:
@@ -567,9 +570,9 @@ async def run_benchmark_suite(
     # Ensure names/group IDs are unique
     group_ids = set()
 
-    for i, benchmark in enumerate(benchmarks):
+    for i, benchmark_config in enumerate(benchmark_configs):
         base_group_id = (
-            "_".join([str(benchmark[k]) for k in sorted(parameters)])
+            "_".join([str(benchmark_config[k]) for k in sorted(parameters)])
             if len(parameters) > 0
             else "benchmark"
         )
@@ -581,26 +584,27 @@ async def run_benchmark_suite(
             group_id = f"{base_group_id}_{j}"
 
         group_ids.add(group_id)
-        benchmarks[i]["group_id"] = group_id
+        benchmark_configs[i]["group_id"] = group_id
 
-    for i, benchmark in enumerate(benchmarks):
+    for i, benchmark_config in enumerate(benchmark_configs):
         if i in skipped_benchmark_indices:
             continue
 
         data_config = {
             k: int(v)
-            for param in benchmark["data"].split(",")
+            for param in benchmark_config["data"].split(",")
             for k, v in [param.split("=")]
             if hasattr(Benchmark, k)
         }
 
-        benchmark_models = (
+        benchmark_records = (
             session.query(Benchmark)
-            .filter_by(**{k: v for k, v in benchmark.items() if k != "group_id"})
+            .filter_by(**{k: v for k, v in benchmark_config.items() if k != "group_id"})
             .all()
         )
         benchmark_rates = {
-            (benchmark.rate_type, benchmark.rate) for benchmark in benchmark_models
+            (benchmark_record.rate_type, benchmark_record.rate)
+            for benchmark_record in benchmark_records
         }
 
         # Clone the benchmark models into the SuiteBenchmark table
@@ -610,17 +614,17 @@ async def run_benchmark_suite(
             if k not in Benchmark.__table__.primary_key.columns.keys()  # noqa: SIM118
         ]
 
-        for benchmark_model in benchmark_models:
+        for benchmark_record in benchmark_records:
             session.add(
                 SuiteBenchmark(
-                    **{c: getattr(benchmark_model, c) for c in non_pk_columns},
+                    **{c: getattr(benchmark_record, c) for c in non_pk_columns},
                 ),
             )
 
         # Average benchmarks with the same parameters
         for rate_type, rate in benchmark_rates:
             averaged_benchmark = SuiteAveragedBenchmark(
-                **benchmark,
+                **benchmark_config,
                 **data_config,
                 rate_type=rate_type,
                 rate=rate,
@@ -645,7 +649,7 @@ async def run_benchmark_suite(
                 # TODO(jack): Think about what to do with None values (in tpot_median)
                 data = [
                     getattr(b, key)
-                    for b in benchmark_models
+                    for b in benchmark_records
                     if b.rate_type == rate_type
                     and b.rate == rate
                     and getattr(b, key) is not None

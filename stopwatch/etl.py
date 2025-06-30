@@ -27,7 +27,7 @@ etl_image = (
 )
 
 with etl_image.imports():
-    from .db import benchmark_cls_factory, session
+    from .db import benchmark_class_factory, session
     from .transforms import transform
 
 
@@ -155,7 +155,7 @@ def export_results(suite_ids: str, *, verbose: bool = False):  # noqa: ANN201
     # Convert suite_ids to a list of benchmark classes
     if isinstance(suite_ids[0], str):
         suite_ids = [
-            benchmark_cls_factory(table_name=suite_id.replace("-", "_") + "_averaged")
+            benchmark_class_factory(table_name=suite_id.replace("-", "_") + "_averaged")
             for suite_id in suite_ids
         ]
 
