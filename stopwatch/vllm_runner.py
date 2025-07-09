@@ -181,7 +181,7 @@ class vLLM_8xH100(vLLMBase):
     server_config: str = modal.parameter(default="{}")
 
 
-@vllm_cls(gpu="H200:8", region="us-east-2", cpu=32, memory=64 * 1024)
+@vllm_cls(gpu="H200:8", region="us-east-1", cpu=32, memory=64 * 1024)
 class vLLM_8xH200(vLLMBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
@@ -220,7 +220,7 @@ vllm_classes = {
             "us-chicago-1": vLLM_8xH100,
         },
         "H200:8": {
-            "us-east-2": vLLM_8xH200,
+            "us-east-1": vLLM_8xH200,
         },
         "L40S": {
             "us-ashburn-1": vLLM_L40S,

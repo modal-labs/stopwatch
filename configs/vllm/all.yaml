@@ -1,6 +1,6 @@
 id: vllm
 files:
-  # - deepseek.yaml
+  - deepseek.yaml
   - deepseek-awq.yaml
   - gemma3.yaml
   - llama3.yaml

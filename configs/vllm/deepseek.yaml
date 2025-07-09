@@ -16,6 +16,6 @@ base_config:
     extra_args: ["--tensor-parallel-size", "8", "--max-model-len", "16384"]
 configs:
   - gpu: H200:8
-    region: us-east-2
+    region: us-east-1
   - gpu: B200:8
     region: us-ashburn-1

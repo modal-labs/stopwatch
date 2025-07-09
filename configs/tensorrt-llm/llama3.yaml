@@ -37,7 +37,7 @@ configs:
               low_latency_gemm_plugin: fp8
             speculative_decoding_mode: LOOKAHEAD_DECODING
             max_input_len: 1024
-            max_num_tokens: 1152
+            max_num_tokens: 8192
             max_batch_size: 1
 
           speculative_config:
@@ -66,7 +66,7 @@ configs:
               low_latency_gemm_plugin: fp8
             speculative_decoding_mode: LOOKAHEAD_DECODING
             max_input_len: 1024
-            max_num_tokens: 1152
+            max_num_tokens: 8192
             max_batch_size: 2
 
           speculative_config:
@@ -145,7 +145,7 @@ configs:
               low_latency_gemm_plugin: fp8
             speculative_decoding_mode: LOOKAHEAD_DECODING
             max_input_len: 1024
-            max_num_tokens: 1152
+            max_num_tokens: 8192
             max_batch_size: 1
 
           speculative_config:
