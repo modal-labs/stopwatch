@@ -4,7 +4,7 @@ import logging
 import time
 import uuid
 from collections.abc import Iterator, Mapping
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import modal
@@ -100,7 +100,7 @@ def llm_server(
 
     url = cls(model="").start.get_web_url()
     health_url = f"{url}{llm_health_routes[llm_server_type]}"
-    queue_time = datetime.now(UTC).timestamp()
+    queue_time = datetime.now(timezone.utc).timestamp()
 
     # Wait for LLM server to start
     logger.info(
@@ -151,7 +151,7 @@ def llm_server(
         time.sleep(5)
 
     logger.info("Connected to LLM server")
-    connection_time = datetime.now(UTC).timestamp()
+    connection_time = datetime.now(timezone.utc).timestamp()
     queue_duration = connection_time - queue_time
 
     if (

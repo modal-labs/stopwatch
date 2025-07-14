@@ -1,4 +1,4 @@
-import typing
+from typing import ClassVar
 
 
 class VersionDefaults:
@@ -10,7 +10,7 @@ class VersionDefaults:
     TOKASAURUS = "c01e494"
     VLLM = "v0.9.1"
 
-    LLM_SERVERS: typing.ClassVar[dict[str, str]] = {
+    LLM_SERVERS: ClassVar[dict[str, str]] = {
         "sglang": SGLANG,
         "tensorrt-llm": TENSORRT_LLM,
         "tokasaurus": TOKASAURUS,
@@ -22,4 +22,3 @@ class VersionDefaults:
 SECONDS = 1
 MINUTES = 60 * SECONDS
 HOURS = 60 * MINUTES
-

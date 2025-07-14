@@ -69,6 +69,7 @@ ignore = [
   "S113",
   "TD003",
   "TRY002", # remove this one later
+  "UP017", # sglang image uses python 3.10
 ]
 select = [
   "ALL",
@@ -86,9 +87,6 @@ select = [
   "N801",
   "S104",
   "S602",
-]
-"stopwatch/llm_servers/sglang.py" = [
-  "UP017", # sglang image uses python 3.10
 ]
 "stopwatch/run_benchmark.py" = [
   "D101",
