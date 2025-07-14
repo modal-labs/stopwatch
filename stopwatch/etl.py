@@ -131,11 +131,7 @@ def read_jsonl(file_path: str | Path) -> list[dict]:
     volumes={DB_PATH: db_volume, RESULTS_PATH: results_volume},
 )
 @modal.fastapi_endpoint()
-def export_results(  # noqa: ANN201
-    suite_ids: list[str | type],
-    *,
-    verbose: bool = False,
-):
+def export_results(suite_ids: str, *, verbose: bool = False):  # noqa: ANN201
     """
     Export results from the database as a JSONL blob.
 
@@ -147,7 +143,9 @@ def export_results(  # noqa: ANN201
     import pandas as pd
     from fastapi import Response
 
-    if not isinstance(suite_ids, list):
+    if isinstance(suite_ids, str):
+        suite_ids = suite_ids.split(",")
+    elif not isinstance(suite_ids, list):
         suite_ids = [suite_ids]
 
     if len(suite_ids) == 0:
