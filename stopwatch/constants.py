@@ -15,6 +15,7 @@ class VersionDefaults:
         "tensorrt-llm": TENSORRT_LLM,
         "tokasaurus": TOKASAURUS,
         "vllm": VLLM,
+        "vllm-disagg-prefill": VLLM,
     }
 
 

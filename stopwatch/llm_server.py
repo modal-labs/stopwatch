@@ -14,12 +14,14 @@ from .resources import startup_metrics_dict
 from .sglang_runner import sglang_classes
 from .tensorrt_llm_runner import tensorrt_llm_classes
 from .tokasaurus_runner import tokasaurus_classes
+from .vllm_disagg_prefill_runner import vllm_disagg_prefill_classes
 from .vllm_runner import vllm_classes
 
 SGLANG = "sglang"
 TENSORRT_LLM = "tensorrt-llm"
 TOKASAURUS = "tokasaurus"
 VLLM = "vllm"
+VLLM_DISAGG_PREFILL = "vllm-disagg-prefill"
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +63,7 @@ def llm_server(
         TENSORRT_LLM: tensorrt_llm_classes,
         TOKASAURUS: tokasaurus_classes,
         VLLM: vllm_classes,
+        VLLM_DISAGG_PREFILL: vllm_disagg_prefill_classes,
     }
 
     llm_server_version = server_config.get(
@@ -99,6 +102,8 @@ def llm_server(
         health_url = f"{url}/ping"
     elif llm_server_type == VLLM:
         health_url = f"{url}/metrics"
+    elif llm_server_type == VLLM_DISAGG_PREFILL:
+        health_url = f"{url}/ping"
 
     # Wait for LLM server to start
     logger.info(
@@ -134,7 +139,7 @@ def llm_server(
             raise Exception(msg)
 
         if (
-            llm_server_type in (SGLANG, TENSORRT_LLM, TOKASAURUS)
+            llm_server_type in (SGLANG, TENSORRT_LLM, TOKASAURUS, VLLM_DISAGG_PREFILL)
             and res.status_code == 200  # noqa: PLR2004
         ) or (llm_server_type == VLLM and "vllm:gpu_cache_usage_perc" in res.text):
             break

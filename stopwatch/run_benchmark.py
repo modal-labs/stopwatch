@@ -15,7 +15,13 @@ from .resources import app, hf_secret, results_volume
 # LLM server. Must be less than the LLM server's scaledown_window.
 DELAY_BETWEEN_BENCHMARKS = 15 * SECONDS
 
-LLM_SERVER_TYPES = ["vllm", "sglang", "tensorrt-llm", "tokasaurus"]
+LLM_SERVER_TYPES = [
+    "vllm",
+    "vllm-disagg-prefill",
+    "sglang",
+    "tensorrt-llm",
+    "tokasaurus",
+]
 NUM_CORES = 2
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5 * SECONDS
@@ -159,7 +165,7 @@ class BenchmarkRunner:
         Benchmarks a LLM deployment on Modal.
 
         :param: llm_server_type: The server to use for benchmarking, either 'vllm',
-            'sglang', 'tensorrt-llm', or 'tokasaurus'.
+            'vllm-disagg-prefill', 'sglang', 'tensorrt-llm', or 'tokasaurus'.
         :param: model: Name of the model to benchmark.
         :param: rate_type: The type of rate to use for benchmarking, either 'constant',
             'synchronous', or 'throughput'.

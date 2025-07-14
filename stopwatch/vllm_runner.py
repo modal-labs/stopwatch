@@ -20,13 +20,18 @@ HF_CACHE_PATH = "/cache"
 PORT = 8000
 TRACES_PATH = "/traces"
 VLLM_CACHE_PATH = "/root/.cache/vllm"
+VLLM_PYTHON_BINARY = "/usr/bin/python3"
 
 
-def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM) -> modal.Image:
+def vllm_image_factory(
+    docker_tag: str = VersionDefaults.VLLM,
+    extra_dockerfile_commands: list[str] | None = None,
+) -> modal.Image:
     """
     Create a Modal image for running a vLLM server.
 
     :param: docker_tag: The tag of the vLLM Docker image to use.
+    :param: extra_dockerfile_commands: Extra Dockerfile commands to add to the image.
     :return: A Modal image for running a vLLM server.
     """
 
@@ -39,9 +44,9 @@ def vllm_image_factory(docker_tag: str = VersionDefaults.VLLM) -> modal.Image:
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands(
             [
-                "RUN echo -n /usr/bin/python3 > /home/vllm-python",
                 "RUN echo '{%- for message in messages %}{{- message.content }}"
                 "{%- endfor %}' > /home/no-system-prompt.jinja",
+                *(extra_dockerfile_commands or []),
                 "ENTRYPOINT []",
             ],
         )
@@ -116,15 +121,12 @@ class vLLMBase:
             raise ValueError(msg)
 
         server_config = json.loads(self.server_config)
-        python_binary = "/usr/bin/python3"
 
         # Start vLLM server
         subprocess.Popen(
             " ".join(
                 [
-                    # Read the location of the correct Python binary from the file
-                    # created while building the image.
-                    python_binary,
+                    VLLM_PYTHON_BINARY,
                     "-m",
                     "vllm.entrypoints.openai.api_server",
                     "--model",
@@ -137,7 +139,7 @@ class vLLMBase:
                     *server_config.get("extra_args", []),
                 ],
             )
-            + f" || {python_binary} -m http.server {PORT}",
+            + f" || {VLLM_PYTHON_BINARY} -m http.server {PORT}",
             env={
                 **os.environ,
                 **server_config.get("env_vars", {}),
