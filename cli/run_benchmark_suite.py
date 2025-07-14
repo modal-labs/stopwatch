@@ -67,7 +67,12 @@ def build_all_benchmark_configs(
         )
         benchmark_configs.extend(file_benchmark_configs)
 
-    return benchmark_configs, config["id"], config.get("version", 1), config.get("repeats", 1)
+    return (
+        benchmark_configs,
+        config["id"],
+        config.get("version", 1),
+        config.get("repeats", 1),
+    )
 
 
 @app.local_entrypoint()
@@ -94,7 +99,7 @@ def run_benchmark_suite_cli(
         exclude_instance_types,
     )
 
-    if len(benchmarks) == 0:
+    if len(benchmark_configs) == 0:
         print("No benchmarks to run")
         return
 
