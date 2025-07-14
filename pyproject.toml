@@ -7,7 +7,7 @@ name = "stopwatch"
 version = "0.1.0"
 requires-python = ">=3.11,<4.0"
 dependencies = [
-  "modal~=1.0.3",
+  "modal~=1.0.5",
   "PyYAML~=6.0.2",
 ]
 authors = [
@@ -22,12 +22,12 @@ keywords = ["machine-learning", "llms", "vllm", "sglang", "tensorrt-llm"]
 [project.optional-dependencies]
 extras = [
   "datasette~=0.65.1",
-  "fastapi[standard]~=0.115.14",
+  "fastapi[standard]~=0.116.1",
   "grpclib==0.4.8",
   "guidellm @ git+https://github.com/neuralmagic/guidellm.git#0e78c65",
   "hf-transfer~=0.1.9",
   "numpy~=2.3.1",
-  "pandas~=2.3.0",
+  "pandas~=2.3.1",
   "prometheus-client~=0.22.1",
   "requests~=2.32.4",
   "SQLAlchemy~=2.0.41",
@@ -81,16 +81,16 @@ select = [
 "cli/run_benchmark_suite.py" = [
   "T201",
 ]
-"stopwatch/run_benchmark.py" = [
-  "D101",
-  "N801",
-]
-"stopwatch/*_runner.py" = [
+"stopwatch/llm_servers/*.py" = [
   "D101",
   "N801",
   "S104",
   "S602",
 ]
-"stopwatch/sglang_runner.py" = [
+"stopwatch/llm_servers/sglang.py" = [
   "UP017", # sglang image uses python 3.10
+]
+"stopwatch/run_benchmark.py" = [
+  "D101",
+  "N801",
 ]

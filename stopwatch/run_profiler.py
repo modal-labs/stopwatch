@@ -4,7 +4,7 @@ import time
 import modal
 
 from .constants import VersionDefaults
-from .llm_server import llm_server
+from .llm_servers import llm_server
 from .resources import app, hf_secret, traces_volume
 
 TIMEOUT = 60 * 60  # 1 hour

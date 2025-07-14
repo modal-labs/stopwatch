@@ -8,7 +8,7 @@ from typing import Any
 import modal
 
 from .constants import HOURS, SECONDS, VersionDefaults
-from .llm_server import llm_server
+from .llm_servers import llm_server
 from .resources import app, hf_secret, results_volume
 
 # Delay between benchmarks when running multiple constant-rate benchmarks on the same

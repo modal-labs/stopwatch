@@ -5,13 +5,14 @@ from datetime import UTC, datetime
 
 import modal
 
-from .constants import HOURS, VersionDefaults
-from .resources import (
+from stopwatch.constants import HOURS, VersionDefaults
+from stopwatch.resources import (
     hf_cache_volume,
     startup_metrics_dict,
     vllm_cache_volume,
 )
-from .vllm_runner import PORT, VLLM_PYTHON_BINARY, vllm_cls, vllm_image_factory
+
+from .vllm import PORT, VLLM_PYTHON_BINARY, vllm_cls, vllm_image_factory
 
 DECODE_PORT = 8200
 PREFILL_PORT = 8100

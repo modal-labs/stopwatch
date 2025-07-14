@@ -11,8 +11,8 @@ from pathlib import Path
 
 import modal
 
-from .constants import MINUTES, SECONDS, VersionDefaults
-from .resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
+from stopwatch.constants import MINUTES, SECONDS, VersionDefaults
+from stopwatch.resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
 
 HF_CACHE_PATH = "/cache"
 LLM_KWARGS_PATH = "llm_kwargs.yaml"

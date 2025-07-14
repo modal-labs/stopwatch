@@ -9,13 +9,14 @@ from typing import Any
 
 import modal
 
-from .constants import VersionDefaults
-from .resources import startup_metrics_dict
-from .sglang_runner import sglang_classes
-from .tensorrt_llm_runner import tensorrt_llm_classes
-from .tokasaurus_runner import tokasaurus_classes
-from .vllm_disagg_prefill_runner import vllm_disagg_prefill_classes
-from .vllm_runner import vllm_classes
+from stopwatch.constants import VersionDefaults
+from stopwatch.resources import startup_metrics_dict
+
+from .sglang import sglang_classes
+from .tensorrt_llm import tensorrt_llm_classes
+from .tokasaurus import tokasaurus_classes
+from .vllm import vllm_classes
+from .vllm_pd_disaggregation import vllm_disagg_prefill_classes
 
 SGLANG = "sglang"
 TENSORRT_LLM = "tensorrt-llm"
