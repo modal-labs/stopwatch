@@ -68,7 +68,6 @@ ignore = [
   "PLR0915",
   "S113",
   "TD003",
-  "G004", # f-string in log
   "TRY002", # remove this one later
 ]
 select = [
@@ -76,6 +75,9 @@ select = [
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
+"cli/disagg_prefill_proxy_server.py" = [
+  "S104",
+]
 "cli/run_benchmark_suite.py" = [
   "T201",
 ]
@@ -83,28 +85,12 @@ select = [
   "D101",
   "N801",
 ]
+"stopwatch/*_runner.py" = [
+  "D101",
+  "N801",
+  "S104",
+  "S602",
+]
 "stopwatch/sglang_runner.py" = [
-  "D101",
-  "N801",
-  "S104",
-  "S602",
   "UP017", # sglang image uses python 3.10
-]
-"stopwatch/tensorrt_llm_runner.py" = [
-  "D101",
-  "N801",
-  "S104",
-  "S602",
-]
-"stopwatch/tokasaurus_runner.py" = [
-  "D101",
-  "N801",
-  "S104",
-  "S602",
-]
-"stopwatch/vllm_runner.py" = [
-  "D101",
-  "N801",
-  "S104",
-  "S602",
 ]

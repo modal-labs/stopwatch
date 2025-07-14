@@ -14,12 +14,14 @@ from .resources import startup_metrics_dict
 from .sglang_runner import sglang_classes
 from .tensorrt_llm_runner import tensorrt_llm_classes
 from .tokasaurus_runner import tokasaurus_classes
+from .vllm_disagg_prefill_runner import vllm_disagg_prefill_classes
 from .vllm_runner import vllm_classes
 
 SGLANG = "sglang"
 TENSORRT_LLM = "tensorrt-llm"
 TOKASAURUS = "tokasaurus"
 VLLM = "vllm"
+VLLM_DISAGG_PREFILL = "vllm-disagg-prefill"
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +63,7 @@ def llm_server(
         TENSORRT_LLM: tensorrt_llm_classes,
         TOKASAURUS: tokasaurus_classes,
         VLLM: vllm_classes,
+        VLLM_DISAGG_PREFILL: vllm_disagg_prefill_classes,
     }
 
     llm_server_version = server_config.get(
@@ -73,6 +76,7 @@ def llm_server(
         TENSORRT_LLM: "/health",
         TOKASAURUS: "/ping",
         VLLM: "/metrics",
+        VLLM_DISAGG_PREFILL: "/ping",
     }
 
     extra_query = {
@@ -85,9 +89,7 @@ def llm_server(
 
     # Pick LLM server class
     try:
-        cls = llm_server_classes[llm_server_type][llm_server_version][
-            gpu.replace("!", "") # FIXME? shouldn't we add, not remove, this always?
-        ][region]
+        cls = llm_server_classes[llm_server_type][llm_server_version][gpu][region]
     except KeyError as e:
         msg = (
             f"Unsupported configuration: {llm_server_type} {llm_server_version} "
@@ -96,7 +98,7 @@ def llm_server(
         raise ValueError(msg) from e
 
     url = cls(model="").start.get_web_url()
-    health_url = f"{url}/{llm_health_routes[llm_server_type]}"
+    health_url = f"{url}{llm_health_routes[llm_server_type]}"
     queue_time = datetime.now(UTC).timestamp()
 
     # Wait for LLM server to start
@@ -133,7 +135,7 @@ def llm_server(
             raise Exception(msg)
 
         if (
-            llm_server_type in (SGLANG, TENSORRT_LLM, TOKASAURUS)
+            llm_server_type in (SGLANG, TENSORRT_LLM, TOKASAURUS, VLLM_DISAGG_PREFILL)
             and res.status_code == 200  # noqa: PLR2004
         ) or (llm_server_type == VLLM and "vllm:gpu_cache_usage_perc" in res.text):
             break

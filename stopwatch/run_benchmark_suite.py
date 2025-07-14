@@ -73,22 +73,24 @@ def find_function_call(
     return None
 
 
-def get_benchmarks_to_run(
-    benchmarks: list[dict[str, Any]],
+def get_benchmark_configs_to_run(
+    benchmark_configs: list[dict[str, Any]],
 ) -> Generator[tuple[list[str] | str, modal.FunctionCall | None]]:
     """
     Yield IDs of benchmarks that need to be run based on the provided benchmark
     configurations. If a benchmark is already running, its function call will be
     provided. If a benchmark has already completed, it will not be yielded.
 
-    :param: benchmarks: The benchmark configurations to use.
+    :param: benchmark_configs: The benchmark configurations to use.
     :return: A generator of benchmark IDs and function calls that need to be run.
     """
 
-    # FIXME -- these aren't benchmarks since rate_type could be a list
-    logging.info(f"reviewing if all {len(benchmarks)} benchmarks need to be run...")
-    n = len(benchmarks)
-    for i, config in enumerate(benchmarks):
+    logger.info(
+        "Reviewing if all %d benchmark configs need to be run...",
+        len(benchmark_configs),
+    )
+
+    for config_i, config in enumerate(benchmark_configs):
         benchmark_ids_to_run = []
 
         if isinstance(config["rate_type"], str):
@@ -137,7 +139,13 @@ def get_benchmarks_to_run(
             benchmark_record = benchmark_records[0] if benchmark_records else None
 
             if benchmark_record is not None:
-                logging.info(f"benchmark {i+1}/{n} r={rate_type} started, checking...")
+                logger.info(
+                    "Benchmark %d/%d r=%s started, checking...",
+                    config_i + 1,
+                    len(benchmark_configs),
+                    rate_type,
+                )
+
                 if benchmark_record.start_time is not None:
                     # TODO(jack): Check errors?
                     continue
@@ -172,11 +180,23 @@ def get_benchmarks_to_run(
                                 # we should check if the input is valid.
                                 fc.get(timeout=0)
                             except modal.exception.OutputExpiredError:
-                                logging.info(
-                                    f"benchmark {i}/{n} result expired, re-running",
+                                # The result has expired, so we need to re-run the
+                                # benchmark since its result wasn't previously saved to
+                                # the database.
+                                logger.info(
+                                    "Benchmark %d/%d result expired, re-running",
+                                    config_i + 1,
+                                    len(benchmark_configs),
                                 )
                             except TimeoutError:
-                                logging.info(f"benchmark {i}/{n} is still running")
+                                # The previous function call is still running (since we
+                                # called get with timeout=0), so we can save its results
+                                # directly.
+                                logger.info(
+                                    "Benchmark %d/%d is still running",
+                                    config_i + 1,
+                                    len(benchmark_configs),
+                                )
                                 yield (benchmark_record.id, fc)
                                 continue
                             except Exception as e:
@@ -189,11 +209,21 @@ def get_benchmarks_to_run(
                                 )
                                 raise Exception(msg) from e
                             else:
-                                logging.info(f"benchmark {i}/{n} already completed.")
+                                # The previous function call has completed successfully,
+                                # so we can save its results directly.
+                                logger.info(
+                                    "Benchmark %d/%d already completed",
+                                    config_i + 1,
+                                    len(benchmark_configs),
+                                )
                                 yield (benchmark_record.id, fc)
                                 continue
             else:
-                logging.info(f"benchmark {i}/{n} record created")
+                logger.info(
+                    "Benchmark %d/%d record created",
+                    config_i + 1,
+                    len(benchmark_configs),
+                )
                 benchmark_record = Benchmark(**benchmark_config)
                 session.add(benchmark_record)
                 session.commit()
@@ -321,18 +351,18 @@ async def run_benchmarks(
         session.commit()
 
 
-async def run_benchmarks_in_parallel(benchmarks: list[dict[str, Any]]) -> None:
+async def run_benchmarks_in_parallel(benchmark_configs: list[dict[str, Any]]) -> None:
     """
     Given a list of benchmark configurations, identify which benchmarks need to be run,
     run them in parallel, and wait until all benchmarks have completed.
 
-    :param: benchmarks: The benchmark configurations to run.
+    :param: benchmark_configs: The benchmark configurations to run.
     """
 
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_BENCHMARKS)
     tasks = []
 
-    for benchmark_ids, fc in get_benchmarks_to_run(benchmarks):
+    for benchmark_ids, fc in get_benchmark_configs_to_run(benchmark_configs):
         task = asyncio.create_task(run_benchmarks(benchmark_ids, fc, semaphore))
         tasks.append(task)
 
@@ -343,6 +373,7 @@ async def run_benchmarks_in_parallel(benchmarks: list[dict[str, Any]]) -> None:
         return
 
     await asyncio.gather(*tasks)
+
 
 @app.function(
     image=benchmark_suite_image,
@@ -376,8 +407,13 @@ async def run_benchmark_suite(
         more benchmarks in parallel, incurring extra costs since LLM servers are not
         reused between benchmarks. Disabled by default.
     """
-    n = len(benchmark_configs)
-    logging.info(f"Running {n} configs with benchmark suite id {suite_id}")
+
+    logger.info(
+        "Running %d configs with benchmark suite id %s",
+        len(benchmark_configs),
+        suite_id,
+    )
+
     db_volume.reload()
     SuiteBenchmark = benchmark_class_factory(  # noqa: N806
         table_name=suite_id.replace("-", "_"),
@@ -390,6 +426,7 @@ async def run_benchmark_suite(
 
     # STEP 0: Validate benchmarks
     logger.info("Validating benchmarks...")
+
     for benchmark_config in benchmark_configs:
         for key in [
             "llm_server_type",
@@ -412,11 +449,12 @@ async def run_benchmark_suite(
         benchmark_config["group_id"] = str(uuid.uuid4())[:8]
         benchmark_config["version_metadata"] = {
             "guidellm": VersionDefaults.GUIDELLM,
-            benchmark_config["llm_server_type"]:
-                benchmark_config["llm_server_config"].get(
-                    "version",
-                    VersionDefaults.LLM_SERVERS[benchmark_config["llm_server_type"]],
-                ),
+            benchmark_config["llm_server_type"]: benchmark_config[
+                "llm_server_config"
+            ].get(
+                "version",
+                VersionDefaults.LLM_SERVERS[benchmark_config["llm_server_type"]],
+            ),
             "suite": version,
         }
 
@@ -544,7 +582,11 @@ async def run_benchmark_suite(
     await run_benchmarks_in_parallel(benchmarks_to_run)
 
     # STEP 2.5: Delete existing benchmark results
-    logger.info("(Re)creating benchmark suite tables...")
+    logger.info("Deleting existing benchmark results...")
+
+    for cls in [SuiteBenchmark, SuiteAveragedBenchmark]:
+        cls.__table__.drop(engine, checkfirst=True)
+        cls.__table__.create(engine)
 
     # STEP 3: Average the results together. Start by finding the parameters that vary
     # between benchmarks in order to get descriptive group IDs for each averaged
