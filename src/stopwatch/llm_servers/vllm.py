@@ -50,7 +50,6 @@ def vllm_image_factory(
                 "ENTRYPOINT []",
             ],
         )
-        .add_local_python_source("cli")
     )
 
 

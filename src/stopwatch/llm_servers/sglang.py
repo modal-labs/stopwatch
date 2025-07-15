@@ -38,7 +38,6 @@ def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG) -> modal.Imag
                 "ENTRYPOINT []",
             ],
         )
-        .add_local_python_source("cli")
     )
 
 

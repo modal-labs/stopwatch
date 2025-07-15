@@ -16,13 +16,13 @@ from .sglang import sglang_classes
 from .tensorrt_llm import tensorrt_llm_classes
 from .tokasaurus import tokasaurus_classes
 from .vllm import vllm_classes
-from .vllm_pd_disaggregation import vllm_disagg_prefill_classes
+from .vllm_pd_disaggregation import vllm_pd_disaggregation_classes
 
 SGLANG = "sglang"
 TENSORRT_LLM = "tensorrt-llm"
 TOKASAURUS = "tokasaurus"
 VLLM = "vllm"
-VLLM_DISAGG_PREFILL = "vllm-disagg-prefill"
+VLLM_PD_DISAGGREGATION = "vllm-pd-disaggregation"
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -64,7 +64,7 @@ def llm_server(
         TENSORRT_LLM: tensorrt_llm_classes,
         TOKASAURUS: tokasaurus_classes,
         VLLM: vllm_classes,
-        VLLM_DISAGG_PREFILL: vllm_disagg_prefill_classes,
+        VLLM_PD_DISAGGREGATION: vllm_pd_disaggregation_classes,
     }
 
     llm_server_version = server_config.get(
@@ -77,7 +77,7 @@ def llm_server(
         TENSORRT_LLM: "/health",
         TOKASAURUS: "/ping",
         VLLM: "/metrics",
-        VLLM_DISAGG_PREFILL: "/ping",
+        VLLM_PD_DISAGGREGATION: "/ping",
     }
 
     extra_query = {
@@ -136,7 +136,8 @@ def llm_server(
             raise Exception(msg)
 
         if (
-            llm_server_type in (SGLANG, TENSORRT_LLM, TOKASAURUS, VLLM_DISAGG_PREFILL)
+            llm_server_type
+            in (SGLANG, TENSORRT_LLM, TOKASAURUS, VLLM_PD_DISAGGREGATION)
             and res.status_code == 200  # noqa: PLR2004
         ) or (llm_server_type == VLLM and "vllm:gpu_cache_usage_perc" in res.text):
             break

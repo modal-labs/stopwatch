@@ -17,7 +17,7 @@ DELAY_BETWEEN_BENCHMARKS = 15 * SECONDS
 
 LLM_SERVER_TYPES = [
     "vllm",
-    "vllm-disagg-prefill",
+    "vllm-pd-disaggregation",
     "sglang",
     "tensorrt-llm",
     "tokasaurus",
@@ -43,7 +43,6 @@ benchmarking_image = (
             "GUIDELLM__MAX_WORKER_PROCESSES": f"{NUM_CORES - 1}",
         },
     )
-    .add_local_python_source("cli")
 )
 
 with benchmarking_image.imports():
@@ -165,7 +164,7 @@ class BenchmarkRunner:
         Benchmarks a LLM deployment on Modal.
 
         :param: llm_server_type: The server to use for benchmarking, either 'vllm',
-            'vllm-disagg-prefill', 'sglang', 'tensorrt-llm', or 'tokasaurus'.
+            'vllm-pd-disaggregation', 'sglang', 'tensorrt-llm', or 'tokasaurus'.
         :param: model: Name of the model to benchmark.
         :param: rate_type: The type of rate to use for benchmarking, either 'constant',
             'synchronous', or 'throughput'.

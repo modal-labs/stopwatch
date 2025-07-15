@@ -34,13 +34,13 @@ extras = [
   "tiktoken~=0.9.0",
 ]
 
+[project.scripts]
+stopwatch = "stopwatch.cli:app"
+
 [project.urls]
 Homepage = "https://github.com/modal-labs/stopwatch"
 Documentation = "https://github.com/modal-labs/stopwatch/blob/main/README.md"
 Repository = "https://github.com/modal-labs/stopwatch.git"
-
-[tool.setuptools]
-packages = ["stopwatch"]
 
 [tool.ruff]
 line-length = 88
@@ -76,19 +76,19 @@ select = [
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
-"cli/disagg_prefill_proxy_server.py" = [
-  "S104",
-]
-"cli/run_benchmark_suite.py" = [
+"src/stopwatch/cli/*.py" = [
   "T201",
 ]
-"stopwatch/llm_servers/*.py" = [
+"src/stopwatch/llm_servers/*.py" = [
   "D101",
   "N801",
   "S104",
   "S602",
 ]
-"stopwatch/run_benchmark.py" = [
+"src/stopwatch/run_benchmark.py" = [
   "D101",
   "N801",
+]
+"src/tools/pd_disaggregation_proxy_server.py" = [
+  "S104",
 ]

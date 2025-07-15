@@ -20,10 +20,11 @@ RESULTS_PATH = "/results"
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-etl_image = (
-    modal.Image.debian_slim(python_version="3.13")
-    .pip_install("fastapi[standard]", "numpy", "pandas", "SQLAlchemy")
-    .add_local_python_source("cli")
+etl_image = modal.Image.debian_slim(python_version="3.13").pip_install(
+    "fastapi[standard]",
+    "numpy",
+    "pandas",
+    "SQLAlchemy",
 )
 
 with etl_image.imports():

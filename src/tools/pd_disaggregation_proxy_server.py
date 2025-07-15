@@ -1,4 +1,4 @@
-# Credit: https://github.com/vllm-project/vllm/blob/559756214b770d0405939a05172804221c2f5677/benchmarks/disagg_benchmarks/disagg_prefill_proxy_server.py
+# Adapted from https://github.com/vllm-project/vllm/blob/559756214b770d0405939a05172804221c2f5677/benchmarks/disagg_benchmarks/disagg_prefill_proxy_server.py
 
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project

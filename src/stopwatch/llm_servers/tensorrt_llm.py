@@ -58,7 +58,6 @@ def tensorrt_llm_image_factory(
                 "PMIX_MCA_gds": "hash",
             },
         )
-        .add_local_python_source("cli")
     )
 
 

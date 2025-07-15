@@ -21,7 +21,6 @@ profiling_image = (
         f"git+https://github.com/neuralmagic/guidellm.git#{VersionDefaults.GUIDELLM}",
         "openai",
     )
-    .add_local_python_source("cli")
 )
 
 with profiling_image.imports():

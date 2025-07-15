@@ -75,10 +75,10 @@ def build_all_benchmark_configs(
     )
 
 
-@app.local_entrypoint()
 def run_benchmark_suite_cli(
     config_path: str,
     *,
+    detach: bool = False,
     exclude_instance_types: str | None = None,
     fast_mode: bool = False,
 ) -> None:
@@ -94,43 +94,44 @@ def run_benchmark_suite_cli(
         reused between benchmarks. Disabled by default.
     """
 
-    benchmark_configs, suite_id, version, repeats = build_all_benchmark_configs(
-        Path(config_path),
-        exclude_instance_types,
-    )
-
-    if len(benchmark_configs) == 0:
-        print("No benchmarks to run")
-        return
-
-    run_benchmark_suite.remote(
-        benchmark_configs=benchmark_configs,
-        suite_id=suite_id,
-        version=version,
-        repeats=repeats,
-        fast_mode=fast_mode,
-    )
-
-    print()
-    print("To view the results of this benchmark suite, you may:")
-
-    # Provide link to Datasette UI
-    try:
-        datasette_url = modal.Cls.from_name(
-            "stopwatch",
-            "DatasetteRunner",
-        )().start.get_web_url()
-
-        print("- Open the Datasette UI at:")
-        print(
-            f"   {datasette_url}/stopwatch/-/query?sql=select+*+from+"
-            f"{suite_id.replace('-', '_')}_averaged+where+rate_type+%21%3D+"
-            "'throughput'",
+    with modal.enable_output(), app.run(detach=detach):
+        benchmark_configs, suite_id, version, repeats = build_all_benchmark_configs(
+            Path(config_path),
+            exclude_instance_types,
         )
-    except Exception:  # noqa: BLE001
-        print("- Deploy the Datasette UI with:")
-        print("   modal deploy -m stopwatch")
 
-    # Provide path to JSONL file
-    print("- Download the results JSONL file with:")
-    print(f"   modal volume get stopwatch-results {suite_id}.jsonl")
+        if len(benchmark_configs) == 0:
+            print("No benchmarks to run")
+            return
+
+        run_benchmark_suite.remote(
+            benchmark_configs=benchmark_configs,
+            suite_id=suite_id,
+            version=version,
+            repeats=repeats,
+            fast_mode=fast_mode,
+        )
+
+        print()
+        print("To view the results of this benchmark suite, you may:")
+
+        # Provide link to Datasette UI
+        try:
+            datasette_url = modal.Cls.from_name(
+                "stopwatch",
+                "DatasetteRunner",
+            )().start.get_web_url()
+
+            print("- Open the Datasette UI at:")
+            print(
+                f"   {datasette_url}/stopwatch/-/query?sql=select+*+from+"
+                f"{suite_id.replace('-', '_')}_averaged+where+rate_type+%21%3D+"
+                "'throughput'",
+            )
+        except Exception:  # noqa: BLE001
+            print("- Deploy the Datasette UI with:")
+            print("   modal deploy -m stopwatch")
+
+        # Provide path to JSONL file
+        print("- Download the results JSONL file with:")
+        print(f"   modal volume get stopwatch-results {suite_id}.jsonl")

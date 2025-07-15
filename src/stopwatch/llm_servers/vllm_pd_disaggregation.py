@@ -16,10 +16,10 @@ from .vllm import PORT, VLLM_PYTHON_BINARY, vllm_cls, vllm_image_factory
 
 DECODE_PORT = 8200
 PREFILL_PORT = 8100
-PROXY_SERVER_SCRIPT = "/root/cli/disagg_prefill_proxy_server.py"
+PROXY_SERVER_SCRIPT = "/root/src/tools/pd_disaggregation_proxy_server.py"
 
 
-def vllm_disagg_prefill_image_factory(
+def vllm_pd_disaggregation_image_factory(
     docker_tag: str = VersionDefaults.VLLM,
 ) -> modal.Image:
     """
@@ -34,10 +34,10 @@ def vllm_disagg_prefill_image_factory(
         extra_dockerfile_commands=[
             f"RUN {VLLM_PYTHON_BINARY} -m pip install quart --ignore-installed",
         ],
-    )
+    ).add_local_python_source("src.tools")
 
 
-class vLLMDisaggPrefillBase:
+class vLLMPDDisaggregationBase:
     """A Modal class that runs a vLLM server."""
 
     @modal.web_server(port=PORT, startup_timeout=1 * HOURS)
@@ -139,21 +139,21 @@ class vLLMDisaggPrefillBase:
 
 
 @vllm_cls(
-    image=vllm_disagg_prefill_image_factory(),
+    image=vllm_pd_disaggregation_image_factory(),
     gpu="H100!:2",
     cpu=8,
     memory=8 * 1024,
 )
-class vLLM_DisaggPrefill_2xH100(vLLMDisaggPrefillBase):
+class vLLM_PD_Disaggregation_2xH100(vLLMPDDisaggregationBase):
     model: str = modal.parameter()
     caller_id: str = modal.parameter(default="")
     server_config: str = modal.parameter(default="{}")
 
 
-vllm_disagg_prefill_classes = {
+vllm_pd_disaggregation_classes = {
     VersionDefaults.VLLM: {
         "H100:2": {
-            "us-chicago-1": vLLM_DisaggPrefill_2xH100,
+            "us-chicago-1": vLLM_PD_Disaggregation_2xH100,
         },
     },
 }

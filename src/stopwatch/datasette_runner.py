@@ -16,7 +16,6 @@ datasette_image = (
     .run_commands(
         "datasette install git+https://github.com/jackcook/stopwatch-plot.git@ff5b060",
     )
-    .add_local_python_source("cli")
 )
 
 with datasette_image.imports():
