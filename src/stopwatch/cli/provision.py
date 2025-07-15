@@ -22,7 +22,7 @@ def provision_cli(
     llm_server_config: str | None = None,
     max_concurrent_inputs: int = 1000,
 ) -> None:
-    """Deploys an LLM server on Modal."""
+    """Deploy an LLM server on Modal."""
 
     # Pick a random name for the endpoint if not provided
     if endpoint_label is None:

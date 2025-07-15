@@ -1,11 +1,13 @@
 import json
+import uuid
 from pathlib import Path
 
 import modal
 
+from stopwatch.benchmark.dynamic import create_dynamic_benchmark_runner_cls
 from stopwatch.db import RateType
+from stopwatch.llm_servers import llm_server
 from stopwatch.resources import app
-from stopwatch.run_benchmark import all_benchmark_runner_classes
 
 
 def run_benchmark_cli(
@@ -26,39 +28,52 @@ def run_benchmark_cli(
 ) -> None:
     """Run a benchmark."""
 
+    if llm_server_config is not None:
+        try:
+            llm_server_config = json.loads(llm_server_config)
+        except json.JSONDecodeError as e:
+            msg = "Invalid JSON for --llm-server-config"
+            raise ValueError(msg) from e
+    else:
+        llm_server_config = {}
+
+    if client_config is not None:
+        try:
+            client_config = json.loads(client_config)
+        except json.JSONDecodeError as e:
+            msg = "Invalid JSON for --client-config"
+            raise ValueError(msg) from e
+    else:
+        client_config = {}
+
+    if rate_type == RateType.CONSTANT.value and rate is None:
+        msg = f"--rate is required when --rate-type is {RateType.CONSTANT.value}"
+        raise ValueError(msg)
+
+    name = uuid.uuid4().hex[:4]
+    cls = create_dynamic_benchmark_runner_cls(name, client_region)
+
     with modal.enable_output(), app.run(detach=detach):
-        cls = all_benchmark_runner_classes[client_region]
-
-        if llm_server_config is not None:
-            try:
-                llm_server_config = json.loads(llm_server_config)
-            except json.JSONDecodeError as e:
-                msg = "Invalid JSON for --llm-server-config"
-                raise ValueError(msg) from e
-
-        if client_config is not None:
-            try:
-                client_config = json.loads(client_config)
-            except json.JSONDecodeError as e:
-                msg = "Invalid JSON for --client-config"
-                raise ValueError(msg) from e
-
-        if rate_type == RateType.CONSTANT.value and rate is None:
-            msg = f"--rate is required when --rate-type is {RateType.CONSTANT.value}"
-            raise ValueError(msg)
-
-        results = cls().run_benchmark.remote(
-            llm_server_type=llm_server_type,
+        with llm_server(
+            llm_server_type,
             model=model,
-            rate_type=rate_type,
-            data=data,
             gpu=gpu,
-            server_region=server_region,
-            duration=duration,
-            llm_server_config=llm_server_config,
-            client_config=client_config,
-            rate=rate,
-        )
+            region=server_region,
+            server_config=llm_server_config,
+        ) as (llm_server_url, extra_query, startup_metrics):
+            # TODO(jack): Set remove_from_body for tokasaurus
+            client_config["extra_query"] = extra_query
+
+            # TODO(jack): Start the benchmark runner before the LLM server is ready
+            results = cls().run_benchmark.remote(
+                endpoint=f"{llm_server_url}/v1",
+                model=model,
+                rate_type=rate_type,
+                data=data,
+                duration=duration,
+                client_config=client_config,
+                rate=rate,
+            )
 
         with Path(output_path).open("w") as f:
             json.dump(results, f, indent=2)

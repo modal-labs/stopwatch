@@ -21,7 +21,7 @@ def benchmark_cli(
     rate: float | None = None,
     region: str | None = None,
 ) -> None:
-    """Benchmarks an OpenAI-compatible LLM server using GuideLLM."""
+    """Benchmark an OpenAI-compatible LLM server using GuideLLM."""
 
     name = uuid.uuid4().hex[:4]
     cls = create_dynamic_benchmark_runner_cls(name, region)

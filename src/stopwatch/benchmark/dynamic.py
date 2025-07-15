@@ -24,7 +24,7 @@ def create_dynamic_benchmark_runner_cls(name: str, region: str | None = None):
     if region is None:
         benchmark_runner_name = f"BenchmarkRunner_{name}"
     else:
-        benchmark_runner_name = f"BenchmarkRunner_{region.replace('-','_')}_{name}"
+        benchmark_runner_name = f"BenchmarkRunner_{name}_{region.replace('-','_')}"
 
     return app.cls(
         image=guidellm_image,

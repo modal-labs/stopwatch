@@ -80,7 +80,7 @@ def llm_server(
         # Sort keys to ensure that this parameter doesn't change between runs
         # with the same vLLM configuration
         "server_config": json.dumps(server_config, sort_keys=True),
-        "caller_id": modal.current_function_call_id(),
+        "caller_id": modal.current_function_call_id() or "",
     }
 
     # Pick LLM server class

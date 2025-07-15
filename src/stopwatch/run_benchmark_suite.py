@@ -4,10 +4,10 @@ from pathlib import Path
 
 import modal
 
+from .benchmark.dynamic import create_dynamic_benchmark_runner_cls
 from .constants import HOURS, VersionDefaults
 from .etl import export_results
 from .resources import app, db_volume, results_volume
-from .run_benchmark import all_benchmark_runner_classes
 
 DATASETTE_PATH = "/datasette"
 DB_PATH = "/db"
@@ -299,9 +299,9 @@ async def run_benchmarks(
             }
 
             logger.info("Starting benchmarks with config %s", config)
-            benchmark_cls = all_benchmark_runner_classes[
-                benchmark_records[0].client_region
-            ]
+            benchmark_cls = create_dynamic_benchmark_runner_cls(
+                benchmark_records[0].client_region,
+            )
             fc = benchmark_cls().run_benchmark.spawn(**config)
 
             for benchmark_record in benchmark_records:
