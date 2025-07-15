@@ -37,9 +37,6 @@ from .vllm_pd_disaggregation import (
     vllm_pd_disaggregation_image_factory,
 )
 
-MAX_CONCURRENT_REQUESTS = 1000
-MAX_CONTAINERS = 1
-
 
 def get_llm_server_class(llm_server_type: str) -> type:
     """Get the base class for creating an LLM server with a given type."""
@@ -134,18 +131,13 @@ def LLMServerClassFactory(  # noqa: N802
 
     server_class = get_llm_server_class(llm_server_type)
 
-    model = modal.parameter(default=model)
-    caller_id = modal.parameter(default="")
-    server_config = modal.parameter(default=json.dumps(llm_server_config) or "{}")
-
     return type(
         name,
         (server_class,),
         {
             "model": model,
-            "caller_id": caller_id,
-            "server_config": server_config,
-            "__annotations__": {"model": str, "caller_id": str, "server_config": str},
+            "caller_id": "",
+            "server_config": json.dumps(llm_server_config) or "{}",
         },
     )
 
@@ -158,9 +150,12 @@ def create_dynamic_llm_server_cls(
     llm_server_type: str,
     cpu: int | None = None,
     memory: int | None = None,
+    min_containers: int | None = None,
+    max_containers: int | None = None,
     cloud: str | None = None,
     region: str | None = None,
     llm_server_config: dict[str, Any] | None = None,
+    max_concurrent_inputs: int = 1000,
 ) -> type:
     """
     Create an LLM server class on the fly that will be included in the deployed Modal
@@ -204,13 +199,14 @@ def create_dynamic_llm_server_cls(
         volumes=get_volumes(llm_server_type),
         cpu=cpu,
         memory=memory,
-        max_containers=MAX_CONTAINERS,
+        min_containers=min_containers,
+        max_containers=max_containers,
         scaledown_window=get_scaledown_window(llm_server_type),
         timeout=get_timeout(llm_server_type),
         cloud=cloud,
         region=region,
     )(
-        modal.concurrent(max_inputs=MAX_CONCURRENT_REQUESTS)(
+        modal.concurrent(max_inputs=max_concurrent_inputs)(
             LLMServerClassFactory(
                 name,
                 model,
