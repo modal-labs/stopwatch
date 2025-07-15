@@ -26,7 +26,7 @@ def provision_cli(
 
     # Pick a random name for the endpoint if not provided
     if endpoint_label is None:
-        endpoint_label = uuid.uuid4().hex[:8]
+        endpoint_label = uuid.uuid4().hex[:4]
 
     with modal.enable_output():
         cls = create_dynamic_llm_server_cls(

@@ -447,7 +447,7 @@ async def run_benchmark_suite(
         if "client_config" not in benchmark_config:
             benchmark_config["client_config"] = {}
 
-        benchmark_config["group_id"] = str(uuid.uuid4())[:8]
+        benchmark_config["group_id"] = uuid.uuid4().hex[:8]
         benchmark_config["version_metadata"] = {
             "guidellm": VersionDefaults.GUIDELLM,
             benchmark_config["llm_server_type"]: benchmark_config[
