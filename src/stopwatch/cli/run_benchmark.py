@@ -8,6 +8,7 @@ from stopwatch.benchmark.dynamic import create_dynamic_benchmark_runner_cls
 from stopwatch.db import RateType
 from stopwatch.llm_servers import llm_server
 from stopwatch.resources import app
+from stopwatch.llm_servers.dynamic import create_dynamic_llm_server_cls
 
 
 def run_benchmark_cli(
@@ -51,21 +52,30 @@ def run_benchmark_cli(
         raise ValueError(msg)
 
     name = uuid.uuid4().hex[:4]
-    cls = create_dynamic_benchmark_runner_cls(name, client_region)
+    client_cls = create_dynamic_benchmark_runner_cls(name, client_region)
+    server_cls = create_dynamic_llm_server_cls(
+        name,
+        model,
+        gpu=gpu,
+        llm_server_type=llm_server_type,
+        region=server_region,
+        llm_server_config=llm_server_config,
+    )
 
     with modal.enable_output(), app.run(detach=detach):
         with llm_server(
-            llm_server_type,
+            server_cls().start.get_web_url(),
+            llm_server_type=llm_server_type,
             model=model,
             gpu=gpu,
             region=server_region,
             server_config=llm_server_config,
-        ) as (llm_server_url, extra_query, startup_metrics):
+        ) as (llm_server_url,):
             # TODO(jack): Set remove_from_body for tokasaurus
-            client_config["extra_query"] = extra_query
+            # client_config["extra_query"] = extra_query
 
             # TODO(jack): Start the benchmark runner before the LLM server is ready
-            results = cls().run_benchmark.remote(
+            results = client_cls().run_benchmark.remote(
                 endpoint=f"{llm_server_url}/v1",
                 model=model,
                 rate_type=rate_type,

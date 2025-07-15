@@ -12,7 +12,7 @@ from stopwatch.resources import (
     vllm_cache_volume,
 )
 
-from .vllm import PORT, VLLM_PYTHON_BINARY, vllm_cls, vllm_image_factory
+from .vllm import PORT, VLLM_PYTHON_BINARY, vllm_image_factory
 
 DECODE_PORT = 8200
 PREFILL_PORT = 8100
@@ -136,24 +136,3 @@ class vLLMPDDisaggregationBase:
 
         # Run proxy server
         subprocess.Popen(f"{VLLM_PYTHON_BINARY} {PROXY_SERVER_SCRIPT}", shell=True)
-
-
-@vllm_cls(
-    image=vllm_pd_disaggregation_image_factory(),
-    gpu="H100!:2",
-    cpu=8,
-    memory=8 * 1024,
-)
-class vLLM_PD_Disaggregation_2xH100(vLLMPDDisaggregationBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-vllm_pd_disaggregation_classes = {
-    VersionDefaults.VLLM: {
-        "H100:2": {
-            "us-chicago-1": vLLM_PD_Disaggregation_2xH100,
-        },
-    },
-}

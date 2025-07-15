@@ -129,29 +129,3 @@ class TokasaurusBase:
             },
             shell=True,
         )
-
-
-@tokasaurus_cls()
-class Tokasaurus_H100(TokasaurusBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@tokasaurus_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
-class Tokasaurus_8xH100(TokasaurusBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-tokasaurus_classes = {
-    VersionDefaults.TOKASAURUS: {
-        "H100": {
-            "us-chicago-1": Tokasaurus_H100,
-        },
-        "H100:8": {
-            "us-chicago-1": Tokasaurus_8xH100,
-        },
-    },
-}

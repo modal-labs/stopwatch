@@ -240,29 +240,3 @@ class TensorRTLLMBase:
             },
             shell=True,
         )
-
-
-@tensorrt_llm_cls()
-class TensorRTLLM(TensorRTLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-@tensorrt_llm_cls(gpu="H100!:8", cpu=32, memory=64 * 1024)
-class TensorRTLLM_8xH100(TensorRTLLMBase):
-    model: str = modal.parameter()
-    caller_id: str = modal.parameter(default="")
-    server_config: str = modal.parameter(default="{}")
-
-
-tensorrt_llm_classes = {
-    VersionDefaults.TENSORRT_LLM: {
-        "H100": {
-            "us-chicago-1": TensorRTLLM,
-        },
-        "H100:8": {
-            "us-chicago-1": TensorRTLLM_8xH100,
-        },
-    },
-}

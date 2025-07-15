@@ -13,11 +13,7 @@ from stopwatch.constants import VersionDefaults
 from stopwatch.resources import startup_metrics_dict
 
 from .constants import SGLANG, TENSORRT_LLM, TOKASAURUS, VLLM, VLLM_PD_DISAGGREGATION
-from .sglang import sglang_classes
-from .tensorrt_llm import tensorrt_llm_classes
-from .tokasaurus import tokasaurus_classes
-from .vllm import vllm_classes
-from .vllm_pd_disaggregation import vllm_pd_disaggregation_classes
+from .dynamic import create_dynamic_llm_server_cls
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -25,8 +21,9 @@ logging.basicConfig(level=logging.INFO)
 
 @contextlib.contextmanager
 def llm_server(
-    llm_server_type: str,
+    url: str,
     *,
+    llm_server_type: str,
     model: str,
     gpu: str,
     region: str,
@@ -54,19 +51,6 @@ def llm_server(
         msg = "Profiling is only supported for vLLM"
         raise ValueError(msg)
 
-    llm_server_classes = {
-        SGLANG: sglang_classes,
-        TENSORRT_LLM: tensorrt_llm_classes,
-        TOKASAURUS: tokasaurus_classes,
-        VLLM: vllm_classes,
-        VLLM_PD_DISAGGREGATION: vllm_pd_disaggregation_classes,
-    }
-
-    llm_server_version = server_config.get(
-        "version",
-        VersionDefaults.LLM_SERVERS[llm_server_type],
-    )
-
     llm_health_routes = {
         SGLANG: "/health_generate",
         TENSORRT_LLM: "/health",
@@ -75,33 +59,13 @@ def llm_server(
         VLLM_PD_DISAGGREGATION: "/ping",
     }
 
-    extra_query = {
-        "model": model,
-        # Sort keys to ensure that this parameter doesn't change between runs
-        # with the same vLLM configuration
-        "server_config": json.dumps(server_config, sort_keys=True),
-        "caller_id": modal.current_function_call_id() or "",
-    }
-
-    # Pick LLM server class
-    try:
-        cls = llm_server_classes[llm_server_type][llm_server_version][gpu][region]
-    except KeyError as e:
-        msg = (
-            f"Unsupported configuration: {llm_server_type} {llm_server_version} "
-            f"{gpu} {region}"
-        )
-        raise ValueError(msg) from e
-
-    url = cls(model="").start.get_web_url()
     health_url = f"{url}{llm_health_routes[llm_server_type]}"
     queue_time = datetime.now(timezone.utc).timestamp()
 
     # Wait for LLM server to start
     logger.info(
-        "Requesting health check at %s with params %s",
+        "Requesting health check at %s",
         health_url,
-        extra_query,
     )
 
     num_retries = 3
@@ -112,10 +76,9 @@ def llm_server(
         session.max_redirects = 9999
 
         try:
-            res = session.get(health_url, params=extra_query)
+            res = session.get(health_url)
         except requests.HTTPError:
             logger.exception("Error requesting metrics")
-            extra_query["caller_id"] = str(uuid.uuid4())
             continue
 
         if res.status_code == 404:  # noqa: PLR2004
@@ -150,26 +113,27 @@ def llm_server(
     connection_time = datetime.now(timezone.utc).timestamp()
     queue_duration = connection_time - queue_time
 
-    if (
-        container_start_time := startup_metrics_dict.get(extra_query["caller_id"])
-    ) is not None:
-        cold_start_duration = connection_time - container_start_time
-        queue_duration -= cold_start_duration
-    else:
-        cold_start_duration = None
+    # TODO(jack): Fix
+    # if (
+    #     container_start_time := startup_metrics_dict.get(extra_query["caller_id"])
+    # ) is not None:
+    #     cold_start_duration = connection_time - container_start_time
+    #     queue_duration -= cold_start_duration
+    # else:
+    #     cold_start_duration = None
 
     if profile:
-        requests.post(f"{url}/start_profile", params=extra_query)
+        requests.post(f"{url}/start_profile")
 
     try:
         yield (
             url,
-            extra_query,
-            {
-                "queue_duration": queue_duration,
-                "cold_start_duration": cold_start_duration,
-            },
+            # TODO(jack): Fix
+            # {
+            #     "queue_duration": queue_duration,
+            #     "cold_start_duration": cold_start_duration,
+            # },
         )
     finally:
         if profile:
-            requests.post(f"{url}/stop_profile", params=extra_query)
+            requests.post(f"{url}/stop_profile")
