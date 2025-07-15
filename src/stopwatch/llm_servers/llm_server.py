@@ -12,17 +12,12 @@ import modal
 from stopwatch.constants import VersionDefaults
 from stopwatch.resources import startup_metrics_dict
 
+from .constants import SGLANG, TENSORRT_LLM, TOKASAURUS, VLLM, VLLM_PD_DISAGGREGATION
 from .sglang import sglang_classes
 from .tensorrt_llm import tensorrt_llm_classes
 from .tokasaurus import tokasaurus_classes
 from .vllm import vllm_classes
 from .vllm_pd_disaggregation import vllm_pd_disaggregation_classes
-
-SGLANG = "sglang"
-TENSORRT_LLM = "tensorrt-llm"
-TOKASAURUS = "tokasaurus"
-VLLM = "vllm"
-VLLM_PD_DISAGGREGATION = "vllm-pd-disaggregation"
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)

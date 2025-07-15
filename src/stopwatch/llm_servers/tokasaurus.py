@@ -9,7 +9,8 @@ import modal
 from stopwatch.constants import MINUTES, VersionDefaults
 from stopwatch.resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
 
-HF_CACHE_PATH = "/cache"
+from .constants import HF_CACHE_PATH
+
 PORT = 10210
 
 

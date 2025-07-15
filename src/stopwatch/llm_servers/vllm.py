@@ -16,10 +16,9 @@ from stopwatch.resources import (
     vllm_cache_volume,
 )
 
-HF_CACHE_PATH = "/cache"
+from .constants import HF_CACHE_PATH, TRACES_PATH, VLLM_CACHE_PATH
+
 PORT = 8000
-TRACES_PATH = "/traces"
-VLLM_CACHE_PATH = "/root/.cache/vllm"
 VLLM_PYTHON_BINARY = "/usr/bin/python3"
 
 
@@ -40,7 +39,7 @@ def vllm_image_factory(
             f"vllm/vllm-openai:{docker_tag}",
             add_python="3.13",
         )
-        .pip_install("hf-transfer", "grpclib", "requests")
+        .pip_install("hf-transfer", "grpclib", "requests", "typer")
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         .dockerfile_commands(
             [
