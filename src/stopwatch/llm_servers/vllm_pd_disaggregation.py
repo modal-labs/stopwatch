@@ -16,7 +16,7 @@ from .vllm import PORT, VLLM_PYTHON_BINARY, vllm_cls, vllm_image_factory
 
 DECODE_PORT = 8200
 PREFILL_PORT = 8100
-PROXY_SERVER_SCRIPT = "/root/src/tools/pd_disaggregation_proxy_server.py"
+PROXY_SERVER_SCRIPT = "/root/tools/pd_disaggregation_proxy_server.py"
 
 
 def vllm_pd_disaggregation_image_factory(
@@ -34,7 +34,7 @@ def vllm_pd_disaggregation_image_factory(
         extra_dockerfile_commands=[
             f"RUN {VLLM_PYTHON_BINARY} -m pip install quart --ignore-installed",
         ],
-    ).add_local_python_source("src.tools")
+    ).add_local_python_source("tools")
 
 
 class vLLMPDDisaggregationBase:

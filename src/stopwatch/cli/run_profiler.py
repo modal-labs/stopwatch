@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 def run_profiler_cli(
     model: str,
     *,
-    output_path: str = "trace.json",
+    output_path: str = "trace.json.gz",
     detach: bool = False,
     gpu: str = "H100",
     server_region: str = "us-chicago-1",
