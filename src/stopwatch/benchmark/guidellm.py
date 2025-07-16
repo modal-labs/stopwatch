@@ -151,6 +151,7 @@ class GuideLLMRunner:
         model: str,
         rate_type: str | list[str],
         data: str,
+        caller_id: str | None = None,
         duration: float | None = 120,  # 2 minutes
         client_config: Mapping[str, Any] | None = None,
         rate: float | list[float] | None = None,
@@ -176,6 +177,9 @@ class GuideLLMRunner:
             client_config = {}
 
         extra_query = client_config.get("extra_query", {})
+
+        if caller_id is not None:
+            extra_query["caller_id"] = caller_id
 
         if not isinstance(rate_type, list):
             rate_type = [rate_type]
@@ -280,6 +284,8 @@ class GuideLLMRunner:
                                 **result.current_benchmark.model_dump(),
                                 # TODO(jack): Save server startup metrics, which used
                                 # to be provided by the call to llm_server.
+                                "queue_duration": 0,
+                                "cold_start_duration": 0,
                             },
                         },
                     )

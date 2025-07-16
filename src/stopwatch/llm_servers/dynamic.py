@@ -117,6 +117,8 @@ def LLMServerClassFactory(  # noqa: N802
     model: str,
     llm_server_type: str,
     llm_server_config: dict[str, Any] | None = None,
+    *,
+    parametrized_fn: bool = False,
 ) -> type:
     """
     Create an LLM server class.
@@ -126,6 +128,7 @@ def LLMServerClassFactory(  # noqa: N802
     :param: llm_server_type: Type of LLM server (e.g. "vllm", "sglang",
         "tensorrt-llm").
     :param: llm_server_config: Extra configuration for the LLM server.
+    :param: parametrized_fn: Set to True to create a parametrized function.
     :return: A server class that hosts an OpenAI-compatible API endpoint.
     """
 
@@ -136,8 +139,15 @@ def LLMServerClassFactory(  # noqa: N802
         (server_class,),
         {
             "model": model,
-            "caller_id": "",
+            "caller_id": modal.parameter(default="") if parametrized_fn else "",
             "server_config": json.dumps(llm_server_config) or "{}",
+            "__annotations__": (
+                {
+                    "caller_id": str,
+                }
+                if parametrized_fn
+                else {}
+            ),
         },
     )
 
@@ -156,6 +166,8 @@ def create_dynamic_llm_server_cls(
     region: str | None = None,
     llm_server_config: dict[str, Any] | None = None,
     max_concurrent_inputs: int = 1000,
+    batch: modal.volume.AbstractVolumeUploadContextManager | None = None,
+    parametrized_fn: bool = False,
 ) -> type:
     """
     Create an LLM server class on the fly that will be included in the deployed Modal
@@ -179,17 +191,21 @@ def create_dynamic_llm_server_cls(
         name = f"LLM_{name}"
 
     # Save server config to the DB volume so the class can be recreated later
-    with db_volume.batch_upload(force=True) as batch:
-        server_config = {
-            "model": model,
-            "llm_server_type": llm_server_type,
-            "llm_server_config": llm_server_config,
-        }
+    server_config = {
+        "model": model,
+        "llm_server_type": llm_server_type,
+        "llm_server_config": llm_server_config,
+        "parametrized_fn": parametrized_fn,
+    }
 
-        batch.put_file(
-            io.BytesIO(json.dumps(server_config).encode()),
-            f"deployments/{name}.json",
-        )
+    config_buf = io.BytesIO(json.dumps(server_config).encode())
+    config_path = f"deployments/{name}.json"
+
+    if batch is None:
+        with db_volume.batch_upload(force=True) as b:
+            b.put_file(config_buf, config_path)
+    else:
+        batch.put_file(config_buf, config_path)
 
     # Deploy the newly created class
     return app.cls(
@@ -212,6 +228,7 @@ def create_dynamic_llm_server_cls(
                 model,
                 llm_server_type,
                 llm_server_config,
+                parametrized_fn=parametrized_fn,
             ),
         ),
     )
@@ -230,6 +247,7 @@ def __getattr__(name: str):  # noqa: ANN202
             server_config["model"],
             server_config["llm_server_type"],
             server_config["llm_server_config"],
+            parametrized_fn=server_config["parametrized_fn"],
         )
 
     msg = f"No attribute {name}"

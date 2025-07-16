@@ -1,19 +1,11 @@
 import contextlib
-import json
 import logging
 import time
-import uuid
 from collections.abc import Iterator, Mapping
 from datetime import datetime, timezone
 from typing import Any
 
-import modal
-
-from stopwatch.constants import VersionDefaults
-from stopwatch.resources import startup_metrics_dict
-
 from .constants import SGLANG, TENSORRT_LLM, TOKASAURUS, VLLM, VLLM_PD_DISAGGREGATION
-from .dynamic import create_dynamic_llm_server_cls
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)

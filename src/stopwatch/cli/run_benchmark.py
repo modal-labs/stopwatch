@@ -7,8 +7,8 @@ import modal
 from stopwatch.benchmark.dynamic import create_dynamic_benchmark_runner_cls
 from stopwatch.db import RateType
 from stopwatch.llm_servers import llm_server
-from stopwatch.resources import app
 from stopwatch.llm_servers.dynamic import create_dynamic_llm_server_cls
+from stopwatch.resources import app
 
 
 def run_benchmark_cli(

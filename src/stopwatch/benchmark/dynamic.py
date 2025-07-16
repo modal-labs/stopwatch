@@ -22,9 +22,12 @@ def BenchmarkRunnerClassFactory(name: str):  # noqa: N802
 
 def create_dynamic_benchmark_runner_cls(name: str, region: str | None = None):
     if region is None:
-        benchmark_runner_name = f"BenchmarkRunner_{name}"
+        benchmark_runner_name = f"{name}"
     else:
-        benchmark_runner_name = f"BenchmarkRunner_{name}_{region.replace('-','_')}"
+        benchmark_runner_name = f"{name}_{region.replace('-','_')}"
+
+    if not benchmark_runner_name.startswith("BenchmarkRunner_"):
+        benchmark_runner_name = f"BenchmarkRunner_{benchmark_runner_name}"
 
     return app.cls(
         image=guidellm_image,

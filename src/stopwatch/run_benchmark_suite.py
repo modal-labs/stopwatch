@@ -4,7 +4,9 @@ from pathlib import Path
 
 import modal
 
-from .benchmark.dynamic import create_dynamic_benchmark_runner_cls
+from .benchmark.dynamic import (
+    create_dynamic_benchmark_runner_cls,
+)
 from .constants import HOURS, VersionDefaults
 from .etl import export_results
 from .resources import app, db_volume, results_volume
@@ -74,9 +76,9 @@ def find_function_call(
     return None
 
 
-def get_benchmark_configs_to_run(
+def get_benchmarks_to_run(
     benchmark_configs: list[dict[str, Any]],
-) -> Generator[tuple[list[str] | str, modal.FunctionCall | None]]:
+) -> Generator[tuple[list[str] | str, str, str, modal.FunctionCall | None]]:
     """
     Yield IDs of benchmarks that need to be run based on the provided benchmark
     configurations. If a benchmark is already running, its function call will be
@@ -125,7 +127,11 @@ def get_benchmark_configs_to_run(
             benchmark_records = (
                 session.query(Benchmark)
                 .filter_by(
-                    **{k: v for k, v in benchmark_config.items() if k != "group_id"},
+                    **{
+                        k: v
+                        for k, v in benchmark_config.items()
+                        if k not in ("group_id", "client_name", "server_url")
+                    },
                 )
                 .all()
             )
@@ -198,7 +204,12 @@ def get_benchmark_configs_to_run(
                                     config_i + 1,
                                     len(benchmark_configs),
                                 )
-                                yield (benchmark_record.id, fc)
+                                yield (
+                                    benchmark_record.id,
+                                    config["client_name"],
+                                    config["server_url"],
+                                    fc,
+                                )
                                 continue
                             except Exception as e:
                                 # This function call likely crashed
@@ -217,7 +228,12 @@ def get_benchmark_configs_to_run(
                                     config_i + 1,
                                     len(benchmark_configs),
                                 )
-                                yield (benchmark_record.id, fc)
+                                yield (
+                                    benchmark_record.id,
+                                    config["client_name"],
+                                    config["server_url"],
+                                    fc,
+                                )
                                 continue
             else:
                 logger.info(
@@ -225,7 +241,13 @@ def get_benchmark_configs_to_run(
                     config_i + 1,
                     len(benchmark_configs),
                 )
-                benchmark_record = Benchmark(**benchmark_config)
+                benchmark_record = Benchmark(
+                    **{
+                        k: v
+                        for k, v in benchmark_config.items()
+                        if k not in ("client_name", "server_url")
+                    },
+                )
                 session.add(benchmark_record)
                 session.commit()
                 db_volume.commit()
@@ -235,11 +257,18 @@ def get_benchmark_configs_to_run(
         # If no benchmark IDs were added to the list, don't yield anything for this
         # config.
         if len(benchmark_ids_to_run) > 0:
-            yield (benchmark_ids_to_run, None)
+            yield (
+                benchmark_ids_to_run,
+                config["client_name"],
+                config["server_url"],
+                None,
+            )
 
 
 async def run_benchmarks(
     benchmark_ids: str | list[str],
+    client_name: str,
+    server_url: str,
     fc: modal.FunctionCall | None,
     semaphore: asyncio.Semaphore,
 ) -> None:
@@ -248,6 +277,7 @@ async def run_benchmarks(
     result(s) to the database.
 
     :param: benchmark_ids: The database ID(s) of the benchmark(s) to run.
+    :param: client_name: The name of the client class to use.
     :param: fc: If this benchmark is already running, the function call that it is
         running on.
     :param: semaphore: A semaphore to limit the number of benchmarks that can run
@@ -299,10 +329,19 @@ async def run_benchmarks(
             }
 
             logger.info("Starting benchmarks with config %s", config)
-            benchmark_cls = create_dynamic_benchmark_runner_cls(
-                benchmark_records[0].client_region,
+
+            # Re-create and hydrate the class that was created during the startup
+            # process of the CLI
+            benchmark_cls = create_dynamic_benchmark_runner_cls(client_name).hydrate(
+                modal.Client.from_env(),
             )
-            fc = benchmark_cls().run_benchmark.spawn(**config)
+
+            # Run the benchmark
+            fc = benchmark_cls().run_benchmark.spawn(
+                endpoint=f"{server_url}/v1",
+                caller_id=uuid.uuid4().hex,
+                **config,
+            )
 
             for benchmark_record in benchmark_records:
                 benchmark_record.function_call_id = fc.object_id
@@ -363,8 +402,12 @@ async def run_benchmarks_in_parallel(benchmark_configs: list[dict[str, Any]]) ->
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_BENCHMARKS)
     tasks = []
 
-    for benchmark_ids, fc in get_benchmark_configs_to_run(benchmark_configs):
-        task = asyncio.create_task(run_benchmarks(benchmark_ids, fc, semaphore))
+    for benchmark_ids, client_name, server_url, fc in get_benchmarks_to_run(
+        benchmark_configs,
+    ):
+        task = asyncio.create_task(
+            run_benchmarks(benchmark_ids, client_name, server_url, fc, semaphore),
+        )
         tasks.append(task)
 
         # Yield control to the event loop to allow the task to be scheduled
@@ -390,7 +433,7 @@ async def run_benchmarks_in_parallel(benchmark_configs: list[dict[str, Any]]) ->
 )
 @modal.concurrent(max_inputs=1)
 async def run_benchmark_suite(
-    benchmark_configs: list[dict[str, Any]],
+    benchmarks: list[tuple[dict[str, Any], list[str], list[str]]],
     suite_id: str,
     *,
     version: int = 1,
@@ -400,7 +443,9 @@ async def run_benchmark_suite(
     """
     Run a suite of benchmarks.
 
-    :param: benchmark_configs: The benchmark configurations to run.
+    :param: benchmarks: A list of benchmarks to run. Each item in this list is a tuple
+        with three items: the benchmark configuration, the name of the client class to
+        use, and the name of the LLM server class to use.
     :param: suite_id: The ID of the benchmark suite.
     :param: version: The version of the benchmark suite.
     :param: repeats: The number of times to repeat each benchmark configuration.
@@ -411,7 +456,7 @@ async def run_benchmark_suite(
 
     logger.info(
         "Running %d configs with benchmark suite id %s",
-        len(benchmark_configs),
+        len(benchmarks),
         suite_id,
     )
 
@@ -428,7 +473,7 @@ async def run_benchmark_suite(
     # STEP 0: Validate benchmarks
     logger.info("Validating benchmarks...")
 
-    for benchmark_config in benchmark_configs:
+    for benchmark_config, _, _ in benchmarks:
         for key in [
             "llm_server_type",
             "model",
@@ -467,11 +512,17 @@ async def run_benchmark_suite(
         [
             {
                 **benchmark_config,
+                "client_name": benchmark_client_names[repeat_index],
+                "server_url": benchmark_server_urls[repeat_index],
                 "rate_type": rate_type,
                 "repeat_index": repeat_index,
             }
-            for benchmark_config, rate_type, repeat_index in itertools.product(
-                benchmark_configs,
+            for (
+                benchmark_config,
+                benchmark_client_names,
+                benchmark_server_urls,
+            ), rate_type, repeat_index in itertools.product(
+                benchmarks,
                 (
                     # If fast_mode is enabled, run synchronous and throughput
                     # benchmarks in parallel to save time. Otherwise, run them
@@ -490,7 +541,11 @@ async def run_benchmark_suite(
     benchmarks_to_run = []
     skipped_benchmark_indices = set()
 
-    for i, benchmark_config in enumerate(benchmark_configs):
+    for i, (
+        benchmark_config,
+        benchmark_client_names,
+        benchmark_server_urls,
+    ) in enumerate(benchmarks):
         synchronous_benchmark_records = (
             session.query(Benchmark)
             .filter_by(
@@ -572,6 +627,8 @@ async def run_benchmark_suite(
                 [
                     {
                         **benchmark_config,
+                        "client_name": benchmark_client_names[repeat_index],
+                        "server_url": benchmark_server_urls[repeat_index],
                         "rate_type": RateType.CONSTANT.value,
                         "rate": rate,
                         "repeat_index": repeat_index,
@@ -596,7 +653,7 @@ async def run_benchmark_suite(
 
     parameters = {}
 
-    for benchmark_config in benchmark_configs:
+    for benchmark_config, _, _ in benchmarks:
         for k in benchmark_config:
             if isinstance(benchmark_config[k], dict) or k == "group_id":
                 continue
@@ -613,7 +670,7 @@ async def run_benchmark_suite(
     # Ensure names/group IDs are unique
     group_ids = set()
 
-    for i, benchmark_config in enumerate(benchmark_configs):
+    for i, (benchmark_config, _, _) in enumerate(benchmarks):
         base_group_id = (
             "_".join([str(benchmark_config[k]) for k in sorted(parameters)])
             if len(parameters) > 0
@@ -627,9 +684,9 @@ async def run_benchmark_suite(
             group_id = f"{base_group_id}_{j}"
 
         group_ids.add(group_id)
-        benchmark_configs[i]["group_id"] = group_id
+        benchmarks[i][0]["group_id"] = group_id
 
-    for i, benchmark_config in enumerate(benchmark_configs):
+    for i, (benchmark_config, _, _) in enumerate(benchmarks):
         if i in skipped_benchmark_indices:
             continue
 

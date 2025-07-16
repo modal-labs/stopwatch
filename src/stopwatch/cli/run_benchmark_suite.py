@@ -1,12 +1,15 @@
 import fnmatch
 import itertools
+import uuid
 from pathlib import Path
 from typing import Any
 
 import modal
 import yaml
 
-from stopwatch.resources import app
+from stopwatch.benchmark.dynamic import create_dynamic_benchmark_runner_cls
+from stopwatch.llm_servers.dynamic import create_dynamic_llm_server_cls
+from stopwatch.resources import app, db_volume
 from stopwatch.run_benchmark_suite import run_benchmark_suite
 
 
@@ -94,18 +97,69 @@ def run_benchmark_suite_cli(
         reused between benchmarks. Disabled by default.
     """
 
-    with modal.enable_output(), app.run(detach=detach):
-        benchmark_configs, suite_id, version, repeats = build_all_benchmark_configs(
-            Path(config_path),
-            exclude_instance_types,
-        )
+    benchmark_configs, suite_id, version, repeats = build_all_benchmark_configs(
+        Path(config_path),
+        exclude_instance_types,
+    )
 
-        if len(benchmark_configs) == 0:
-            print("No benchmarks to run")
-            return
+    if len(benchmark_configs) == 0:
+        print("No benchmarks to run")
+        return
+
+    benchmark_names = [
+        [uuid.uuid4().hex[:8] for _ in range(repeats)]
+        for _ in range(len(benchmark_configs))
+    ]
+
+    benchmark_clients = [
+        [
+            create_dynamic_benchmark_runner_cls(
+                benchmark_names[i][j],
+                benchmark_config.get("client_region"),
+            )
+            for j in range(repeats)
+        ]
+        for i, benchmark_config in enumerate(benchmark_configs)
+    ]
+
+    with db_volume.batch_upload(force=True) as batch:
+        benchmark_servers = [
+            [
+                create_dynamic_llm_server_cls(
+                    benchmark_names[i][j],
+                    benchmark_config["model"],
+                    gpu=benchmark_config["gpu"],
+                    llm_server_type=benchmark_config["llm_server_type"],
+                    region=benchmark_config.get("server_region"),
+                    llm_server_config=benchmark_config.get("llm_server_config", {}),
+                    batch=batch,
+                    parametrized_fn=True,
+                )
+                for j in range(repeats)
+            ]
+            for i, benchmark_config in enumerate(benchmark_configs)
+        ]
+
+    with modal.enable_output(), app.run(detach=detach):
+        benchmark_client_names = [
+            [client_cls.__name__ for client_cls in client_classes]
+            for client_classes in benchmark_clients
+        ]
+
+        benchmark_server_urls = [
+            [server_cls().start.get_web_url() for server_cls in server_classes]
+            for server_classes in benchmark_servers
+        ]
 
         run_benchmark_suite.remote(
-            benchmark_configs=benchmark_configs,
+            benchmarks=list(
+                zip(
+                    benchmark_configs,
+                    benchmark_client_names,
+                    benchmark_server_urls,
+                    strict=True,
+                ),
+            ),
             suite_id=suite_id,
             version=version,
             repeats=repeats,
