@@ -3,12 +3,13 @@ import itertools
 import logging
 import urllib.parse
 from collections.abc import Callable, Iterator, Mapping
+from datetime import datetime, timezone
 from typing import Any
 
 import modal
 
 from stopwatch.constants import HOURS, SECONDS, VersionDefaults
-from stopwatch.resources import app, hf_secret, results_volume
+from stopwatch.resources import app, hf_secret, results_volume, startup_metrics_dict
 
 # Delay between benchmarks when running multiple constant-rate benchmarks on the same
 # LLM server. Must be less than the LLM server's scaledown_window.
@@ -225,7 +226,23 @@ class GuideLLMRunner:
             extra_query=extra_query,
             remove_from_body=client_config.get("remove_from_body", None),
         )
+
+        # Start the LLM server and save queuing and cold start durations
+        queue_time = datetime.now(timezone.utc).timestamp()
         await backend.validate()
+        connection_time = datetime.now(timezone.utc).timestamp()
+        queue_duration = connection_time - queue_time
+
+        if (
+            caller_id is not None
+            and (container_start_time := startup_metrics_dict.get(caller_id))
+            is not None
+        ):
+            cold_start_duration = connection_time - container_start_time
+            queue_duration -= cold_start_duration
+        else:
+            cold_start_duration = None
+
         logger.info("Connected to backend for model %s", backend.model)
 
         rates_to_run = list(itertools.product(rate_type, rate))
@@ -282,10 +299,8 @@ class GuideLLMRunner:
                             "rate_type": rate_type_i,
                             "results": {
                                 **result.current_benchmark.model_dump(),
-                                # TODO(jack): Save server startup metrics, which used
-                                # to be provided by the call to llm_server.
-                                "queue_duration": 0,
-                                "cold_start_duration": 0,
+                                "queue_duration": queue_duration,
+                                "cold_start_duration": cold_start_duration,
                             },
                         },
                     )
