@@ -4,9 +4,10 @@ from pathlib import Path
 
 import modal
 
+from web.etl import export_results
+
 from .benchmark import create_dynamic_benchmark_runner_cls
 from .constants import HOURS, VersionDefaults
-from .etl import export_results
 from .resources import app, db_volume, results_volume
 
 DATASETTE_PATH = "/datasette"

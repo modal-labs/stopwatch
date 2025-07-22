@@ -4,7 +4,9 @@ from pathlib import Path
 
 import modal
 
-from .resources import db_volume, web_app
+from stopwatch.resources import db_volume
+
+from .resources import web_app
 
 DB_PATH = "/db"
 

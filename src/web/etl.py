@@ -12,7 +12,9 @@ from pathlib import Path
 
 import modal
 
-from .resources import db_volume, results_volume, web_app
+from stopwatch.resources import db_volume, results_volume
+
+from .resources import web_app
 
 DB_PATH = "/db"
 RESULTS_PATH = "/results"
@@ -28,7 +30,8 @@ etl_image = modal.Image.debian_slim(python_version="3.13").uv_pip_install(
 )
 
 with etl_image.imports():
-    from .db import benchmark_class_factory, session
+    from stopwatch.db import benchmark_class_factory, session
+
     from .transforms import transform
 
 
