@@ -3,7 +3,7 @@ import uuid
 
 import modal
 
-from stopwatch.llm_servers.dynamic import create_dynamic_llm_server_cls
+from stopwatch.llm_servers import create_dynamic_llm_server_cls
 from stopwatch.resources import app
 
 

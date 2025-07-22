@@ -235,6 +235,13 @@ def create_dynamic_llm_server_cls(
 
 
 def __getattr__(name: str):  # noqa: ANN202
+    """
+    When Stopwatch is run, classes will be created dynamically in order to meet the
+    needs of the configured benchmark(s). Modal will then need to call these classes
+    once the code is deployed. This function allows us to dynamically create these
+    classes once Stopwatch has already been deployed.
+    """
+
     if name in globals():
         return globals()[name]
 

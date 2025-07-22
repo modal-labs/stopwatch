@@ -48,6 +48,13 @@ def create_dynamic_benchmark_runner_cls(name: str, region: str | None = None) ->
 
 
 def __getattr__(name: str):  # noqa: ANN202
+    """
+    When Stopwatch is run, classes will be created dynamically in order to meet the
+    needs of the benchmark being run. Modal will then need to call these classes once
+    the benchmark is run. This function allows us to dynamically create these classes
+    once Stopwatch has already been deployed.
+    """
+
     if name in globals():
         return globals()[name]
 

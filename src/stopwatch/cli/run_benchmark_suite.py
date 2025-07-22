@@ -7,8 +7,8 @@ from typing import Any
 import modal
 import yaml
 
-from stopwatch.benchmark.dynamic import create_dynamic_benchmark_runner_cls
-from stopwatch.llm_servers.dynamic import create_dynamic_llm_server_cls
+from stopwatch.benchmark import create_dynamic_benchmark_runner_cls
+from stopwatch.llm_servers import create_dynamic_llm_server_cls
 from stopwatch.resources import app, db_volume
 from stopwatch.run_benchmark_suite import run_benchmark_suite
 

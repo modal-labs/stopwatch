@@ -4,7 +4,7 @@ from pathlib import Path
 
 import modal
 
-from stopwatch.benchmark.dynamic import create_dynamic_benchmark_runner_cls
+from stopwatch.benchmark import create_dynamic_benchmark_runner_cls
 from stopwatch.resources import app
 
 
