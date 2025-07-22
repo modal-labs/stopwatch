@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 profiling_image = (
     modal.Image.debian_slim()
     .apt_install("git")
-    .pip_install(
+    .uv_pip_install(
         f"git+https://github.com/neuralmagic/guidellm.git#{VersionDefaults.GUIDELLM}",
         "openai",
     )

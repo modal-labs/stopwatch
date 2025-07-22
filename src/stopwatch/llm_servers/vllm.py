@@ -39,8 +39,14 @@ def vllm_image_factory(
             f"vllm/vllm-openai:{docker_tag}",
             add_python="3.13",
         )
-        .pip_install("hf-transfer", "grpclib", "requests", "typer")
-        .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
+        .uv_pip_install("hf-transfer", "grpclib", "requests", "typer")
+        .env(
+            {
+                "HF_HUB_CACHE": HF_CACHE_PATH,
+                "HF_HUB_ENABLE_HF_TRANSFER": "1",
+                "VLLM_SKIP_P2P_CHECK": "1",
+            },
+        )
         .dockerfile_commands(
             [
                 "RUN echo '{%- for message in messages %}{{- message.content }}"

@@ -12,7 +12,9 @@ from .guidellm import (
 MEMORY = 1 * 1024
 
 
-def BenchmarkRunnerClassFactory(name: str):  # noqa: N802
+def BenchmarkRunnerClassFactory(name: str) -> type:  # noqa: N802
+    """Create a benchmark runner class with a given name."""
+
     return type(
         name,
         (GuideLLMRunner,),
@@ -20,7 +22,9 @@ def BenchmarkRunnerClassFactory(name: str):  # noqa: N802
     )
 
 
-def create_dynamic_benchmark_runner_cls(name: str, region: str | None = None):
+def create_dynamic_benchmark_runner_cls(name: str, region: str | None = None) -> type:
+    """Create a dynamic benchmark runner class that can be run on Modal."""
+
     if region is None:
         benchmark_runner_name = f"{name}"
     else:

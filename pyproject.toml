@@ -7,7 +7,7 @@ name = "stopwatch"
 version = "0.1.0"
 requires-python = ">=3.11,<4.0"
 dependencies = [
-  "modal~=1.0.5",
+  "modal~=1.1.0",
   "PyYAML~=6.0.2",
 ]
 authors = [

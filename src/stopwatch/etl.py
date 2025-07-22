@@ -20,7 +20,7 @@ RESULTS_PATH = "/results"
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-etl_image = modal.Image.debian_slim(python_version="3.13").pip_install(
+etl_image = modal.Image.debian_slim(python_version="3.13").uv_pip_install(
     "fastapi[standard]",
     "numpy",
     "pandas",

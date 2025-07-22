@@ -33,7 +33,7 @@ def tokasaurus_image_factory(
         )
         .entrypoint([])  # Remove verbose logging by base image on entry
         .apt_install("git")
-        .pip_install(
+        .uv_pip_install(
             f"tokasaurus @ git+https://github.com/ScalingIntelligence/tokasaurus.git#{version}",
         )
         .env(

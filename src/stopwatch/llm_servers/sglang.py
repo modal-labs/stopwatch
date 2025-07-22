@@ -24,7 +24,7 @@ def sglang_image_factory(docker_tag: str = VersionDefaults.SGLANG) -> modal.Imag
 
     return (
         modal.Image.from_registry(f"lmsysorg/sglang:{docker_tag}")
-        .pip_install(
+        .uv_pip_install(
             "hf-transfer",
             "grpclib",
             "requests",

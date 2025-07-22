@@ -12,7 +12,7 @@ DB_PATH = "/db"
 datasette_image = (
     modal.Image.debian_slim()
     .apt_install("git")
-    .pip_install("datasette")
+    .uv_pip_install("datasette")
     .run_commands(
         "datasette install git+https://github.com/jackcook/stopwatch-plot.git@ff5b060",
     )

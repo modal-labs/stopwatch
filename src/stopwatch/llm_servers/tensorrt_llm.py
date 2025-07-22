@@ -42,12 +42,12 @@ def tensorrt_llm_image_factory(
         )
         .entrypoint([])  # Remove verbose logging by base image on entry
         .apt_install("openmpi-bin", "libopenmpi-dev", "git", "git-lfs", "wget")
-        .pip_install(
+        .uv_pip_install(
             f"tensorrt-llm=={tensorrt_llm_version}",
             "pynvml",
             extra_index_url="https://pypi.nvidia.com",
         )
-        .pip_install(
+        .uv_pip_install(
             "hf-transfer",
             "huggingface_hub[hf_xet]",
             "requests",

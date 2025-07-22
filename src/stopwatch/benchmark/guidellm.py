@@ -33,7 +33,7 @@ logging.basicConfig(level=logging.INFO)
 guidellm_image = (
     modal.Image.debian_slim()
     .apt_install("git")
-    .pip_install(
+    .uv_pip_install(
         f"git+https://github.com/neuralmagic/guidellm.git#{VersionDefaults.GUIDELLM}",
         "prometheus-client",
         "tiktoken",
@@ -101,6 +101,11 @@ with guidellm_image.imports():
             return super().__len__()
 
     class CustomOpenAIHTTPBackend(OpenAIHTTPBackend):
+        """
+        A wrapper around OpenAIHTTPBackend that allows for modifications to be made to
+        GuideLLM requests.
+        """
+
         def _completions_payload(
             self,
             endpoint_type: EndpointType,
@@ -145,6 +150,8 @@ def benchmark_runner_cls(region: str) -> Callable:
 
 
 class GuideLLMRunner:
+    """Run benchmarks with GuideLLM."""
+
     @modal.method()
     async def run_benchmark(
         self,
