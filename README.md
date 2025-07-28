@@ -35,6 +35,8 @@ stopwatch run-benchmark $MODEL --output-path $OUTPUT_PATH --gpu "H100:$GPU_COUNT
 Or, to run a throughput (as many requests as the server can handle) test with TensorRT-LLM:
 
 ```bash
+MODEL=meta-llama/Llama-3.1-8B-Instruct
+
 stopwatch run-benchmark $MODEL --output-path $OUTPUT_PATH --llm-server-type tensorrt-llm --rate-type throughput
 ```
 
