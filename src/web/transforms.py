@@ -32,6 +32,7 @@ SIZE_PATTERN = re.compile(
 # we hard-code a value.
 REPO_TO_SIZE = {
     "cognitivecomputations/DeepSeek-V3-0324-AWQ": "671B-A37B",
+    "deepseek-ai/DeepSeek-V3-0324": "671B-A37B",
     "zed-industries/zeta": "7B",
 }
 
@@ -271,8 +272,11 @@ def get_model_quant(row) -> str | None:  # noqa: ANN001, PLR0911
         if matches:
             return f"int{matches[-1]}"  # digit
 
-    if "awq" in model_name and "deepseek" in model_name:
-        return "int4"
+    if "deepseek" in model_name:
+        if "awq" in model_name:
+            return "int4"
+        else:
+            return "fp8"
 
     if dtype:
         return DTYPE_TO_QUANT.get(dtype, dtype)
