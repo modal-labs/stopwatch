@@ -231,7 +231,7 @@ class GuideLLMRunner:
         backend = CustomOpenAIHTTPBackend(
             target=endpoint,
             extra_query=extra_query,
-            remove_from_body=client_config.get("remove_from_body", None),
+            remove_from_body=client_config.get("remove_from_body"),
         )
 
         # Start the LLM server and save queuing and cold start durations
