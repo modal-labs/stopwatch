@@ -1,6 +1,7 @@
 """Functions for transforming columns and rows of benchmark suite data."""
 
 import json
+import hashlib
 import re
 import shlex
 from itertools import product
@@ -129,6 +130,15 @@ def transform(df):  # noqa: ANN001, ANN201
 
     # Create human-readable name for model
     df["model"] = df.apply(get_model_name, axis=1)
+
+    # Add a hash-based id for the experiment (workload + framework + framework config)
+    # and for the workload (model + tokens in + out)
+    df['id'] = df.apply(hash_config, axis=1)
+    workload_config_columns = [
+        "model_repo", "quant",  # model
+        "prompt_tokens", "output_tokens",  # data
+    ]
+    df['workload_id'] = df.apply(hash_config, axis=1, config_columns=workload_config_columns)
 
     aggregates = ["mean", "p50", "p90", "p95", "p99"]
     metrics_columns = [
@@ -301,3 +311,22 @@ def get_model_name(row) -> str:  # noqa: ANN001
     return " ".join(
         [row["model_family"], row["model_size"] or "", row["quant"] or ""],
     ).strip()
+
+
+def hash_config(row, config_columns=None):
+    # select columns that define the configuration
+    if config_columns is None:
+        config_columns = [
+            "model_repo", "quant", # model
+            "framework",  # software
+            "prompt_tokens", "output_tokens", # data
+            "cli_args", "env_vars", "kwargs",  # software config
+            "gpu"  # hardware
+        ]
+    values = [row.get(key, None) for key in config_columns]
+
+    hasher = hashlib.sha256()
+    hasher.update(str(values).encode('utf-8'))
+    unique_id = hasher.hexdigest()
+
+    return unique_id[:7]
