@@ -91,6 +91,10 @@ def transform(df):  # noqa: ANN001, ANN201
     df["gpu_type"] = df["gpu"].map(lambda x: x.split(":")[0].strip("!"))
     df["gpu_count"] = df["gpu"].map(lambda x: int(x.split(":")[1]) if ":" in x else 1)
 
+    # Hack to remove extra results
+    df = df[~((df["gpu"] == "H200:8") & (df["model"] == "deepseek-ai/DeepSeek-V3-0324"))]
+
+
     # Extract model properties from repo
     df["model_repo"] = df["model"]
     df["model_family"] = df["model_repo"].map(get_model_family)
@@ -137,13 +141,13 @@ def transform(df):  # noqa: ANN001, ANN201
         df[column_name] = 1./df[f"itl_{a}"]
         metrics_columns.append(column_name)
 
-    # Cost-related metrics
+    # Add cost-related metrics
     df["gpu_seconds_per_query"] = df["gpu_count"] * 1./df["queries_per_second"]
     df["gpu_seconds_per_1M_total_tokens"] = (
         df["gpu_seconds_per_query"] * (1_000_000./df["total_tokens"])
     )
 
-    # handle non-nullable, non-negative columns -- derived metrics and rates
+    # Handle non-nullable, non-negative columns -- derived metrics and rates
     strictly_positive_columns = [*metrics_columns, "queries_per_second"]
     for column in strictly_positive_columns:  # all
         df[column] = df[column].apply(lambda x: None if x <= 0 else x)
