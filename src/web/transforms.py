@@ -1,6 +1,7 @@
 """Functions for transforming columns and rows of benchmark suite data."""
 
 import json
+import hashlib
 import re
 import shlex
 from itertools import product
@@ -32,6 +33,7 @@ SIZE_PATTERN = re.compile(
 # we hard-code a value.
 REPO_TO_SIZE = {
     "cognitivecomputations/DeepSeek-V3-0324-AWQ": "671B-A37B",
+    "deepseek-ai/DeepSeek-V3-0324": "671B-A37B",
     "zed-industries/zeta": "7B",
 }
 
@@ -90,6 +92,10 @@ def transform(df):  # noqa: ANN001, ANN201
     df["gpu_type"] = df["gpu"].map(lambda x: x.split(":")[0].strip("!"))
     df["gpu_count"] = df["gpu"].map(lambda x: int(x.split(":")[1]) if ":" in x else 1)
 
+    # Hack to remove extra results
+    df = df[~((df["gpu"] == "H200:8") & (df["model"] == "deepseek-ai/DeepSeek-V3-0324"))]
+
+
     # Extract model properties from repo
     df["model_repo"] = df["model"]
     df["model_family"] = df["model_repo"].map(get_model_family)
@@ -125,6 +131,15 @@ def transform(df):  # noqa: ANN001, ANN201
     # Create human-readable name for model
     df["model"] = df.apply(get_model_name, axis=1)
 
+    # Add a hash-based id for the experiment (workload + framework + framework config)
+    # and for the workload (model + tokens in + out)
+    df['id'] = df.apply(hash_config, axis=1)
+    workload_config_columns = [
+        "model_repo", "quant",  # model
+        "prompt_tokens", "output_tokens",  # data
+    ]
+    df['workload_id'] = df.apply(hash_config, axis=1, config_columns=workload_config_columns)
+
     aggregates = ["mean", "p50", "p90", "p95", "p99"]
     metrics_columns = [
         f"{m}_{a}"
@@ -136,13 +151,13 @@ def transform(df):  # noqa: ANN001, ANN201
         df[column_name] = 1./df[f"itl_{a}"]
         metrics_columns.append(column_name)
 
-    # Cost-related metrics
+    # Add cost-related metrics
     df["gpu_seconds_per_query"] = df["gpu_count"] * 1./df["queries_per_second"]
     df["gpu_seconds_per_1M_total_tokens"] = (
         df["gpu_seconds_per_query"] * (1_000_000./df["total_tokens"])
     )
 
-    # handle non-nullable, non-negative columns -- derived metrics and rates
+    # Handle non-nullable, non-negative columns -- derived metrics and rates
     strictly_positive_columns = [*metrics_columns, "queries_per_second"]
     for column in strictly_positive_columns:  # all
         df[column] = df[column].apply(lambda x: None if x <= 0 else x)
@@ -271,8 +286,11 @@ def get_model_quant(row) -> str | None:  # noqa: ANN001, PLR0911
         if matches:
             return f"int{matches[-1]}"  # digit
 
-    if "awq" in model_name and "deepseek" in model_name:
-        return "int4"
+    if "deepseek" in model_name:
+        if "awq" in model_name:
+            return "int4"
+        else:
+            return "fp8"
 
     if dtype:
         return DTYPE_TO_QUANT.get(dtype, dtype)
@@ -293,3 +311,22 @@ def get_model_name(row) -> str:  # noqa: ANN001
     return " ".join(
         [row["model_family"], row["model_size"] or "", row["quant"] or ""],
     ).strip()
+
+
+def hash_config(row, config_columns=None):
+    # select columns that define the configuration
+    if config_columns is None:
+        config_columns = [
+            "model_repo", "quant", # model
+            "framework",  # software
+            "prompt_tokens", "output_tokens", # data
+            "cli_args", "env_vars", "kwargs",  # software config
+            "gpu"  # hardware
+        ]
+    values = [row.get(key, None) for key in config_columns]
+
+    hasher = hashlib.sha256()
+    hasher.update(str(values).encode('utf-8'))
+    unique_id = hasher.hexdigest()
+
+    return unique_id[:7]
