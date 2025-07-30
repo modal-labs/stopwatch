@@ -5,7 +5,7 @@ class VersionDefaults:
     """Default framework versions to use when building LLM server images."""
 
     GUIDELLM = "72374ef"
-    SGLANG = "v0.4.9.post5-cu128-b200"
+    SGLANG = "v0.4.9.post6-cu126"
     TENSORRT_LLM = "1.0.0rc4"
     TOKASAURUS = "eecacdb"
     VLLM = "v0.10.0"
