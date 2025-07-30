@@ -31,6 +31,7 @@ etl_image = (
         "SQLAlchemy",
     )
     .add_local_file("src/stopwatch/resources.py", "/root/stopwatch/resources.py")
+    .add_local_dir("src/stopwatch/db", "/root/stopwatch/db")
 )
 
 with etl_image.imports():
@@ -137,6 +138,7 @@ def read_jsonl(file_path: str | Path) -> list[dict]:
 @web_app.function(
     image=etl_image,
     volumes={DB_PATH: db_volume, RESULTS_PATH: results_volume},
+    max_inputs=1,
 )
 @modal.fastapi_endpoint()
 def export_results(suite_ids: str, *, verbose: bool = False):  # noqa: ANN201
