@@ -1,10 +1,11 @@
 """Functions for transforming columns and rows of benchmark suite data."""
 
-import json
 import hashlib
+import json
 import re
 import shlex
 from itertools import product
+from typing import Any
 
 # In cases where we can't infer the family from the model repo,
 # we hard-code the family.
@@ -92,9 +93,10 @@ def transform(df):  # noqa: ANN001, ANN201
     df["gpu_type"] = df["gpu"].map(lambda x: x.split(":")[0].strip("!"))
     df["gpu_count"] = df["gpu"].map(lambda x: int(x.split(":")[1]) if ":" in x else 1)
 
-    # Hack to remove extra results
-    df = df[~((df["gpu"] == "H200:8") & (df["model"] == "deepseek-ai/DeepSeek-V3-0324"))]
-
+    # TODO(charles): Hack to remove extra results
+    df = df[
+        ~((df["gpu"] == "H200:8") & (df["model"] == "deepseek-ai/DeepSeek-V3-0324"))
+    ]
 
     # Extract model properties from repo
     df["model_repo"] = df["model"]
@@ -133,28 +135,33 @@ def transform(df):  # noqa: ANN001, ANN201
 
     # Add a hash-based id for the experiment (workload + framework + framework config)
     # and for the workload (model + tokens in + out)
-    df['id'] = df.apply(hash_config, axis=1)
+    df["id"] = df.apply(hash_config, axis=1)
     workload_config_columns = [
-        "model_repo", "quant",  # model
-        "prompt_tokens", "output_tokens",  # data
+        "model_repo",
+        "quant",  # model
+        "prompt_tokens",
+        "output_tokens",  # data
     ]
-    df['workload_id'] = df.apply(hash_config, axis=1, config_columns=workload_config_columns)
+    df["workload_id"] = df.apply(
+        hash_config,
+        axis=1,
+        config_columns=workload_config_columns,
+    )
 
     aggregates = ["mean", "p50", "p90", "p95", "p99"]
     metrics_columns = [
-        f"{m}_{a}"
-        for m, a in product(["itl", "ttft", "ttlt"], aggregates)
+        f"{m}_{a}" for m, a in product(["itl", "ttft", "ttlt"], aggregates)
     ]
 
     for a in aggregates:
         column_name = f"generated_tokens_per_second_per_query_{a}"
-        df[column_name] = 1./df[f"itl_{a}"]
+        df[column_name] = 1.0 / df[f"itl_{a}"]
         metrics_columns.append(column_name)
 
     # Add cost-related metrics
-    df["gpu_seconds_per_query"] = df["gpu_count"] * 1./df["queries_per_second"]
-    df["gpu_seconds_per_1M_total_tokens"] = (
-        df["gpu_seconds_per_query"] * (1_000_000./df["total_tokens"])
+    df["gpu_seconds_per_query"] = df["gpu_count"] * 1.0 / df["queries_per_second"]
+    df["gpu_seconds_per_1M_total_tokens"] = df["gpu_seconds_per_query"] * (
+        1_000_000.0 / df["total_tokens"]
     )
 
     # Handle non-nullable, non-negative columns -- derived metrics and rates
@@ -289,8 +296,7 @@ def get_model_quant(row) -> str | None:  # noqa: ANN001, PLR0911
     if "deepseek" in model_name:
         if "awq" in model_name:
             return "int4"
-        else:
-            return "fp8"
+        return "fp8"
 
     if dtype:
         return DTYPE_TO_QUANT.get(dtype, dtype)
@@ -313,20 +319,32 @@ def get_model_name(row) -> str:  # noqa: ANN001
     ).strip()
 
 
-def hash_config(row, config_columns=None):
+def hash_config(row: dict[str, Any], config_columns: list[str] | None = None) -> str:
+    """
+    Generate a unique identifier for a configuration of a benchmark suite data row.
+
+    :param: row: A row of benchmark suite data.
+    :param: config_columns: The columns that define the configuration.
+    :return: A hash of the configuration.
+    """
+
     # select columns that define the configuration
     if config_columns is None:
         config_columns = [
-            "model_repo", "quant", # model
+            "model_repo",
+            "quant",  # model
             "framework",  # software
-            "prompt_tokens", "output_tokens", # data
-            "cli_args", "env_vars", "kwargs",  # software config
-            "gpu"  # hardware
+            "prompt_tokens",
+            "output_tokens",  # data
+            "cli_args",
+            "env_vars",
+            "kwargs",  # software config
+            "gpu",  # hardware
         ]
-    values = [row.get(key, None) for key in config_columns]
 
+    values = [row.get(key) for key in config_columns]
     hasher = hashlib.sha256()
-    hasher.update(str(values).encode('utf-8'))
+    hasher.update(str(values).encode("utf-8"))
     unique_id = hasher.hexdigest()
 
     return unique_id[:7]
