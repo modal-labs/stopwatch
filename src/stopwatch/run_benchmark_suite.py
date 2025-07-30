@@ -22,11 +22,15 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-benchmark_suite_image = modal.Image.debian_slim(python_version="3.13").uv_pip_install(
-    "fastapi[standard]",
-    "numpy",
-    "pandas",
-    "SQLAlchemy",
+benchmark_suite_image = (
+    modal.Image.debian_slim(python_version="3.13")
+    .uv_pip_install(
+        "fastapi[standard]",
+        "numpy",
+        "pandas",
+        "SQLAlchemy",
+    )
+    .add_local_python_source("web")
 )
 
 with benchmark_suite_image.imports():
