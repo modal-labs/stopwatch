@@ -477,14 +477,7 @@ async def run_benchmark_suite(
     logger.info("Validating benchmarks...")
 
     for benchmark_config, _, _ in benchmarks:
-        for key in [
-            "llm_server_type",
-            "model",
-            "data",
-            "gpu",
-            "server_region",
-            "client_region",
-        ]:
+        for key in ["llm_server_type", "model", "data", "gpu"]:
             if benchmark_config.get(key) is None:
                 msg = f"Benchmark {benchmark_config} has no {key}"
                 raise Exception(msg)

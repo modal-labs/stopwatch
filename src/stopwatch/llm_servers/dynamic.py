@@ -64,6 +64,7 @@ def get_image(llm_server_type: str, llm_server_config: dict[str, Any]) -> modal.
 
     return image_factory_fn[llm_server_type](
         llm_server_config.get("version", VersionDefaults.LLM_SERVERS[llm_server_type]),
+        **llm_server_config.get("image_kwargs", {}),
     )
 
 
