@@ -6,7 +6,7 @@ class VersionDefaults:
 
     GUIDELLM = "72374ef"
     SGLANG = "v0.4.9.post6-cu126"
-    TENSORRT_LLM = "1.0.0rc4"
+    TENSORRT_LLM = "1.1.0rc0"
     TOKASAURUS = "eecacdb"
     VLLM = "v0.10.0"
 
