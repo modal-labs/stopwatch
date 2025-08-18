@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 
 def tensorrt_llm_image_factory(
     tensorrt_llm_version: str = VersionDefaults.TENSORRT_LLM,
-    cuda_version: str = "12.8.1",
+    cuda_version: str = "12.9.1",
 ) -> modal.Image:
     """
     Create a Modal image for running a TensorRT-LLM server.
@@ -43,8 +43,12 @@ def tensorrt_llm_image_factory(
         .entrypoint([])  # Remove verbose logging by base image on entry
         .apt_install("libopenmpi-dev", "git", "git-lfs", "wget")
         .uv_pip_install(
-            f"tensorrt-llm=={tensorrt_llm_version}",
+            # This next line is not needed for tensorrt-llm>=1.1.0rc0, but 1.1.0 has a
+            # bug when running HF models at the moment. Once 1.1.0 is stable, the line
+            # for cuda-python can be removed.
+            "cuda-python<13.0",
             "pynvml",
+            f"tensorrt-llm=={tensorrt_llm_version}",
             extra_index_url="https://pypi.nvidia.com",
         )
         .uv_pip_install(
@@ -117,7 +121,7 @@ class TensorRTLLMBase:
         import torch
         import yaml
         from huggingface_hub import snapshot_download
-        from tensorrt_llm import LLM
+        from tensorrt_llm._tensorrt_engine import LLM
         from tensorrt_llm.llmapi.llm_args import update_llm_args_with_extra_dict
         from tensorrt_llm.plugin import PluginConfig
 

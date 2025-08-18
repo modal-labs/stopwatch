@@ -14,7 +14,10 @@ GPU = "H100!"
 MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 
 
-@pytest.mark.parametrize("llm_server_type", ["vllm", "sglang", "tensorrt-llm"])
+@pytest.mark.parametrize(
+    "llm_server_type",
+    ["vllm", "sglang", "tensorrt-llm", "tokasaurus"],
+)
 def test_llama(llm_server_type: str) -> None:
     """Test that a quick synchronous benchmark runs successfully."""
 
@@ -34,6 +37,13 @@ def test_llama(llm_server_type: str) -> None:
             rate_type=RateType.SYNCHRONOUS.value,
             data=DATA,
             duration=DURATION,
+            client_config=(
+                {
+                    "remove_from_body": ["max_completion_tokens", "stream"],
+                }
+                if llm_server_type == "tokasaurus"
+                else None
+            ),
         )
 
         assert len(results) == 1
