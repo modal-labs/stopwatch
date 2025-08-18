@@ -20,7 +20,7 @@ license-files = ["LICENSE.md"]
 keywords = ["machine-learning", "llms", "vllm", "sglang", "tensorrt-llm"]
 
 [project.optional-dependencies]
-extras = [
+tests = [
   "datasette~=0.65.1",
   "fastapi[standard]~=0.116.1",
   "grpclib==0.4.8",
@@ -29,6 +29,8 @@ extras = [
   "numpy~=2.3.2",
   "pandas~=2.3.1",
   "prometheus-client~=0.22.1",
+  "pytest~=8.4.1",
+  "pytest-xdist~=3.8.0",
   "requests~=2.32.4",
   "SQLAlchemy~=2.0.41",
   "tiktoken~=0.9.0",
@@ -91,4 +93,8 @@ select = [
 ]
 "src/tools/pd_disaggregation_proxy_server.py" = [
   "S104",
+]
+"tests/**/test_*.py" = [
+  "S101",  # Allow assert statements in tests
+  "PLR2004",  # Allow constant values in tests
 ]
