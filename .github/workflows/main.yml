@@ -29,7 +29,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install modal pytest pytest-xdist pyyaml
+          pip install .
+          pip install pytest pytest-xdist
       - name: Run tests
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
