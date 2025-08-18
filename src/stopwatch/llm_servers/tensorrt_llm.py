@@ -11,7 +11,7 @@ from pathlib import Path
 
 import modal
 
-from stopwatch.constants import MINUTES, SECONDS, VersionDefaults
+from stopwatch.constants import HOURS, SECONDS, VersionDefaults
 from stopwatch.resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
 
 from .constants import HF_CACHE_PATH
@@ -70,7 +70,7 @@ def tensorrt_llm_cls(
     cpu: int = 4,
     memory: int = 4 * 1024,
     scaledown_window: int = 30 * SECONDS,
-    timeout: int = 30 * MINUTES,
+    timeout: int = 1 * HOURS,
     region: str = "us-chicago-1",
 ) -> Callable:
     """
@@ -117,7 +117,7 @@ class TensorRTLLMBase:
         import torch
         import yaml
         from huggingface_hub import snapshot_download
-        from tensorrt_llm._tensorrt_engine import LLM
+        from tensorrt_llm import LLM
         from tensorrt_llm.llmapi.llm_args import update_llm_args_with_extra_dict
         from tensorrt_llm.plugin import PluginConfig
 
@@ -188,7 +188,7 @@ class TensorRTLLMBase:
         except Exception:  # noqa: BLE001
             traceback.print_exc()
 
-    @modal.web_server(port=PORT, startup_timeout=30 * MINUTES)
+    @modal.web_server(port=PORT, startup_timeout=1 * HOURS)
     def start(self) -> None:
         """Start a TensorRT-LLM server."""
 
