@@ -15,7 +15,7 @@ TENSORRT_LLM_CUDA_VERSION = "12.9.1"
 TOKASAURUS_CUDA_VERSION = "12.4.1"
 
 
-class RateType(Enum):
+class RateType(str, Enum):
     """Types of rates for running benchmarks."""
 
     constant = "constant"
@@ -23,7 +23,7 @@ class RateType(Enum):
     throughput = "throughput"
 
 
-class LLMServerType(Enum):
+class LLMServerType(str, Enum):
     """Types of LLM servers."""
 
     sglang = "sglang"

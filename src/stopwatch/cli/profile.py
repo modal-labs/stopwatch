@@ -1,14 +1,17 @@
-import json
 import logging
 import uuid
 from pathlib import Path
+from typing import Annotated
 
 import modal
+import typer
 
 from stopwatch.constants import LLMServerType
 from stopwatch.llm_servers import create_dynamic_llm_server_cls
+from stopwatch.profile import profile
 from stopwatch.resources import app, traces_volume
-from stopwatch.run_profiler import run_profiler
+
+from .utils import config_callback
 
 TRACES_PATH = "/traces"
 
@@ -16,7 +19,17 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def run_profiler_cli(
+def llm_server_type_callback(llm_server_type: LLMServerType) -> LLMServerType:
+    """Require that llm_server_type is supported for profiling."""
+
+    if llm_server_type == LLMServerType.vllm:
+        return llm_server_type.value
+
+    msg = "Profiling is only supported with vLLM"
+    raise typer.BadParameter(msg)
+
+
+def profile_cli(
     model: str,
     *,
     output_path: str = "trace.json.gz",
@@ -26,23 +39,16 @@ def run_profiler_cli(
     num_requests: int = 10,
     prompt_tokens: int = 512,
     output_tokens: int = 8,
-    llm_server_type: LLMServerType = LLMServerType.vllm,
-    llm_server_config: str | None = None,
+    llm_server_type: Annotated[
+        LLMServerType,
+        typer.Option(callback=llm_server_type_callback),
+    ] = LLMServerType.vllm,
+    llm_server_config: Annotated[
+        str | None,
+        typer.Option(callback=config_callback),
+    ] = None,
 ) -> None:
     """Run an LLM server alongside the PyTorch profiler."""
-
-    if llm_server_type != LLMServerType.vllm:
-        msg = "Profiling is only supported with vLLM"
-        raise ValueError(msg)
-
-    if llm_server_config is not None:
-        try:
-            llm_server_config = json.loads(llm_server_config)
-        except json.JSONDecodeError as e:
-            msg = "Invalid JSON for --llm-server-config"
-            raise ValueError(msg) from e
-    else:
-        llm_server_config = {}
 
     if "env_vars" not in llm_server_config:
         llm_server_config["env_vars"] = {
@@ -61,7 +67,7 @@ def run_profiler_cli(
     )
 
     with modal.enable_output(), app.run(detach=detach):
-        fc = run_profiler.spawn(
+        fc = profile.spawn(
             endpoint=server_cls().start.get_web_url(),
             model=model,
             num_requests=num_requests,

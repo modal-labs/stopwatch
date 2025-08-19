@@ -11,21 +11,7 @@ from stopwatch.constants import LLMServerType, RateType
 from stopwatch.llm_servers import create_dynamic_llm_server_cls
 from stopwatch.resources import app
 
-
-def config_callback(config: str | None) -> dict:
-    """Parse JSON config strings into dicts."""
-
-    if isinstance(config, dict):
-        return config
-
-    if config is None:
-        return {}
-
-    try:
-        return json.loads(config)
-    except json.JSONDecodeError as err:
-        msg = "Must be a valid JSON string"
-        raise typer.BadParameter(msg) from err
+from .utils import config_callback
 
 
 def rate_type_callback(ctx: typer.Context, rate_type: RateType) -> RateType:

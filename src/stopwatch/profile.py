@@ -35,7 +35,7 @@ with profiling_image.imports():
     volumes={TRACES_PATH: traces_volume},
     timeout=TIMEOUT,
 )
-def run_profiler(
+def profile(
     endpoint: str,
     model: str,
     num_requests: int = 10,
