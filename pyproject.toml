@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "stopwatch"
 version = "0.1.0"
-requires-python = ">=3.11,<4.0"
+requires-python = ">=3.10,<4.0"
 dependencies = [
   "guidellm @ git+https://github.com/neuralmagic/guidellm.git#1261fe8",
   "modal~=1.1.2",
@@ -53,6 +53,7 @@ ignore = [
   "PLC0415",  # Allow imports that aren't at the top of the file
   "PLR0913",  # Allow functions with more than 5 arguments
   "S113",  # Allow requests without timeouts
+  "UP017",  # Allow timezone.utc on the SGLang image, which uses Python 3.10
 ]
 select = [
   "ALL",
@@ -66,9 +67,6 @@ select = [
   "N801",  # Allow class names to be lowercase
   "S104",  # Allow binding to all interfaces
   "S602",  # Allow subprocess.Popen with shell=True
-]
-"src/stopwatch/llm_servers/sglang.py" = [
-  "UP017",  # Allow timezone.utc on the SGLang image, which uses Python 3.10
 ]
 "tests/**/test_*.py" = [
   "S101",  # Allow assert statements in tests

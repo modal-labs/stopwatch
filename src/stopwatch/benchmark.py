@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Iterator, Mapping
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import modal
@@ -176,9 +176,9 @@ class GuideLLM:
         )
 
         # Start the LLM server and save queuing and cold start durations
-        queue_time = datetime.now(UTC).timestamp()
+        queue_time = datetime.now(timezone.utc).timestamp()
         await backend.validate()
-        connection_time = datetime.now(UTC).timestamp()
+        connection_time = datetime.now(timezone.utc).timestamp()
         queue_duration = connection_time - queue_time
 
         if (
