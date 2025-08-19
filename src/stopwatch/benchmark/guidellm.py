@@ -186,7 +186,7 @@ class GuideLLMRunner:
 
         # Convert RateTypes to strings
         for i in range(len(rate_type)):
-            if isinstance(rate_type, RateType):
+            if isinstance(rate_type[i], RateType):
                 rate_type[i] = rate_type[i].value
 
         if not isinstance(rate, list):
