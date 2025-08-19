@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import modal
 
-from stopwatch.constants import HOURS, VersionDefaults
+from stopwatch.constants import HOURS, LLMServerType
 from stopwatch.resources import (
     hf_cache_volume,
     startup_metrics_dict,
@@ -20,7 +20,7 @@ PROXY_SERVER_SCRIPT = "/root/tools/pd_disaggregation_proxy_server.py"
 
 
 def vllm_pd_disaggregation_image_factory(
-    docker_tag: str = VersionDefaults.VLLM,
+    docker_tag: str = LLMServerType.vllm.get_version(),
 ) -> modal.Image:
     """
     Create a Modal image for running a vLLM server with PD disaggregation.

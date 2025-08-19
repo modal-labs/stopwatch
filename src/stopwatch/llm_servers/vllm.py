@@ -12,7 +12,7 @@ from stopwatch.constants import (
     SECONDS,
     TRACES_PATH,
     VLLM_CACHE_PATH,
-    VersionDefaults,
+    LLMServerType,
 )
 from stopwatch.resources import (
     app,
@@ -28,7 +28,7 @@ VLLM_PYTHON_BINARY = "/usr/bin/python3"
 
 
 def vllm_image_factory(
-    docker_tag: str = VersionDefaults.VLLM,
+    docker_tag: str = LLMServerType.vllm.get_version(),
     extra_dockerfile_commands: list[str] | None = None,
 ) -> modal.Image:
     """

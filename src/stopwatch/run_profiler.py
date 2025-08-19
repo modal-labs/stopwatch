@@ -3,7 +3,7 @@ import time
 
 import modal
 
-from .constants import VersionDefaults
+from .constants import GUIDELLM_VERSION
 from .resources import app, hf_secret, traces_volume
 
 TIMEOUT = 60 * 60  # 1 hour
@@ -17,7 +17,7 @@ profiling_image = (
     modal.Image.debian_slim()
     .apt_install("git")
     .uv_pip_install(
-        f"git+https://github.com/neuralmagic/guidellm.git#{VersionDefaults.GUIDELLM}",
+        f"git+https://github.com/neuralmagic/guidellm.git#{GUIDELLM_VERSION}",
         "openai",
     )
 )

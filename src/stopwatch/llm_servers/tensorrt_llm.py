@@ -11,7 +11,13 @@ from pathlib import Path
 
 import modal
 
-from stopwatch.constants import HF_CACHE_PATH, HOURS, SECONDS, VersionDefaults
+from stopwatch.constants import (
+    HF_CACHE_PATH,
+    HOURS,
+    SECONDS,
+    TENSORRT_LLM_CUDA_VERSION,
+    LLMServerType,
+)
 from stopwatch.resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
 
 LLM_KWARGS_PATH = "llm_kwargs.yaml"
@@ -22,8 +28,8 @@ logging.basicConfig(level=logging.INFO)
 
 
 def tensorrt_llm_image_factory(
-    tensorrt_llm_version: str = VersionDefaults.TENSORRT_LLM,
-    cuda_version: str = "12.9.1",
+    tensorrt_llm_version: str = LLMServerType.tensorrt_llm.get_version(),
+    cuda_version: str = TENSORRT_LLM_CUDA_VERSION,
 ) -> modal.Image:
     """
     Create a Modal image for running a TensorRT-LLM server.

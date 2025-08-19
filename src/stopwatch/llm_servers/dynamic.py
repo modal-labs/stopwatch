@@ -14,7 +14,6 @@ from stopwatch.constants import (
     TRACES_PATH,
     VLLM_CACHE_PATH,
     LLMServerType,
-    VersionDefaults,
 )
 from stopwatch.resources import (
     app,
@@ -65,7 +64,7 @@ def get_image(
     }
 
     return image_factory_fn[llm_server_type](
-        llm_server_config.get("version", VersionDefaults.LLM_SERVERS[llm_server_type]),
+        llm_server_config.get("version", llm_server_type.get_version()),
         **llm_server_config.get("image_kwargs", {}),
     )
 

@@ -8,7 +8,7 @@ from typing import Any
 
 import modal
 
-from stopwatch.constants import HOURS, SECONDS, RateType, VersionDefaults
+from stopwatch.constants import GUIDELLM_VERSION, HOURS, SECONDS, RateType
 from stopwatch.resources import app, hf_secret, results_volume, startup_metrics_dict
 
 # Delay between benchmarks when running multiple constant-rate benchmarks on the same
@@ -27,7 +27,7 @@ guidellm_image = (
     modal.Image.debian_slim()
     .apt_install("git")
     .uv_pip_install(
-        f"git+https://github.com/neuralmagic/guidellm.git#{VersionDefaults.GUIDELLM}",
+        f"git+https://github.com/neuralmagic/guidellm.git#{GUIDELLM_VERSION}",
         "prometheus-client",
         "tiktoken",
     )

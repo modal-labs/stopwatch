@@ -6,14 +6,14 @@ from datetime import datetime, timezone
 
 import modal
 
-from stopwatch.constants import HF_CACHE_PATH, MINUTES, VersionDefaults
+from stopwatch.constants import HF_CACHE_PATH, MINUTES, LLMServerType
 from stopwatch.resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
 
 PORT = 30000
 
 
 def sglang_image_factory(
-    docker_tag: str = VersionDefaults.SGLANG,
+    docker_tag: str = LLMServerType.sglang.get_version(),
     extra_python_packages: list[str] | None = None,
     transformers_version: str | None = None,
 ) -> modal.Image:

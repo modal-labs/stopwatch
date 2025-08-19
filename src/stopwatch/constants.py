@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import ClassVar
 
 SECONDS = 1
 MINUTES = 60 * SECONDS
@@ -10,6 +9,10 @@ DB_PATH = "/db"
 HF_CACHE_PATH = "/cache"
 TRACES_PATH = "/traces"
 VLLM_CACHE_PATH = "/root/.cache/vllm"
+
+GUIDELLM_VERSION = "1261fe8"
+TENSORRT_LLM_CUDA_VERSION = "12.9.1"
+TOKASAURUS_CUDA_VERSION = "12.4.1"
 
 
 class RateType(Enum):
@@ -29,20 +32,15 @@ class LLMServerType(Enum):
     vllm = "vllm"
     vllm_pd_disaggregation = "vllm-pd-disaggregation"
 
+    def get_version(self) -> str:
+        """Get the latest version of the LLM server."""
 
-class VersionDefaults:
-    """Default framework versions to use when building LLM server images."""
+        versions = {
+            LLMServerType.sglang: "v0.4.10.post2-cu126",
+            LLMServerType.tensorrt_llm: "1.0.0rc4",
+            LLMServerType.tokasaurus: "0.0.3.post1",
+            LLMServerType.vllm: "v0.10.1",
+            LLMServerType.vllm_pd_disaggregation: "v0.10.1",
+        }
 
-    GUIDELLM = "1261fe8"
-    SGLANG = "v0.4.10.post2-cu126"
-    TENSORRT_LLM = "1.0.0rc4"
-    TOKASAURUS = "0.0.3.post1"
-    VLLM = "v0.10.1"
-
-    LLM_SERVERS: ClassVar[dict[LLMServerType, str]] = {
-        LLMServerType.sglang: SGLANG,
-        LLMServerType.tensorrt_llm: TENSORRT_LLM,
-        LLMServerType.tokasaurus: TOKASAURUS,
-        LLMServerType.vllm: VLLM,
-        LLMServerType.vllm_pd_disaggregation: VLLM,
-    }
+        return versions[self]

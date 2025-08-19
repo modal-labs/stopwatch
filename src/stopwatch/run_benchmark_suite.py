@@ -7,7 +7,7 @@ import modal
 from web.etl import export_results
 
 from .benchmark import create_dynamic_benchmark_runner_cls
-from .constants import DB_PATH, HOURS, VersionDefaults
+from .constants import DB_PATH, GUIDELLM_VERSION, HOURS, LLMServerType
 from .resources import app, db_volume, results_volume
 
 DATASETTE_PATH = "/datasette"
@@ -489,12 +489,12 @@ async def run_benchmark_suite(
 
         benchmark_config["group_id"] = uuid.uuid4().hex[:8]
         benchmark_config["version_metadata"] = {
-            "guidellm": VersionDefaults.GUIDELLM,
+            "guidellm": GUIDELLM_VERSION,
             benchmark_config["llm_server_type"]: benchmark_config[
                 "llm_server_config"
             ].get(
                 "version",
-                VersionDefaults.LLM_SERVERS[benchmark_config["llm_server_type"]],
+                LLMServerType(benchmark_config["llm_server_type"]).get_version(),
             ),
             "suite": version,
         }

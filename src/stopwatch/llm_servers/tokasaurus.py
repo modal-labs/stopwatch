@@ -6,15 +6,20 @@ from datetime import datetime, timezone
 
 import modal
 
-from stopwatch.constants import HF_CACHE_PATH, MINUTES, VersionDefaults
+from stopwatch.constants import (
+    HF_CACHE_PATH,
+    MINUTES,
+    TOKASAURUS_CUDA_VERSION,
+    LLMServerType,
+)
 from stopwatch.resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
 
 PORT = 10210
 
 
 def tokasaurus_image_factory(
-    version: str = VersionDefaults.TOKASAURUS,
-    cuda_version: str = "12.4.1",
+    version: str = LLMServerType.tokasaurus.get_version(),
+    cuda_version: str = TOKASAURUS_CUDA_VERSION,
 ) -> modal.Image:
     """
     Create a Modal image for running a Tokasaurus server.
