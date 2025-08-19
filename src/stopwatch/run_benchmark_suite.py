@@ -7,11 +7,10 @@ import modal
 from web.etl import export_results
 
 from .benchmark import create_dynamic_benchmark_runner_cls
-from .constants import HOURS, VersionDefaults
+from .constants import DB_PATH, HOURS, VersionDefaults
 from .resources import app, db_volume, results_volume
 
 DATASETTE_PATH = "/datasette"
-DB_PATH = "/db"
 MAX_CONCURRENT_BENCHMARKS = 45
 MAX_CONSTANT_RATES = 10
 MIN_QPS_STEP_SIZE = 0.5
@@ -523,9 +522,9 @@ async def run_benchmark_suite(
                     # If fast_mode is enabled, run synchronous and throughput
                     # benchmarks in parallel to save time. Otherwise, run them
                     # sequentially on a single container to save cost.
-                    [RateType.SYNCHRONOUS.value, RateType.THROUGHPUT.value]
+                    [RateType.synchronous.value, RateType.throughput.value]
                     if fast_mode
-                    else [[RateType.SYNCHRONOUS.value, RateType.THROUGHPUT.value]]
+                    else [[RateType.synchronous.value, RateType.throughput.value]]
                 ),
                 range(repeats),
             )
@@ -546,7 +545,7 @@ async def run_benchmark_suite(
             session.query(Benchmark)
             .filter_by(
                 **{k: v for k, v in benchmark_config.items() if k != "group_id"},
-                rate_type=RateType.SYNCHRONOUS.value,
+                rate_type=RateType.synchronous.value,
             )
             .filter(
                 Benchmark.completed_request_rate.is_not(None)
@@ -558,7 +557,7 @@ async def run_benchmark_suite(
             session.query(Benchmark)
             .filter_by(
                 **{k: v for k, v in benchmark_config.items() if k != "group_id"},
-                rate_type=RateType.THROUGHPUT.value,
+                rate_type=RateType.throughput.value,
             )
             .filter(
                 Benchmark.completed_request_rate.is_not(None)
@@ -625,7 +624,7 @@ async def run_benchmark_suite(
                         **benchmark_config,
                         "client_name": benchmark_client_names[repeat_index],
                         "server_url": benchmark_server_urls[repeat_index],
-                        "rate_type": RateType.CONSTANT.value,
+                        "rate_type": RateType.constant.value,
                         "rate": rate,
                         "repeat_index": repeat_index,
                     }

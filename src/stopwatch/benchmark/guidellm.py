@@ -8,20 +8,13 @@ from typing import Any
 
 import modal
 
-from stopwatch.constants import HOURS, SECONDS, VersionDefaults
+from stopwatch.constants import HOURS, SECONDS, RateType, VersionDefaults
 from stopwatch.resources import app, hf_secret, results_volume, startup_metrics_dict
 
 # Delay between benchmarks when running multiple constant-rate benchmarks on the same
 # LLM server. Must be less than the LLM server's scaledown_window.
 DELAY_BETWEEN_BENCHMARKS = 15 * SECONDS
 
-LLM_SERVER_TYPES = [
-    "vllm",
-    "vllm-pd-disaggregation",
-    "sglang",
-    "tensorrt-llm",
-    "tokasaurus",
-]
 NUM_CORES = 2
 RESULTS_PATH = "/results"
 SCALEDOWN_WINDOW = 5 * SECONDS
@@ -157,7 +150,7 @@ class GuideLLMRunner:
         self,
         endpoint: str,
         model: str,
-        rate_type: str | list[str],
+        rate_type: RateType | list[RateType],
         data: str,
         caller_id: str | None = None,
         duration: float | None = 120,  # 2 minutes
@@ -169,14 +162,13 @@ class GuideLLMRunner:
         Benchmarks a LLM deployment on Modal.
 
         :param: model: Name of the model to benchmark.
-        :param: rate_type: The type of rate to use for benchmarking, either 'constant',
-            'synchronous', or 'throughput'.
+        :param: rate_type: The type of rate to use for benchmarking.
         :param: data: A configuration for emulated data (e.g.:
             'prompt_tokens=128,output_tokens=128').
         :param: duration: The duration of the benchmark in seconds.
         :param: client_config: Configuration for the GuideLLM client.
-        :param: rate: If rate_type is 'constant', specify the number of requests that
-            should be made per second. If this is a list, benchmarks will be run
+        :param: rate: If rate_type is RateType.constant, specify the number of requests
+            that should be made per second. If this is a list, benchmarks will be run
             sequentially at each request rate.
         :param: kwargs: Additional keyword arguments.
         """
@@ -262,7 +254,7 @@ class GuideLLMRunner:
                 rate_i,
             )
 
-            profile = create_profile(rate_type=rate_type_i, rate=rate_i)
+            profile = create_profile(rate_type=rate_type_i.value, rate=rate_i)
             benchmarker_kwargs = {
                 "backend": backend,
                 "request_loader": request_loader,
@@ -303,7 +295,7 @@ class GuideLLMRunner:
                     benchmark_results.append(
                         {
                             "rate": rate_i,
-                            "rate_type": rate_type_i,
+                            "rate_type": rate_type_i.value,
                             "results": {
                                 **result.current_benchmark.model_dump(),
                                 "queue_duration": queue_duration,

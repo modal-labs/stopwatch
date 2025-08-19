@@ -5,6 +5,7 @@ from pathlib import Path
 
 import modal
 
+from stopwatch.constants import LLMServerType
 from stopwatch.llm_servers import create_dynamic_llm_server_cls
 from stopwatch.resources import app, traces_volume
 from stopwatch.run_profiler import run_profiler
@@ -25,12 +26,12 @@ def run_profiler_cli(
     num_requests: int = 10,
     prompt_tokens: int = 512,
     output_tokens: int = 8,
-    llm_server_type: str = "vllm",
+    llm_server_type: LLMServerType = LLMServerType.vllm,
     llm_server_config: str | None = None,
 ) -> None:
     """Run an LLM server alongside the PyTorch profiler."""
 
-    if llm_server_type != "vllm":
+    if llm_server_type != LLMServerType.vllm:
         msg = "Profiling is only supported with vLLM"
         raise ValueError(msg)
 

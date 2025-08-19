@@ -3,6 +3,7 @@ import uuid
 
 import modal
 
+from stopwatch.constants import LLMServerType
 from stopwatch.llm_servers import create_dynamic_llm_server_cls
 from stopwatch.resources import app
 
@@ -12,7 +13,7 @@ def provision_cli(
     *,
     endpoint_label: str | None = None,
     gpu: str = "H100",
-    llm_server_type: str = "vllm",
+    llm_server_type: LLMServerType = LLMServerType.vllm,
     cpu: int | None = None,
     memory: int | None = None,
     min_containers: int = 0,

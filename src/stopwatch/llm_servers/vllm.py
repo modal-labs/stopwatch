@@ -6,7 +6,14 @@ from datetime import datetime, timezone
 
 import modal
 
-from stopwatch.constants import HOURS, SECONDS, VersionDefaults
+from stopwatch.constants import (
+    HF_CACHE_PATH,
+    HOURS,
+    SECONDS,
+    TRACES_PATH,
+    VLLM_CACHE_PATH,
+    VersionDefaults,
+)
 from stopwatch.resources import (
     app,
     hf_cache_volume,
@@ -15,8 +22,6 @@ from stopwatch.resources import (
     traces_volume,
     vllm_cache_volume,
 )
-
-from .constants import HF_CACHE_PATH, TRACES_PATH, VLLM_CACHE_PATH
 
 PORT = 8000
 VLLM_PYTHON_BINARY = "/usr/bin/python3"

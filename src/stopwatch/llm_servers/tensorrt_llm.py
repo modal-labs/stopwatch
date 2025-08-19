@@ -11,10 +11,8 @@ from pathlib import Path
 
 import modal
 
-from stopwatch.constants import HOURS, SECONDS, VersionDefaults
+from stopwatch.constants import HF_CACHE_PATH, HOURS, SECONDS, VersionDefaults
 from stopwatch.resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
-
-from .constants import HF_CACHE_PATH
 
 LLM_KWARGS_PATH = "llm_kwargs.yaml"
 PORT = 8000

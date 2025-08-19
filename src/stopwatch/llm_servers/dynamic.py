@@ -5,7 +5,17 @@ from typing import Any
 
 import modal
 
-from stopwatch.constants import HOURS, MINUTES, SECONDS, VersionDefaults
+from stopwatch.constants import (
+    DB_PATH,
+    HF_CACHE_PATH,
+    HOURS,
+    MINUTES,
+    SECONDS,
+    TRACES_PATH,
+    VLLM_CACHE_PATH,
+    LLMServerType,
+    VersionDefaults,
+)
 from stopwatch.resources import (
     app,
     db_volume,
@@ -15,21 +25,10 @@ from stopwatch.resources import (
     vllm_cache_volume,
 )
 
-from .constants import (
-    DB_PATH,
-    HF_CACHE_PATH,
-    SGLANG,
-    TENSORRT_LLM,
-    TOKASAURUS,
-    VLLM,
-    VLLM_PD_DISAGGREGATION,
-)
 from .sglang import SGLangBase, sglang_image_factory
 from .tensorrt_llm import TensorRTLLMBase, tensorrt_llm_image_factory
 from .tokasaurus import TokasaurusBase, tokasaurus_image_factory
 from .vllm import (
-    TRACES_PATH,
-    VLLM_CACHE_PATH,
     vllm_image_factory,
     vLLMBase,
 )
@@ -38,28 +37,31 @@ from .vllm_pd_disaggregation import (
 )
 
 
-def get_llm_server_class(llm_server_type: str) -> type:
+def get_llm_server_class(llm_server_type: LLMServerType) -> type:
     """Get the base class for creating an LLM server with a given type."""
 
     llm_server_classes = {
-        SGLANG: SGLangBase,
-        TENSORRT_LLM: TensorRTLLMBase,
-        TOKASAURUS: TokasaurusBase,
-        VLLM: vLLMBase,
-        VLLM_PD_DISAGGREGATION: vLLMBase,
+        LLMServerType.sglang: SGLangBase,
+        LLMServerType.tensorrt_llm: TensorRTLLMBase,
+        LLMServerType.tokasaurus: TokasaurusBase,
+        LLMServerType.vllm: vLLMBase,
+        LLMServerType.vllm_pd_disaggregation: vLLMBase,
     }
 
     return llm_server_classes[llm_server_type]
 
 
-def get_image(llm_server_type: str, llm_server_config: dict[str, Any]) -> modal.Image:
+def get_image(
+    llm_server_type: LLMServerType,
+    llm_server_config: dict[str, Any],
+) -> modal.Image:
     """Create an image for an LLM server with a given type and configuration."""
     image_factory_fn = {
-        SGLANG: sglang_image_factory,
-        TENSORRT_LLM: tensorrt_llm_image_factory,
-        TOKASAURUS: tokasaurus_image_factory,
-        VLLM: vllm_image_factory,
-        VLLM_PD_DISAGGREGATION: vllm_pd_disaggregation_image_factory,
+        LLMServerType.sglang: sglang_image_factory,
+        LLMServerType.tensorrt_llm: tensorrt_llm_image_factory,
+        LLMServerType.tokasaurus: tokasaurus_image_factory,
+        LLMServerType.vllm: vllm_image_factory,
+        LLMServerType.vllm_pd_disaggregation: vllm_pd_disaggregation_image_factory,
     }
 
     return image_factory_fn[llm_server_type](
@@ -68,35 +70,35 @@ def get_image(llm_server_type: str, llm_server_config: dict[str, Any]) -> modal.
     )
 
 
-def get_scaledown_window(llm_server_type: str) -> int:
+def get_scaledown_window(llm_server_type: LLMServerType) -> int:
     """Get the scaledown window for an LLM server with a given type."""
 
     scaledown_windows = {
-        SGLANG: 2 * MINUTES,
-        TENSORRT_LLM: 30 * SECONDS,
-        TOKASAURUS: 2 * MINUTES,
-        VLLM: 30 * SECONDS,
-        VLLM_PD_DISAGGREGATION: 30 * SECONDS,
+        LLMServerType.sglang: 2 * MINUTES,
+        LLMServerType.tensorrt_llm: 30 * SECONDS,
+        LLMServerType.tokasaurus: 2 * MINUTES,
+        LLMServerType.vllm: 30 * SECONDS,
+        LLMServerType.vllm_pd_disaggregation: 30 * SECONDS,
     }
 
     return scaledown_windows[llm_server_type]
 
 
-def get_timeout(llm_server_type: str) -> int:
+def get_timeout(llm_server_type: LLMServerType) -> int:
     """Get the timeout for an LLM server with a given type."""
 
     timeouts = {
-        SGLANG: 30 * MINUTES,
-        TENSORRT_LLM: 30 * MINUTES,
-        TOKASAURUS: 30 * MINUTES,
-        VLLM: 1 * HOURS,
-        VLLM_PD_DISAGGREGATION: 1 * HOURS,
+        LLMServerType.sglang: 30 * MINUTES,
+        LLMServerType.tensorrt_llm: 30 * MINUTES,
+        LLMServerType.tokasaurus: 30 * MINUTES,
+        LLMServerType.vllm: 1 * HOURS,
+        LLMServerType.vllm_pd_disaggregation: 1 * HOURS,
     }
 
     return timeouts[llm_server_type]
 
 
-def get_volumes(llm_server_type: str) -> dict[str, modal.Volume]:
+def get_volumes(llm_server_type: LLMServerType) -> dict[str, modal.Volume]:
     """Get the volumes for an LLM server with a given type."""
 
     volumes = {
@@ -104,10 +106,10 @@ def get_volumes(llm_server_type: str) -> dict[str, modal.Volume]:
         HF_CACHE_PATH: hf_cache_volume,
     }
 
-    if llm_server_type in (VLLM, VLLM_PD_DISAGGREGATION):
+    if llm_server_type in (LLMServerType.vllm, LLMServerType.vllm_pd_disaggregation):
         volumes[VLLM_CACHE_PATH] = vllm_cache_volume
 
-        if llm_server_type == VLLM:
+        if llm_server_type == LLMServerType.vllm:
             volumes[TRACES_PATH] = traces_volume
 
     return volumes
@@ -116,7 +118,7 @@ def get_volumes(llm_server_type: str) -> dict[str, modal.Volume]:
 def LLMServerClassFactory(  # noqa: N802
     name: str,
     model: str,
-    llm_server_type: str,
+    llm_server_type: LLMServerType,
     llm_server_config: dict[str, Any] | None = None,
     *,
     parametrized_fn: bool = False,
@@ -126,8 +128,7 @@ def LLMServerClassFactory(  # noqa: N802
 
     :param: name: The name of the class.
     :param: model: Name of the model deployed on this server.
-    :param: llm_server_type: Type of LLM server (e.g. "vllm", "sglang",
-        "tensorrt-llm").
+    :param: llm_server_type: Type of LLM server.
     :param: llm_server_config: Extra configuration for the LLM server.
     :param: parametrized_fn: Set to True to create a parametrized function.
     :return: A server class that hosts an OpenAI-compatible API endpoint.
@@ -158,7 +159,7 @@ def create_dynamic_llm_server_cls(
     model: str,
     *,
     gpu: str,
-    llm_server_type: str,
+    llm_server_type: LLMServerType,
     cpu: int | None = None,
     memory: int | None = None,
     min_containers: int | None = None,
@@ -194,7 +195,7 @@ def create_dynamic_llm_server_cls(
     # Save server config to the DB volume so the class can be recreated later
     server_config = {
         "model": model,
-        "llm_server_type": llm_server_type,
+        "llm_server_type": llm_server_type.value,
         "llm_server_config": llm_server_config,
         "parametrized_fn": parametrized_fn,
     }
@@ -253,7 +254,7 @@ def __getattr__(name: str):  # noqa: ANN202
         return LLMServerClassFactory(
             name,
             server_config["model"],
-            server_config["llm_server_type"],
+            LLMServerType(server_config["llm_server_type"]),
             server_config["llm_server_config"],
             parametrized_fn=server_config["parametrized_fn"],
         )

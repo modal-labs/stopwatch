@@ -1,5 +1,4 @@
 import itertools
-from enum import Enum
 from typing import Any
 
 from sqlalchemy import JSON, Column, DateTime, Float, Integer, String
@@ -205,11 +204,3 @@ def benchmark_class_factory(table_name: str = "benchmarks") -> type:
 
 
 Benchmark = benchmark_class_factory()
-
-
-class RateType(Enum):
-    """Types of rates for running benchmarks."""
-
-    CONSTANT = "constant"
-    SYNCHRONOUS = "synchronous"
-    THROUGHPUT = "throughput"

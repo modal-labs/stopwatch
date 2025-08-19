@@ -23,10 +23,10 @@ def vllm_pd_disaggregation_image_factory(
     docker_tag: str = VersionDefaults.VLLM,
 ) -> modal.Image:
     """
-    Create a Modal image for running a vLLM server.
+    Create a Modal image for running a vLLM server with PD disaggregation.
 
     :param: docker_tag: The tag of the vLLM Docker image to use.
-    :return: A Modal image for running a vLLM server.
+    :return: A Modal image for running a vLLM server with PD disaggregation.
     """
 
     return vllm_image_factory(
