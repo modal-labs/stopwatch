@@ -6,4 +6,4 @@ base_config:
     - vllm
     - sglang
   data: prompt_tokens=1024,output_tokens=128
-  gpu: H100
+  gpu: H100!

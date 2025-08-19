@@ -44,9 +44,9 @@ with benchmark_suite_image.imports():
     import grpclib
     import numpy as np
 
+    from .constants import RateType
     from .db import (
         Benchmark,
-        RateType,
         benchmark_class_factory,
         create_all,
         engine,

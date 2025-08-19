@@ -14,7 +14,7 @@ base_config:
     - prompt_tokens=2048,output_tokens=2048
 configs:
   - model: Qwen/Qwen3-235B-A22B
-    gpu: H100:8
+    gpu: H100!:8
     llm_server_config:
       - extra_args: ["--tp", "8", "--reasoning-parser", "qwen3"]
 

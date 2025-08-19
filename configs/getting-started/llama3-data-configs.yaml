@@ -8,4 +8,4 @@ base_config:
   data:
     - prompt_tokens=1024,output_tokens=128
     - prompt_tokens=128,output_tokens=1024
-  gpu: H100
+  gpu: H100!

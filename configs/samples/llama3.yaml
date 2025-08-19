@@ -13,7 +13,7 @@ base_config:
   llm_server_type:
     - sglang
     - vllm
-  gpu: H100
+  gpu: H100!
   data:
     - prompt_tokens=128,output_tokens=1024
     - prompt_tokens=1024,output_tokens=128

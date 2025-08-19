@@ -3,7 +3,7 @@ base_config:
   model: meta-llama/Llama-3.1-70B-Instruct
   region: us-chicago-1
   data: prompt_tokens=1024,output_tokens=128
-  gpu: H100:8
+  gpu: H100!:8
 configs:
   - llm_server_type: vllm
     llm_server_config:

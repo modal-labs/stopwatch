@@ -25,4 +25,4 @@ base_config:
       ]
   model: cognitivecomputations/DeepSeek-V3-0324-AWQ
 configs:
-  - gpu: H100:8
+  - gpu: H100!:8

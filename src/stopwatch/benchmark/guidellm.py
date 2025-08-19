@@ -184,6 +184,11 @@ class GuideLLMRunner:
         if not isinstance(rate_type, list):
             rate_type = [rate_type]
 
+        # Convert RateTypes to strings
+        for i in range(len(rate_type)):
+            if isinstance(rate_type, RateType):
+                rate_type[i] = rate_type[i].value
+
         if not isinstance(rate, list):
             rate = [rate]
 
@@ -254,7 +259,7 @@ class GuideLLMRunner:
                 rate_i,
             )
 
-            profile = create_profile(rate_type=rate_type_i.value, rate=rate_i)
+            profile = create_profile(rate_type=rate_type_i, rate=rate_i)
             benchmarker_kwargs = {
                 "backend": backend,
                 "request_loader": request_loader,
@@ -295,7 +300,7 @@ class GuideLLMRunner:
                     benchmark_results.append(
                         {
                             "rate": rate_i,
-                            "rate_type": rate_type_i.value,
+                            "rate_type": rate_type_i,
                             "results": {
                                 **result.current_benchmark.model_dump(),
                                 "queue_duration": queue_duration,

@@ -1,10 +1,9 @@
 id: structured-outputs
-repeats: 3
 base_config:
-  model: meta-llama/Llama-3.3-70B-Instruct
-  gpu: H100:4
+  model: meta-llama/Llama-3.1-8B-Instruct
+  gpu: H100!
   region: us-chicago-1
-  data: prompt_tokens=4096,output_tokens=256
+  data: prompt_tokens=512,output_tokens=128
 configs:
   - llm_server_type: vllm
     client_config:
@@ -18,8 +17,6 @@ configs:
             - summary
           title: Summary
           type: object
-    llm_server_config:
-      extra_args: ["--tensor-parallel-size", "4", "--max-model-len", "8192"]
   - llm_server_type: sglang
     client_config:
       # SGLang only supports structured outputs for chat completions
@@ -40,14 +37,8 @@ configs:
               type: object
     llm_server_config:
       # The default backend, xgrammar, doesn't seem to work with this schema
-      extra_args:
-        [
-          "--chat-template",
-          "/home/no-system-prompt.jinja",
-          "--grammar-backend",
-          "outlines",
-          "--tp",
-          "4",
-          "--context-length",
-          "8192",
-        ]
+      extra_args: ["--grammar-backend", "outlines"]
+      image_kwargs:
+        extra_python_packages:
+          - outlines
+          - transformers==4.53.3

@@ -43,8 +43,7 @@ SERVER_CONFIGS = {
     LLMServerType.sglang: {
         "extra_args": ["--grammar-backend", "outlines"],
         "image_kwargs": {
-            "extra_python_packages": ["outlines"],
-            "transformers_version": "4.53.3",
+            "extra_python_packages": ["outlines", "transformers==4.53.3"],
         },
     },
 }

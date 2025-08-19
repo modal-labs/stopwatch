@@ -16,4 +16,4 @@ base_config:
     - prompt_tokens=2048,output_tokens=2048
 configs:
   - model: zed-industries/zeta
-    gpu: H100
+    gpu: H100!

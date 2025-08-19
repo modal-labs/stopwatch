@@ -4,6 +4,6 @@ base_config:
   region: us-chicago-1
   llm_server_type: vllm
   data: prompt_tokens=1024,output_tokens=128
-  gpu: H100:8
+  gpu: H100!:8
   llm_server_config:
     extra_args: ["--tensor-parallel-size", "8"]

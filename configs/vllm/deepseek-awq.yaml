@@ -31,4 +31,4 @@ base_config:
         VLLM_MARLIN_USE_ATOMIC_ADD: "1"
 configs:
   - model: cognitivecomputations/DeepSeek-V3-0324-AWQ
-    gpu: H100:8
+    gpu: H100!:8

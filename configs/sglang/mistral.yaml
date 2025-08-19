@@ -14,6 +14,6 @@ base_config:
     - prompt_tokens=2048,output_tokens=2048
 configs:
   - model: mistralai/Ministral-8B-Instruct-2410
-    gpu: H100
+    gpu: H100!
   - model: mistralai/Mistral-Small-3.1-24B-Instruct-2503
-    gpu: H100
+    gpu: H100!

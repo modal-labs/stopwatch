@@ -1,4 +1,4 @@
-id: sglang-deepseek
+id: tensorrt-llm-deepseek
 base_config:
   model: deepseek-ai/DeepSeek-V3-0324
   data:
@@ -11,14 +11,26 @@ base_config:
     # - prompt_tokens=512,output_tokens=4096
     # - prompt_tokens=4096,output_tokens=512
     # - prompt_tokens=2048,output_tokens=2048
-  llm_server_type: sglang
-  llm_server_config:
-    extra_args: ["--tp", "8", "--context-length", "16384"]
+  llm_server_type: tensorrt-llm
+  # llm_server_config:
+  #   llm_kwargs:
+  #     cuda_graph_config:
+  #       enable_padding: true
+  #       batch_sizes:
+  #         - 1
+  #         - 2
+  #         - 4
+  #         - 8
+  #         - 16
+  #         - 32
+  #         - 64
+  #         - 128
+  #         - 256
+  #         - 384
+  #     print_iter_log: true
+  #     enable_attention_dp: true
 configs:
   - gpu: H200:8
     region: us-east-1
   - gpu: B200:8
     region: us-ashburn-1
-    llm_server_config:
-      extra_args: ["--tp", "8", "--context-length", "16384"]
-      version: v0.4.10.post2-cu128-b200

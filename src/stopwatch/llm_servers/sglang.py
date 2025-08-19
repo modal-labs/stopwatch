@@ -15,7 +15,6 @@ PORT = 30000
 def sglang_image_factory(
     docker_tag: str = LLMServerType.sglang.get_version(),
     extra_python_packages: list[str] | None = None,
-    transformers_version: str | None = None,
 ) -> modal.Image:
     """
     Create a Modal image for running an SGLang server.
@@ -33,20 +32,9 @@ def sglang_image_factory(
             # vLLM is needed for its AWQ marlin kernel
             "vllm",
             *(extra_python_packages or []),
-            *(
-                [f"transformers=={transformers_version}"]
-                if transformers_version
-                else []
-            ),
         )
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
-        .dockerfile_commands(
-            [
-                "RUN echo '{%- for message in messages %}{{- message.content }}"
-                "{%- endfor %}' > /home/no-system-prompt.jinja",
-                "ENTRYPOINT []",
-            ],
-        )
+        .dockerfile_commands("ENTRYPOINT []")
     )
 
 

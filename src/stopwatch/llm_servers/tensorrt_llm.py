@@ -57,7 +57,7 @@ def tensorrt_llm_image_factory(
         )
         .uv_pip_install(
             "hf-transfer",
-            "huggingface_hub[hf_xet]",
+            "huggingface-hub[hf_xet]",
             "requests",
         )
         .env(

@@ -1,7 +1,6 @@
 from .base import Base
 from .benchmark import (
     Benchmark,
-    RateType,
     benchmark_class_factory,
 )
 from .db import engine, session
@@ -14,7 +13,6 @@ def create_all() -> None:
 
 __all__ = [
     "Benchmark",
-    "RateType",
     "benchmark_class_factory",
     "create_all",
     "session",

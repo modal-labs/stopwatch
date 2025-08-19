@@ -4,4 +4,4 @@ base_config:
   region: us-chicago-1
   llm_server_type: vllm
   data: prompt_tokens=1024,output_tokens=128
-  gpu: H100
+  gpu: H100!

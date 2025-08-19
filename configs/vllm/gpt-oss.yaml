@@ -1,7 +1,8 @@
-id: tensorrt-llm-mistral
+id: vllm-gpt-oss
 base_config:
   region: us-chicago-1
-  llm_server_type: tensorrt-llm
+  llm_server_type: vllm
+  gpu: H100!
   data:
     - prompt_tokens=128,output_tokens=1024
     - prompt_tokens=1024,output_tokens=128
@@ -13,9 +14,7 @@ base_config:
     - prompt_tokens=4096,output_tokens=512
     - prompt_tokens=2048,output_tokens=2048
 configs:
-  - model: mistralai/Ministral-8B-Instruct-2410
-    gpu: H100!
-
-  # Not supported by TensorRT-LLM
-  # - model: mistralai/Mistral-Small-3.1-24B-Instruct-2503
-  #   gpu: H100!
+  - model: openai/gpt-oss-20b
+  - model: openai/gpt-oss-120b
+    llm_server_config:
+      extra_args: ["--max-model-len", "16384"]

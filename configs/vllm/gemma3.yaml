@@ -17,7 +17,7 @@ base_config:
 configs:
   # 4B
   - model: google/gemma-3-4b-it
-    gpu: H100
+    gpu: H100!
     data:
       - prompt_tokens=128,output_tokens=1024
       - prompt_tokens=1024,output_tokens=128
@@ -31,16 +31,11 @@ configs:
       - prompt_tokens=8192,output_tokens=512
       - prompt_tokens=16384,output_tokens=512
       - prompt_tokens=32768,output_tokens=512
-  # - model: google/gemma-3-4b-it
-  #   gpu:
-  #     - A10
-  #     - L40S
-  #   region: us-ashburn-1
 
   # 12B
   - model: google/gemma-3-12b-it
-    gpu: H100
+    gpu: H100!
 
   # 27B
   - model: google/gemma-3-27b-it
-    gpu: H100
+    gpu: H100!

@@ -52,14 +52,7 @@ def vllm_image_factory(
                 "VLLM_SKIP_P2P_CHECK": "1",
             },
         )
-        .dockerfile_commands(
-            [
-                "RUN echo '{%- for message in messages %}{{- message.content }}"
-                "{%- endfor %}' > /home/no-system-prompt.jinja",
-                *(extra_dockerfile_commands or []),
-                "ENTRYPOINT []",
-            ],
-        )
+        .dockerfile_commands(*(extra_dockerfile_commands or []), "ENTRYPOINT []")
     )
 
 

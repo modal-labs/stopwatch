@@ -8,6 +8,7 @@ import modal
 import yaml
 
 from stopwatch.benchmark import create_dynamic_benchmark_runner_cls
+from stopwatch.constants import LLMServerType
 from stopwatch.llm_servers import create_dynamic_llm_server_cls
 from stopwatch.resources import app, db_volume
 from stopwatch.run_benchmark_suite import run_benchmark_suite
@@ -129,7 +130,7 @@ def run_benchmark_suite_cli(
                     benchmark_names[i][j],
                     benchmark_config["model"],
                     gpu=benchmark_config["gpu"],
-                    llm_server_type=benchmark_config["llm_server_type"],
+                    llm_server_type=LLMServerType(benchmark_config["llm_server_type"]),
                     region=benchmark_config.get("server_region"),
                     llm_server_config=benchmark_config.get("llm_server_config", {}),
                     batch=batch,
