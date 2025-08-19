@@ -108,8 +108,8 @@ def get_volumes(llm_server_type: LLMServerType) -> dict[str, modal.Volume]:
     if llm_server_type in (LLMServerType.vllm, LLMServerType.vllm_pd_disaggregation):
         volumes[VLLM_CACHE_PATH] = vllm_cache_volume
 
-        if llm_server_type == LLMServerType.vllm:
-            volumes[TRACES_PATH] = traces_volume
+    if llm_server_type in (LLMServerType.vllm, LLMServerType.sglang):
+        volumes[TRACES_PATH] = traces_volume
 
     return volumes
 
