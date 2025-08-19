@@ -1,7 +1,7 @@
 import json
 import os
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime
 
 import modal
 
@@ -45,7 +45,7 @@ class vLLMPDDisaggregationBase:
         """Start a vLLM server."""
 
         # Save the startup time to a dictionary so we can measure cold start duration
-        startup_metrics_dict[self.caller_id] = datetime.now(timezone.utc).timestamp()
+        startup_metrics_dict[self.caller_id] = datetime.now(datetime.UTC).timestamp()
 
         hf_cache_volume.reload()
         vllm_cache_volume.reload()

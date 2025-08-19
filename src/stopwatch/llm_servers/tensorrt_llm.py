@@ -6,7 +6,7 @@ import subprocess
 import time
 import traceback
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import modal
@@ -201,7 +201,7 @@ class TensorRTLLMBase:
         """Start a TensorRT-LLM server."""
 
         # Save the startup time to a dictionary so we can measure cold start duration
-        startup_metrics_dict[self.caller_id] = datetime.now(timezone.utc).timestamp()
+        startup_metrics_dict[self.caller_id] = datetime.now(UTC).timestamp()
 
         if not self.model:
             msg = "model must be set, e.g. 'meta-llama/Llama-3.1-8B-Instruct'"

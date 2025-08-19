@@ -42,23 +42,17 @@ indent-style = "space"
 
 [tool.ruff.lint]
 ignore = [
-  "C901",
+  # Various dumb rules related to docstrings
   "D100",
   "D104",
   "D202",
   "D203",
   "D205",
   "D212",
-  "FIX002",
-  "PD901",
-  "PLC0415",
-  "PLR0912",
-  "PLR0913",
-  "PLR0915",
-  "S113",
-  "TD003",
-  "TRY002", # remove this one later
-  "UP017", # sglang image uses python 3.10
+
+  "PLC0415",  # Allow imports that aren't at the top of the file
+  "PLR0913",  # Allow functions with more than 5 arguments
+  "S113",  # Allow requests without timeouts
 ]
 select = [
   "ALL",
@@ -66,22 +60,17 @@ select = [
 
 [tool.ruff.lint.extend-per-file-ignores]
 "src/stopwatch/cli/*.py" = [
-  "T201",
+  "T201",  # Allow print statements in CLI
 ]
 "src/stopwatch/llm_servers/*.py" = [
-  "D101",
-  "N801",
-  "S104",
-  "S602",
+  "N801",  # Allow class names to be lowercase
+  "S104",  # Allow binding to all interfaces
+  "S602",  # Allow subprocess.Popen with shell=True
 ]
-"src/stopwatch/run_benchmark.py" = [
-  "D101",
-  "N801",
+"src/stopwatch/llm_servers/sglang.py" = [
+  "UP017",  # Allow timezone.utc on the SGLang image, which uses Python 3.10
 ]
 "tests/**/test_*.py" = [
   "S101",  # Allow assert statements in tests
   "PLR2004",  # Allow constant values in tests
-]
-"tools/pd_disaggregation_proxy_server.py" = [
-  "S104",
 ]

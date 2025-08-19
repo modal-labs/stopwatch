@@ -2,7 +2,7 @@ import json
 import os
 import subprocess
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import modal
 
@@ -113,7 +113,7 @@ class vLLMBase:
         """Start a vLLM server."""
 
         # Save the startup time to a dictionary so we can measure cold start duration
-        startup_metrics_dict[self.caller_id] = datetime.now(timezone.utc).timestamp()
+        startup_metrics_dict[self.caller_id] = datetime.now(UTC).timestamp()
 
         hf_cache_volume.reload()
         vllm_cache_volume.reload()
