@@ -1,6 +1,0 @@
-id: full-suite
-files:
-  - sglang/all.yaml
-  - vllm/all.yaml
-  - tensorrt-llm/all.yaml
-  - tokasaurus/all.yaml

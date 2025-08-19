@@ -1,7 +1,7 @@
 import pytest
 
-from stopwatch.cli import run_benchmark_cli
-from stopwatch.constants import LLMServerType, RateType
+from stopwatch.cli import provision_and_benchmark_cli
+from stopwatch.constants import LLMServerType
 
 CLIENT_CONFIGS = {
     LLMServerType.sglang: {
@@ -53,7 +53,7 @@ SERVER_CONFIGS = {
 def test_structured_outputs(llm_server_type: LLMServerType) -> None:
     """Test that a quick synchronous benchmark runs successfully."""
 
-    results = run_benchmark_cli(
+    results = provision_and_benchmark_cli(
         "meta-llama/Llama-3.1-8B-Instruct",
         llm_server_type,
         gpu="H100!",
@@ -62,6 +62,8 @@ def test_structured_outputs(llm_server_type: LLMServerType) -> None:
         client_config=CLIENT_CONFIGS.get(llm_server_type),
     )
 
+    # Only one benchmark should have been run
     assert len(results) == 1
-    assert results[0]["rate_type"] == RateType.synchronous.value
-    assert len(results[0]["results"]) > 0
+
+    # At least one successful request should have been made
+    assert results[0]["run_stats"]["requests_made"]["successful"] > 0

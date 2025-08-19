@@ -7,32 +7,21 @@ name = "stopwatch"
 version = "0.1.0"
 requires-python = ">=3.11,<4.0"
 dependencies = [
+  "guidellm @ git+https://github.com/neuralmagic/guidellm.git#1261fe8",
   "modal~=1.1.2",
-  "PyYAML~=6.0.2",
+  "pytest~=8.4.1",
+  "pytest-rerunfailures~=15.1",
+  "pytest-xdist~=3.8.0",
+  "requests~=2.32.4",
 ]
 authors = [
   {name = "Jack Cook", email = "hello@jackcook.com"},
 ]
 description = "A tool for benchmarking LLMs on Modal"
 readme = "README.md"
-license = "CC-BY-4.0"
+license = "MIT"
 license-files = ["LICENSE.md"]
 keywords = ["machine-learning", "llms", "vllm", "sglang", "tensorrt-llm"]
-
-[project.optional-dependencies]
-tests = [
-  "datasette~=0.65.1",
-  "fastapi[standard]~=0.116.1",
-  "grpclib==0.4.8",
-  "guidellm @ git+https://github.com/neuralmagic/guidellm.git#1261fe8",
-  "numpy~=2.3.2",
-  "pandas~=2.3.1",
-  "prometheus-client~=0.22.1",
-  "pytest~=8.4.1",
-  "pytest-xdist~=3.8.0",
-  "requests~=2.32.4",
-  "SQLAlchemy~=2.0.43",
-]
 
 [project.scripts]
 stopwatch = "stopwatch.cli:app"
@@ -89,10 +78,10 @@ select = [
   "D101",
   "N801",
 ]
-"src/tools/pd_disaggregation_proxy_server.py" = [
-  "S104",
-]
 "tests/**/test_*.py" = [
   "S101",  # Allow assert statements in tests
   "PLR2004",  # Allow constant values in tests
+]
+"tools/pd_disaggregation_proxy_server.py" = [
+  "S104",
 ]

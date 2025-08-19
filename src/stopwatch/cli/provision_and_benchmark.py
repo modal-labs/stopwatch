@@ -6,7 +6,7 @@ from typing import Annotated
 import modal
 import typer
 
-from stopwatch.benchmark import create_dynamic_benchmark_runner_cls
+from stopwatch.benchmark import GuideLLM
 from stopwatch.constants import LLMServerType, RateType
 from stopwatch.llm_servers import create_dynamic_llm_server_cls
 from stopwatch.resources import app
@@ -21,10 +21,10 @@ def rate_type_callback(ctx: typer.Context, rate_type: RateType) -> RateType:
         msg = "Rate must be provided when rate_type is constant"
         raise typer.BadParameter(msg)
 
-    return rate_type
+    return rate_type.value
 
 
-def run_benchmark_cli(
+def provision_and_benchmark_cli(
     model: str,
     llm_server_type: LLMServerType,
     *,
@@ -50,7 +50,6 @@ def run_benchmark_cli(
     """Run a benchmark."""
 
     name = uuid.uuid4().hex[:4]
-    client_cls = create_dynamic_benchmark_runner_cls(name, client_region)
     server_cls = create_dynamic_llm_server_cls(
         name,
         model,
@@ -62,7 +61,7 @@ def run_benchmark_cli(
     )
 
     with modal.enable_output(), app.run(detach=detach):
-        results = client_cls().run_benchmark.remote(
+        results = GuideLLM.with_options(region=client_region)().run_benchmark.remote(
             endpoint=f"{server_cls().start.get_web_url()}/v1",
             model=model,
             rate_type=rate_type,
