@@ -20,7 +20,7 @@ LLM_SERVER_TYPE=vllm
 MODEL=meta-llama/Llama-3.1-8B-Instruct
 OUTPUT_PATH=results.json
 
-stopwatch provision-and-benchmark $MODEL --output-path $OUTPUT_PATH --llm-server-type $LLM_SERVER_TYPE
+stopwatch provision-and-benchmark $MODEL $LLM_SERVER_TYPE --output-path $OUTPUT_PATH
 ```
 
 Or, to run a fixed-rate (e.g. 5 requests per second) multi-GPU benchmark with SGLang:
@@ -32,7 +32,7 @@ LLM_SERVER_TYPE=sglang
 RATE_TYPE=constant
 REQUESTS_PER_SECOND=5
 
-stopwatch provision-and-benchmark $MODEL --output-path $OUTPUT_PATH --gpu "$GPU_TYPE:$GPU_COUNT" --model $MODEL --llm-server-type $LLM_SERVER_TYPE --rate-type $RATE_TYPE --rate $REQUESTS_PER_SECOND --llm-server-config "{\"extra_args\": [\"--tp-size\", \"$GPU_COUNT\"]}"
+stopwatch provision-and-benchmark $MODEL $LLM_SERVER_TYPE --output-path $OUTPUT_PATH --gpu "$GPU_TYPE:$GPU_COUNT" --rate-type $RATE_TYPE --rate $REQUESTS_PER_SECOND --llm-server-config "{\"extra_args\": [\"--tp-size\", \"$GPU_COUNT\"]}"
 ```
 
 Or, to run a throughput (as many requests as the server can handle) test with TensorRT-LLM:
@@ -41,19 +41,20 @@ Or, to run a throughput (as many requests as the server can handle) test with Te
 LLM_SERVER_TYPE=tensorrt-llm
 RATE_TYPE=throughput
 
-stopwatch provision-and-benchmark $MODEL --output-path $OUTPUT_PATH --llm-server-type $LLM_SERVER_TYPE --rate-type $RATE_TYPE
+stopwatch provision-and-benchmark $MODEL $LLM_SERVER_TYPE --output-path $OUTPUT_PATH --rate-type $RATE_TYPE
 ```
 
 ## Run the profiler
 
-To profile vLLM with the PyTorch profiler, use the following command:
+To profile a server with the PyTorch profiler, use the following command (only vLLM and SGLang are currently supported):
 
 ```bash
+LLM_SERVER_TYPE=vllm
 MODEL=meta-llama/Llama-3.1-8B-Instruct
 NUM_REQUESTS=10
 OUTPUT_PATH=trace.json.gz
 
-stopwatch profile $MODEL --output-path $OUTPUT_PATH --num-requests $NUM_REQUESTS
+stopwatch profile $MODEL $LLM_SERVER_TYPE --output-path $OUTPUT_PATH --num-requests $NUM_REQUESTS
 ```
 
 Once the profiling is done, the trace will be saved to `trace.json.gz`, which you can open and visualize at [https://ui.perfetto.dev](https://ui.perfetto.dev).
