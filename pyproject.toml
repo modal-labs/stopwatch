@@ -8,7 +8,7 @@ version = "0.1.0"
 requires-python = ">=3.10,<4.0"
 dependencies = [
   "guidellm @ git+https://github.com/neuralmagic/guidellm.git#1261fe8",
-  "modal~=1.1.2",
+  "modal~=1.1.3",
   "pytest~=8.4.1",
   "pytest-rerunfailures~=15.1",
   "pytest-xdist~=3.8.0",
