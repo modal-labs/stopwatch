@@ -242,6 +242,8 @@ class GuideLLM:
                     benchmark_results.append(
                         {
                             **result.current_benchmark.model_dump(),
+                            "rate_type": rate_type_i,
+                            "rate": rate_i,
                             "queue_duration": queue_duration,
                             "cold_start_duration": cold_start_duration,
                         },

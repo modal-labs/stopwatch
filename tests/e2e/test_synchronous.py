@@ -34,5 +34,9 @@ def test_llama(llm_server_type: LLMServerType) -> None:
     # Only one benchmark should have been run
     assert len(results) == 1
 
+    # Check that the rate type and rate are in the results
+    assert results[0]["rate_type"] == "synchronous"
+    assert results[0]["rate"] is None
+
     # At least one successful request should have been made
     assert results[0]["run_stats"]["requests_made"]["successful"] > 0
