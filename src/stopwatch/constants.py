@@ -40,8 +40,8 @@ class LLMServerType(str, Enum):
             LLMServerType.sglang: "v0.4.10.post2-cu126",
             LLMServerType.tensorrt_llm: "1.0.0rc4",
             LLMServerType.tokasaurus: "0.0.4",
-            LLMServerType.vllm: "v0.10.1",
-            LLMServerType.vllm_pd_disaggregation: "v0.10.1",
+            LLMServerType.vllm: "v0.10.1.1",
+            LLMServerType.vllm_pd_disaggregation: "v0.10.1.1",
         }
 
         return versions[self]
