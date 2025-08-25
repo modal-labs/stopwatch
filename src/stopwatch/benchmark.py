@@ -1,3 +1,5 @@
+import asyncio
+import itertools
 import logging
 from collections.abc import Iterator, Mapping
 from datetime import datetime, timezone
@@ -8,6 +10,7 @@ import modal
 from stopwatch.constants import GUIDELLM_VERSION, HOURS, SECONDS, RateType
 from stopwatch.resources import app, hf_secret, results_volume, startup_metrics_dict
 
+DELAY_BETWEEN_BENCHMARKS = 5 * SECONDS
 MEMORY = 1 * 1024
 NUM_CORES = 2
 RESULTS_PATH = "/results"
@@ -97,22 +100,23 @@ class GuideLLM:
     """Run benchmarks with GuideLLM."""
 
     @modal.method()
-    async def run_benchmark(
+    async def run_benchmark(  # noqa: C901, PLR0912
         self,
         endpoint: str,
         model: str,
-        rate_type: RateType,
+        rate_type: RateType | list[RateType],
         data: str,
         caller_id: str | None = None,
         duration: float | None = 120,  # 2 minutes
         client_config: Mapping[str, Any] | None = None,
-        rate: float | None = None,
+        rate: float | list[float] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Benchmarks a LLM deployment on Modal.
 
         :param: model: Name of the model to benchmark.
-        :param: rate_type: The type of rate to use for benchmarking.
+        :param: rate_type: The type of rate to use for benchmarking. If this is a list,
+            benchmarks will be run sequentially at each rate type.
         :param: data: A configuration for emulated data (e.g.:
             'prompt_tokens=128,output_tokens=128').
         :param: duration: The duration of the benchmark in seconds.
@@ -131,12 +135,24 @@ class GuideLLM:
         if caller_id is not None:
             extra_query["caller_id"] = caller_id
 
-        # Convert rate_type to a string
-        if isinstance(rate_type, RateType):
-            rate_type = rate_type.value
+        # Convert rate_type to a list
+        if not isinstance(rate_type, list):
+            rate_type = [rate_type]
 
-        if rate is not None and rate != RateType.constant.value:
-            msg = "Rate must be None if rate_type is not RateType.constant"
+        # Convert RateTypes to strings
+        for i in range(len(rate_type)):
+            if isinstance(rate_type[i], RateType):
+                rate_type[i] = rate_type[i].value
+
+        # Convert rate to a list
+        if not isinstance(rate, list):
+            rate = [rate]
+
+        if len(rate_type) > 1 and len(rate) > 1:
+            msg = (
+                f"All benchmarks must have either the same rate type or the same rate: "
+                f"{rate_type} vs. {rate}"
+            )
             raise ValueError(msg)
 
         # Create the request loader before starting the LLM server, since this can take
@@ -192,35 +208,46 @@ class GuideLLM:
             cold_start_duration = None
 
         logger.info("Connected to backend for model %s", backend.model)
-        logger.info("Starting benchmark with rate type %s and rate %s", rate_type, rate)
 
-        profile = create_profile(rate_type=rate_type, rate=rate)
+        rates_to_run = list(itertools.product(rate_type, rate))
+        logger.info("Running %d benchmarks", len(rates_to_run))
 
-        benchmarker = GenerativeBenchmarker(
-            backend,
-            request_loader,
-            request_loader.description,
-            processor=processor,
-        )
+        for i, (rate_type_i, rate_i) in enumerate(rates_to_run):
+            logger.info(
+                "Starting benchmark with rate type %s and rate %s",
+                rate_type_i,
+                rate_i,
+            )
 
-        async for result in benchmarker.run(
-            profile=profile,
-            max_number_per_strategy=None,
-            max_duration_per_strategy=duration,
-            warmup_percent_per_strategy=None,
-            cooldown_percent_per_strategy=None,
-        ):
-            if result.type_ == "benchmark_compiled":
-                if result.current_benchmark is None:
-                    msg = "Current benchmark is None"
-                    raise ValueError(msg)
+            profile = create_profile(rate_type=rate_type_i, rate=rate_i)
+            benchmarker = GenerativeBenchmarker(
+                backend,
+                request_loader,
+                request_loader.description,
+                processor=processor,
+            )
 
-                benchmark_results.append(
-                    {
-                        **result.current_benchmark.model_dump(),
-                        "queue_duration": queue_duration,
-                        "cold_start_duration": cold_start_duration,
-                    },
-                )
+            async for result in benchmarker.run(
+                profile=profile,
+                max_number_per_strategy=None,
+                max_duration_per_strategy=duration,
+                warmup_percent_per_strategy=None,
+                cooldown_percent_per_strategy=None,
+            ):
+                if result.type_ == "benchmark_compiled":
+                    if result.current_benchmark is None:
+                        msg = "Current benchmark is None"
+                        raise ValueError(msg)
+
+                    benchmark_results.append(
+                        {
+                            **result.current_benchmark.model_dump(),
+                            "queue_duration": queue_duration,
+                            "cold_start_duration": cold_start_duration,
+                        },
+                    )
+
+            if i != len(rates_to_run) - 1:
+                await asyncio.sleep(DELAY_BETWEEN_BENCHMARKS)
 
         return benchmark_results
