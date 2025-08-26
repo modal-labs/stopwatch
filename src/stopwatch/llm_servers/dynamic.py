@@ -119,8 +119,6 @@ def LLMServerClassFactory(  # noqa: N802
     model: str,
     llm_server_type: LLMServerType,
     llm_server_config: dict[str, Any] | None = None,
-    *,
-    parametrized_fn: bool = False,
 ) -> type:
     """
     Create an LLM server class.
@@ -129,7 +127,6 @@ def LLMServerClassFactory(  # noqa: N802
     :param: model: Name of the model deployed on this server.
     :param: llm_server_type: Type of LLM server.
     :param: llm_server_config: Extra configuration for the LLM server.
-    :param: parametrized_fn: Set to True to create a parametrized function.
     :return: A server class that hosts an OpenAI-compatible API endpoint.
     """
 
@@ -140,15 +137,8 @@ def LLMServerClassFactory(  # noqa: N802
         (server_class,),
         {
             "model": model,
-            "caller_id": modal.parameter(default="") if parametrized_fn else "",
             "server_config": json.dumps(llm_server_config) or "{}",
-            "__annotations__": (
-                {
-                    "caller_id": str,
-                }
-                if parametrized_fn
-                else {}
-            ),
+            "__annotations__": {},
         },
     )
 
@@ -168,7 +158,6 @@ def create_dynamic_llm_server_cls(
     llm_server_config: dict[str, Any] | None = None,
     max_concurrent_inputs: int = 1000,
     batch: modal.volume.AbstractVolumeUploadContextManager | None = None,
-    parametrized_fn: bool = False,
 ) -> type:
     """
     Create an LLM server class on the fly that will be included in the deployed Modal
@@ -196,7 +185,6 @@ def create_dynamic_llm_server_cls(
         "model": model,
         "llm_server_type": llm_server_type.value,
         "llm_server_config": llm_server_config,
-        "parametrized_fn": parametrized_fn,
     }
 
     config_buf = io.BytesIO(json.dumps(server_config).encode())
@@ -229,7 +217,6 @@ def create_dynamic_llm_server_cls(
                 model,
                 llm_server_type,
                 llm_server_config,
-                parametrized_fn=parametrized_fn,
             ),
         ),
     )
@@ -255,7 +242,6 @@ def __getattr__(name: str):  # noqa: ANN202
             server_config["model"],
             LLMServerType(server_config["llm_server_type"]),
             server_config["llm_server_config"],
-            parametrized_fn=server_config["parametrized_fn"],
         )
 
     msg = f"No attribute {name}"
