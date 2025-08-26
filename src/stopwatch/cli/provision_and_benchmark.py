@@ -8,7 +8,7 @@ import typer
 
 from stopwatch.benchmark import GuideLLM
 from stopwatch.constants import LLMServerType, RateType
-from stopwatch.llm_servers import create_dynamic_llm_server_cls
+from stopwatch.llm_servers import create_dynamic_llm_server_class
 from stopwatch.resources import app
 
 from .utils import config_callback
@@ -49,9 +49,8 @@ def provision_and_benchmark_cli(
 ) -> list[dict]:
     """Run a benchmark."""
 
-    name = uuid.uuid4().hex[:4]
-    server_cls = create_dynamic_llm_server_cls(
-        name,
+    server_class, server_id = create_dynamic_llm_server_class(
+        uuid.uuid4().hex[:4],
         model,
         gpu=gpu,
         llm_server_type=llm_server_type,
@@ -62,13 +61,14 @@ def provision_and_benchmark_cli(
 
     with modal.enable_output(), app.run(detach=detach):
         results = GuideLLM.with_options(region=client_region)().run_benchmark.remote(
-            endpoint=f"{server_cls().start.get_web_url()}/v1",
+            endpoint=f"{server_class().start.get_web_url()}/v1",
             model=model,
             rate_type=rate_type,
             data=data,
             duration=duration,
             client_config=client_config,
             rate=rate,
+            server_id=server_id,
         )
 
         if output_path is not None:

@@ -50,6 +50,7 @@ SERVER_CONFIGS = {
 
 
 @pytest.mark.parametrize("llm_server_type", [LLMServerType.vllm, LLMServerType.sglang])
+@pytest.mark.timeout(300)
 def test_structured_outputs(llm_server_type: LLMServerType) -> None:
     """Test that a quick synchronous benchmark runs successfully."""
 

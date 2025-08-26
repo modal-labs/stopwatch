@@ -106,10 +106,10 @@ class GuideLLM:
         model: str,
         rate_type: RateType | list[RateType],
         data: str,
-        caller_id: str | None = None,
         duration: float | None = 120,  # 2 minutes
         client_config: Mapping[str, Any] | None = None,
         rate: float | list[float] | None = None,
+        server_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         Benchmarks a LLM deployment on Modal.
@@ -124,16 +124,14 @@ class GuideLLM:
         :param: rate: If rate_type is RateType.constant, specify the number of requests
             that should be made per second. If this is a list, benchmarks will be run
             sequentially at each request rate.
-        :param: kwargs: Additional keyword arguments.
+        :param: server_id: The ID of the server being benchmarked. Useful for tracking
+            cold start durations.
         """
 
         if client_config is None:
             client_config = {}
 
         extra_query = client_config.get("extra_query", {})
-
-        if caller_id is not None:
-            extra_query["caller_id"] = caller_id
 
         # Convert rate_type to a list
         if not isinstance(rate_type, list):
@@ -198,8 +196,8 @@ class GuideLLM:
         queue_duration = connection_time - queue_time
 
         if (
-            caller_id is not None
-            and (container_start_time := startup_metrics_dict.get(caller_id))
+            server_id is not None
+            and (container_start_time := startup_metrics_dict.get(server_id))
             is not None
         ):
             cold_start_duration = connection_time - container_start_time

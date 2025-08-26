@@ -138,12 +138,13 @@ def LLMServerClassFactory(  # noqa: N802
         {
             "model": model,
             "server_config": json.dumps(llm_server_config) or "{}",
+            "server_id": name,
             "__annotations__": {},
         },
     )
 
 
-def create_dynamic_llm_server_cls(
+def create_dynamic_llm_server_class(
     name: str,
     model: str,
     *,
@@ -158,7 +159,7 @@ def create_dynamic_llm_server_cls(
     llm_server_config: dict[str, Any] | None = None,
     max_concurrent_inputs: int = 1000,
     batch: modal.volume.AbstractVolumeUploadContextManager | None = None,
-) -> type:
+) -> tuple[type, str]:
     """
     Create an LLM server class on the fly that will be included in the deployed Modal
     app.
@@ -197,28 +198,31 @@ def create_dynamic_llm_server_cls(
         batch.put_file(config_buf, config_path)
 
     # Deploy the newly created class
-    return app.cls(
-        image=get_image(llm_server_type, llm_server_config),
-        secrets=[hf_secret],
-        gpu=gpu,
-        volumes=get_volumes(llm_server_type),
-        cpu=cpu,
-        memory=memory,
-        min_containers=min_containers,
-        max_containers=max_containers,
-        scaledown_window=get_scaledown_window(llm_server_type),
-        timeout=get_timeout(llm_server_type),
-        cloud=cloud,
-        region=region,
-    )(
-        modal.concurrent(max_inputs=max_concurrent_inputs)(
-            LLMServerClassFactory(
-                name,
-                model,
-                llm_server_type,
-                llm_server_config,
+    return (
+        app.cls(
+            image=get_image(llm_server_type, llm_server_config),
+            secrets=[hf_secret],
+            gpu=gpu,
+            volumes=get_volumes(llm_server_type),
+            cpu=cpu,
+            memory=memory,
+            min_containers=min_containers,
+            max_containers=max_containers,
+            scaledown_window=get_scaledown_window(llm_server_type),
+            timeout=get_timeout(llm_server_type),
+            cloud=cloud,
+            region=region,
+        )(
+            modal.concurrent(max_inputs=max_concurrent_inputs)(
+                LLMServerClassFactory(
+                    name,
+                    model,
+                    llm_server_type,
+                    llm_server_config,
+                ),
             ),
         ),
+        name,
     )
 
 

@@ -6,7 +6,7 @@ import modal
 import typer
 
 from stopwatch.constants import LLMServerType
-from stopwatch.llm_servers import create_dynamic_llm_server_cls
+from stopwatch.llm_servers import create_dynamic_llm_server_class
 from stopwatch.profile import profile
 from stopwatch.resources import app, traces_volume
 
@@ -57,7 +57,7 @@ def profile_cli(
             }
 
     name = uuid.uuid4().hex[:4]
-    server_cls = create_dynamic_llm_server_cls(
+    server_cls, _ = create_dynamic_llm_server_class(
         name,
         model,
         gpu=gpu,

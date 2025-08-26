@@ -4,7 +4,7 @@ import uuid
 import modal
 
 from stopwatch.constants import LLMServerType
-from stopwatch.llm_servers import create_dynamic_llm_server_cls
+from stopwatch.llm_servers import create_dynamic_llm_server_class
 from stopwatch.resources import app
 
 
@@ -25,13 +25,10 @@ def provision_cli(
 ) -> None:
     """Deploy an LLM server on Modal."""
 
-    # Pick a random name for the endpoint if not provided
-    if endpoint_label is None:
-        endpoint_label = uuid.uuid4().hex[:4]
-
     with modal.enable_output():
-        cls = create_dynamic_llm_server_cls(
-            endpoint_label,
+        cls, _ = create_dynamic_llm_server_class(
+            # Pick a random name for the server if not provided
+            endpoint_label or uuid.uuid4().hex[:4],
             model,
             gpu=gpu,
             llm_server_type=llm_server_type,

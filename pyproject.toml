@@ -11,6 +11,7 @@ dependencies = [
   "modal~=1.1.3",
   "pytest~=8.4.1",
   "pytest-rerunfailures~=15.1",
+  "pytest-timeout~=2.4.0",
   "pytest-xdist~=3.8.0",
   "requests~=2.32.5",
 ]
