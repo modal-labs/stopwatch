@@ -168,12 +168,6 @@ def create_dynamic_llm_server_class(
     # Set default values for parameters that are not provided
     num_gpus = 1 if ":" not in gpu else int(gpu.split(":")[1])
 
-    if cpu is None:
-        cpu = 4 * num_gpus
-
-    if memory is None:
-        memory = 8 * 1024 * num_gpus
-
     if llm_server_config is None:
         llm_server_config = {}
 
@@ -204,10 +198,10 @@ def create_dynamic_llm_server_class(
             secrets=[hf_secret],
             gpu=gpu,
             volumes=get_volumes(llm_server_type),
-            cpu=cpu,
-            memory=memory,
-            min_containers=min_containers,
-            max_containers=max_containers,
+            cpu=cpu or 4 * num_gpus,
+            memory=memory or 8 * 1024 * num_gpus,
+            min_containers=min_containers or 0,
+            max_containers=max_containers or 1,
             scaledown_window=get_scaledown_window(llm_server_type),
             timeout=get_timeout(llm_server_type),
             cloud=cloud,

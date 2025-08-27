@@ -5,7 +5,6 @@ import os
 import subprocess
 import time
 import traceback
-from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,11 +13,10 @@ import modal
 from stopwatch.constants import (
     HF_CACHE_PATH,
     HOURS,
-    SECONDS,
     TENSORRT_LLM_CUDA_VERSION,
     LLMServerType,
 )
-from stopwatch.resources import app, hf_cache_volume, hf_secret, startup_metrics_dict
+from stopwatch.resources import hf_cache_volume, startup_metrics_dict
 
 LLM_KWARGS_PATH = "llm_kwargs.yaml"
 PORT = 8000
@@ -68,51 +66,6 @@ def tensorrt_llm_image_factory(
             },
         )
     )
-
-
-def tensorrt_llm_cls(
-    image: modal.Image = tensorrt_llm_image_factory(),  # noqa: B008
-    secrets: list[modal.Secret] = [hf_secret],  # noqa: B006
-    gpu: str = "H100!",
-    volumes: dict[str, modal.Volume] = {HF_CACHE_PATH: hf_cache_volume},  # noqa: B006
-    cpu: int = 4,
-    memory: int = 4 * 1024,
-    scaledown_window: int = 30 * SECONDS,
-    timeout: int = 1 * HOURS,
-    region: str = "us-chicago-1",
-) -> Callable:
-    """
-    Create a TensorRT-LLM server class that runs on Modal.
-
-    :param: image: Image to use for the TensorRT-LLM server.
-    :param: secrets: Secrets to add to the container.
-    :param: gpu: GPU to attach to the server's container.
-    :param: volumes: Modal volumes to attach to the server's container.
-    :param: cpu: Number of CPUs to add to the server.
-    :param: memory: RAM, in MB, to add to the server.
-    :param: scaledown_window: Time, in seconds, to wait between requests before scaling
-        down the server.
-    :param: timeout: Time, in seconds, to wait after startup before scaling down the
-        server.
-    :param: region: Region in which to run the server.
-    :return: A TensorRT-LLM server class that runs on Modal.
-    """
-
-    def decorator(cls: type) -> Callable:
-        return app.cls(
-            image=image,
-            secrets=secrets,
-            gpu=gpu,
-            volumes=volumes,
-            cpu=cpu,
-            memory=memory,
-            max_containers=1,
-            scaledown_window=scaledown_window,
-            timeout=timeout,
-            region=region,
-        )(modal.concurrent(max_inputs=1000)(cls))
-
-    return decorator
 
 
 class TensorRTLLMBase:
