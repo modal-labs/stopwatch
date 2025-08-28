@@ -37,8 +37,8 @@ class LLMServerType(str, Enum):
         """Get the latest version of the LLM server."""
 
         versions = {
-            LLMServerType.sglang: "v0.4.10.post2-cu126",
-            LLMServerType.tensorrt_llm: "1.0.0rc4",
+            LLMServerType.sglang: "v0.5.1.post3-cu126",
+            LLMServerType.tensorrt_llm: "1.1.0rc1",
             LLMServerType.tokasaurus: "0.0.4",
             LLMServerType.vllm: "v0.10.1.1",
             LLMServerType.vllm_pd_disaggregation: "v0.10.1.1",

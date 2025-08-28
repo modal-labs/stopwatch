@@ -28,8 +28,6 @@ def sglang_image_factory(
             "hf-transfer",
             "grpclib",
             "requests",
-            # vLLM is needed for its AWQ marlin kernel
-            "vllm",
             *(extra_python_packages or []),
         )
         .env({"HF_HUB_CACHE": HF_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})

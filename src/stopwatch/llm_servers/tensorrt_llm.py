@@ -77,9 +77,7 @@ class TensorRTLLMBase:
         import tensorrt_llm
         import torch
         import yaml
-        from huggingface_hub import snapshot_download
-        from tensorrt_llm._tensorrt_engine import LLM
-        from tensorrt_llm.llmapi.llm_args import update_llm_args_with_extra_dict
+        from tensorrt_llm.llmapi.llm_utils import update_llm_args_with_extra_dict
         from tensorrt_llm.plugin import PluginConfig
 
         # This entire function needs to be wrapped in a try/except block. If an error
@@ -96,7 +94,6 @@ class TensorRTLLMBase:
             logger.info(server_config)
 
             logger.info("Downloading base model if necessary")
-            model_path = snapshot_download(self.model)
 
             engine_fingerprint = hashlib.md5(  # noqa: S324
                 json.dumps(llm_kwargs, sort_keys=True).encode(),
@@ -104,15 +101,16 @@ class TensorRTLLMBase:
             logger.info("Engine fingerprint: %s", engine_fingerprint)
             logger.info("%s", llm_kwargs)
 
-            self.engine_path = (
-                Path(model_path)
-                / "tensorrt-llm-engines"
+            self.config_path = (
+                Path(HF_CACHE_PATH)
+                / "tensorrt-llm-configs"
                 / f"{tensorrt_llm.__version__}-{self.model}-{engine_fingerprint}"
+                / LLM_KWARGS_PATH
             )
-            logger.info("Engine path: %s", self.engine_path)
+            logger.info("Config path: %s", self.config_path)
 
-            if not self.engine_path.exists():
-                # Build the engine
+            if not self.config_path.exists():
+                # Save the config
                 llm_kwargs_simple = llm_kwargs.copy()
 
                 # Build with plugins, but don't save them to the engine kwargs yaml
@@ -132,19 +130,17 @@ class TensorRTLLMBase:
                 # Prepare kwargs for LLM constructor
                 llm_kwargs = update_llm_args_with_extra_dict(
                     {
-                        "model": model_path,
+                        "model": self.model,
                         "tensor_parallel_size": torch.cuda.device_count(),
                         "tokenizer": server_config.get("tokenizer", self.model),
                     },
                     llm_kwargs,
                 )
 
-                logger.info("Building new engine at %s", self.engine_path)
-                llm = LLM(**llm_kwargs)
-                llm.save(self.engine_path)
-                del llm
+                if not self.config_path.parent.exists():
+                    self.config_path.parent.mkdir(parents=True)
 
-                with (self.engine_path / LLM_KWARGS_PATH).open("w") as f:
+                with self.config_path.open("w") as f:
                     yaml.dump(llm_kwargs_simple, f)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
@@ -162,30 +158,30 @@ class TensorRTLLMBase:
 
         server_config = json.loads(self.server_config)
 
-        # self.engine_path is only not set if there was an error in enter(). By setting
-        # engine_path to "none", trtllm-serve will fail, as explained in the comment
-        # at the start of enter().
-        engine_path = self.engine_path if hasattr(self, "engine_path") else Path("none")
-        engine_config_path = self.engine_path / LLM_KWARGS_PATH
-
-        # Make sure the volume is up-to-date and this container has access to the built
-        # engine.
-        for _ in range(10):
-            if engine_config_path.exists():
-                break
-            time.sleep(5)
-            hf_cache_volume.reload()
+        if hasattr(self, "config_path"):
+            # Make sure the volume is up-to-date and this container has access to the
+            # saved config.
+            for _ in range(10):
+                if self.config_path.exists():
+                    break
+                time.sleep(5)
+                hf_cache_volume.reload()
+        else:
+            # self.config_path is only not set if there was an error in enter(). By
+            # setting self.config_path to "none", trtllm-serve will fail, as explained
+            # in the comment at the start of enter().
+            self.config_path = Path("none")
 
         # Start TensorRT-LLM server
         subprocess.Popen(
             " ".join(
                 [
                     "trtllm-serve",
-                    str(engine_path),
+                    self.model,
                     "--host",
                     "0.0.0.0",
                     "--extra_llm_api_options",
-                    str(engine_config_path),
+                    str(self.config_path),
                     *(
                         ["--tokenizer", server_config["tokenizer"]]
                         if "tokenizer" in server_config
