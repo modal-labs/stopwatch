@@ -1,7 +1,7 @@
 import asyncio
 import itertools
 import logging
-from collections.abc import Iterator, Mapping
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,7 +24,7 @@ guidellm_image = (
     modal.Image.debian_slim()
     .apt_install("git")
     .uv_pip_install(
-        f"git+https://github.com/neuralmagic/guidellm.git#{GUIDELLM_VERSION}",
+        f"git+https://github.com/vllm-project/guidellm.git#{GUIDELLM_VERSION}",
         "tiktoken",
     )
     .env(
@@ -35,56 +35,11 @@ guidellm_image = (
 )
 
 with guidellm_image.imports():
-    from guidellm.backend import OpenAIHTTPBackend
     from guidellm.benchmark.benchmarker import GenerativeBenchmarker
     from guidellm.benchmark.profile import create_profile
-    from guidellm.request import GenerationRequest, GenerativeRequestLoader
+    from pydantic_core import ValidationError
 
-    class CustomGenerativeRequestLoader(GenerativeRequestLoader):
-        """
-        A wrapper around GenerativeRequestLoader that allows for modifications to
-        be made to GuideLLM requests.
-
-        These are both useful when testing structured outputs, e.g.
-        https://docs.vllm.ai/en/latest/features/structured_outputs.html
-        """
-
-        def __init__(
-            self,
-            extra_body: dict[str, Any] | None = None,
-            *,
-            use_chat_completions: bool = False,
-            **kwargs: dict[str, Any],
-        ) -> None:
-            """
-            Create a custom generative request loader.
-
-            :param: extra_body: Extra parameters to add to the body of each request.
-            :param: use_chat_completions: Whether to use the chat completions endpoint,
-                as opposed to the text completions endpoint.
-            :param: kwargs: Additional keyword arguments to pass to the
-                GenerativeRequestLoader constructor.
-            """
-
-            super().__init__(**kwargs)
-            self.extra_body = extra_body or {}
-            self.use_chat_completions = use_chat_completions
-
-        def __iter__(self) -> Iterator[GenerationRequest]:
-            """Iterate over the requests in the loader."""
-
-            for item in super().__iter__():
-                for k, v in self.extra_body.items():
-                    item.params[k] = v
-
-                if self.use_chat_completions:
-                    item.request_type = "chat_completions"
-
-                yield item
-
-        def __len__(self) -> int:
-            """Return the number of unique requests in the loader."""
-            return super().__len__()
+    from stopwatch.utils import CustomGenerativeRequestLoader, CustomOpenAIHTTPBackend
 
 
 @app.cls(
@@ -179,7 +134,7 @@ class GuideLLM:
         benchmark_results = []
 
         # Create backend
-        backend = OpenAIHTTPBackend(
+        backend = CustomOpenAIHTTPBackend(
             target=endpoint,
             extra_query=extra_query,
             remove_from_body=[
@@ -225,27 +180,35 @@ class GuideLLM:
                 processor=processor,
             )
 
-            async for result in benchmarker.run(
-                profile=profile,
-                max_number_per_strategy=None,
-                max_duration_per_strategy=duration,
-                warmup_percent_per_strategy=None,
-                cooldown_percent_per_strategy=None,
-            ):
-                if result.type_ == "benchmark_compiled":
-                    if result.current_benchmark is None:
-                        msg = "Current benchmark is None"
-                        raise ValueError(msg)
+            try:
+                async for result in benchmarker.run(
+                    profile=profile,
+                    max_number_per_strategy=None,
+                    max_duration_per_strategy=duration,
+                    warmup_percent_per_strategy=None,
+                    cooldown_percent_per_strategy=None,
+                ):
+                    if result.type_ == "benchmark_compiled":
+                        if result.current_benchmark is None:
+                            logger.exception(
+                                "Error running benchmark: Current benchmark is None",
+                            )
+                            continue
 
-                    benchmark_results.append(
-                        {
-                            **result.current_benchmark.model_dump(),
-                            "rate_type": rate_type_i,
-                            "rate": rate_i,
-                            "queue_duration": queue_duration,
-                            "cold_start_duration": cold_start_duration,
-                        },
-                    )
+                        benchmark_results.append(
+                            {
+                                **result.current_benchmark.model_dump(),
+                                "rate_type": rate_type_i,
+                                "rate": rate_i,
+                                "queue_duration": queue_duration,
+                                "cold_start_duration": cold_start_duration,
+                            },
+                        )
+            except (ValueError, ValidationError):
+                logger.exception(
+                    "Error running benchmark: No requests completed successfully",
+                )
+                continue
 
             if i != len(rates_to_run) - 1:
                 await asyncio.sleep(DELAY_BETWEEN_BENCHMARKS)
