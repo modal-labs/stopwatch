@@ -87,32 +87,31 @@ class TensorRTLLMBase:
             server_config = json.loads(self.server_config)
             llm_kwargs = server_config.get("llm_kwargs", {})
 
-            logger.info("Received server config")
-            logger.info(server_config)
+            if len(llm_kwargs) > 0:
+                logger.info("Received server config")
+                logger.info(server_config)
 
-            logger.info("Downloading base model if necessary")
+                engine_fingerprint = hashlib.md5(  # noqa: S324
+                    json.dumps(llm_kwargs, sort_keys=True).encode(),
+                ).hexdigest()
+                logger.info("Engine fingerprint: %s", engine_fingerprint)
+                logger.info("%s", llm_kwargs)
 
-            engine_fingerprint = hashlib.md5(  # noqa: S324
-                json.dumps(llm_kwargs, sort_keys=True).encode(),
-            ).hexdigest()
-            logger.info("Engine fingerprint: %s", engine_fingerprint)
-            logger.info("%s", llm_kwargs)
+                self.config_path = (
+                    Path(HF_CACHE_PATH)
+                    / "tensorrt-llm-configs"
+                    / f"{tensorrt_llm.__version__}-{self.model}-{engine_fingerprint}"
+                    / LLM_KWARGS_PATH
+                )
+                logger.info("Config path: %s", self.config_path)
 
-            self.config_path = (
-                Path(HF_CACHE_PATH)
-                / "tensorrt-llm-configs"
-                / f"{tensorrt_llm.__version__}-{self.model}-{engine_fingerprint}"
-                / LLM_KWARGS_PATH
-            )
-            logger.info("Config path: %s", self.config_path)
+                if not self.config_path.exists():
+                    # Save the config
+                    if not self.config_path.parent.exists():
+                        self.config_path.parent.mkdir(parents=True)
 
-            if not self.config_path.exists():
-                # Save the config
-                if not self.config_path.parent.exists():
-                    self.config_path.parent.mkdir(parents=True)
-
-                with self.config_path.open("w") as f:
-                    yaml.dump(llm_kwargs, f)
+                    with self.config_path.open("w") as f:
+                        yaml.dump(llm_kwargs, f)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
 
@@ -151,8 +150,11 @@ class TensorRTLLMBase:
                     self.model,
                     "--host",
                     "0.0.0.0",
-                    "--extra_llm_api_options",
-                    str(self.config_path),
+                    *(
+                        ["--extra_llm_api_options", str(self.config_path)]
+                        if len(server_config["llm_kwargs"]) > 0
+                        else []
+                    ),
                     *(
                         ["--tokenizer", server_config["tokenizer"]]
                         if "tokenizer" in server_config
