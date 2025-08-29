@@ -75,10 +75,7 @@ class TensorRTLLMBase:
     def enter(self) -> None:
         """Download the base model and build the TensorRT-LLM engine."""
         import tensorrt_llm
-        import torch
         import yaml
-        from tensorrt_llm.llmapi.llm_utils import update_llm_args_with_extra_dict
-        from tensorrt_llm.plugin import PluginConfig
 
         # This entire function needs to be wrapped in a try/except block. If an error
         # occurs here, a crash will result in the container getting automatically
@@ -111,37 +108,11 @@ class TensorRTLLMBase:
 
             if not self.config_path.exists():
                 # Save the config
-                llm_kwargs_simple = llm_kwargs.copy()
-
-                # Build with plugins, but don't save them to the engine kwargs yaml
-                # file, because trtllm-serve doesn't support loading them. This is
-                # fine, since the plugins are incorporated at build time.
-                if (
-                    "build_config" in llm_kwargs
-                    and "plugin_config" in llm_kwargs["build_config"]
-                ):
-                    llm_kwargs["build_config"]["plugin_config"] = (
-                        PluginConfig.from_dict(
-                            llm_kwargs["build_config"]["plugin_config"],
-                        )
-                    )
-                    llm_kwargs_simple["build_config"].pop("plugin_config")
-
-                # Prepare kwargs for LLM constructor
-                llm_kwargs = update_llm_args_with_extra_dict(
-                    {
-                        "model": self.model,
-                        "tensor_parallel_size": torch.cuda.device_count(),
-                        "tokenizer": server_config.get("tokenizer", self.model),
-                    },
-                    llm_kwargs,
-                )
-
                 if not self.config_path.parent.exists():
                     self.config_path.parent.mkdir(parents=True)
 
                 with self.config_path.open("w") as f:
-                    yaml.dump(llm_kwargs_simple, f)
+                    yaml.dump(llm_kwargs, f)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
 
