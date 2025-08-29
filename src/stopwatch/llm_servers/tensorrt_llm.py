@@ -140,7 +140,7 @@ class TensorRTLLMBase:
             # self.config_path is only not set if there was an error in enter(). By
             # setting self.config_path to "none", trtllm-serve will fail, as explained
             # in the comment at the start of enter().
-            self.config_path = Path("none")
+            self.config_path = None
 
         # Start TensorRT-LLM server
         subprocess.Popen(
@@ -152,7 +152,7 @@ class TensorRTLLMBase:
                     "0.0.0.0",
                     *(
                         ["--extra_llm_api_options", str(self.config_path)]
-                        if len(server_config["llm_kwargs"]) > 0
+                        if self.config_path is not None
                         else []
                     ),
                     *(
