@@ -5,9 +5,8 @@ All types of contributions are encouraged, but please first discuss the change y
 
 ## Adding benchmarks
 
-To generate the results you can view at [almanac.modal.com](https://almanac.modal.com), we run all of the benchmarks in [`configs/full-suite.yaml`](/configs/full-suite.yaml), which in turn runs all of the benchmarks in the [`vllm`](/configs/vllm), [`sglang`](/configs/sglang), and [`tensorrt-llm`](/configs/tensorrt-llm) subdirectories.
-Most of these benchmarks are not tuned, and we welcome contributions to Stopwatch aimed at adding new models and making our existing benchmarks faster.
-To write your own benchmark configs, see the [Getting Started](https://github.com/modal-labs/stopwatch/wiki/Getting-Started) doc for more details.
+To generate the results you can view at [almanac.modal.com](https://almanac.modal.com), we use Big Benchmark, which runs Stopwatch internally.
+If you would like to contribute to this repository of benchmarks, please check out [Big Benchmark](https://github.com/modal-labs/big-benchmark) for more details.
 
 ## Code of Conduct
 
