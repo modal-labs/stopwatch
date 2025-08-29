@@ -60,10 +60,27 @@ stopwatch profile $MODEL $LLM_SERVER_TYPE --output-path $OUTPUT_PATH --num-reque
 Once the profiling is done, the trace will be saved to `trace.json.gz`, which you can open and visualize at [https://ui.perfetto.dev](https://ui.perfetto.dev).
 Keep in mind that generated traces can get very large, so it is recommended to only send a few requests while profiling.
 
+## Run tests
+
+Before committing any changes, you should make sure that your changes don't break any core functionality in Stopwatch.
+You may verify this with:
+
+```bash
+pytest
+```
+
+### Lint
+
+To make sure that any code changes are compliant with our linting rules, you can run `ruff` with:
+
+```bash
+ruff check
+```
+
 ## Contributing
 
 We welcome contributions, including those that add tuned benchmarks to our collection.
-See the [CONTRIBUTING](/CONTRIBUTING.md) file and the [Getting Started](https://github.com/modal-labs/stopwatch/wiki/Getting-Started) document for more details on contributing to Stopwatch.
+See the [CONTRIBUTING](/CONTRIBUTING.md) file and the [Getting Started](https://github.com/modal-labs/big-benchmark/wiki/Getting-Started) document for more details on contributing to Stopwatch.
 
 ## License
 
