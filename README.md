@@ -12,7 +12,7 @@ pip install -e .
 
 ## Run a benchmark
 
-To run a single benchmark, you can use the `run_benchmark` command, which will save your results to a local file.
+To run a single benchmark, you can use the `provision-and-benchmark` command, which will provision an LLM server, benchmark it, and save the results to a local file.
 For example, to run a synchronous (one request after another) benchmark with vLLM and save the results to `results.json`:
 
 ```bash
